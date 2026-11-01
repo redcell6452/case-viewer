@@ -1,0 +1,12 @@
+# Default deny: only reviewed source, documentation and synthetic tests belong here.
+# Real case files, extracted exports, screenshots and vendor software stay local.
+*
+!/.gitignore
+!/case-viewer.html
+!/README.md
+!/FORMAT.md
+!/METHODOLOGY.md
+!/LICENSE
+!/tests/
+/tests/*
+!/tests/regression.cjs
