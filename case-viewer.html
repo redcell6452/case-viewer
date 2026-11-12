@@ -65,6 +65,10 @@ button,select,input{font:inherit;color:inherit}
 button{background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:5px 10px;cursor:pointer}
 button:hover{background:var(--hover);border-color:#5a636c}
 button.on{background:var(--sel);border-color:var(--accent);color:var(--fg);font-weight:600}
+/* a link that sits among the header buttons and looks like one */
+a.btnlink{display:inline-flex;align-items:center;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:5px 10px;color:var(--fg);text-decoration:none;line-height:inherit}
+a.btnlink:hover{background:var(--hover);border-color:#5a636c}
+a.btnlink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button:disabled{opacity:.4;cursor:not-allowed}
 select,input[type=text],input[type=number]{background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:4px 7px}
 .mono{font-family:var(--mono)}
@@ -244,6 +248,15 @@ main{flex:1;display:flex;min-height:0}
 .vittable td.sus{font-style:italic}
 .vittable td .vsrc{font:11px var(--sans);color:var(--dim)}
 .vittable td.alm{color:var(--crit);font-weight:700;box-shadow:inset 3px 0 0 var(--crit)}
+/* source citations: plain text in the page colour, underlined only when they link */
+.srclist{color:var(--dim)}
+a.srcref{color:inherit;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:2px}
+a.srcref:hover{text-decoration-color:currentColor}
+a.srcref:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.srcintro{color:var(--dim);max-width:72ch}
+.srcall{margin:0;padding-left:18px;max-width:90ch;line-height:1.6}
+.srcall li{margin:2px 0}
+.srcuse{color:var(--dim)}
 .vitkey{display:inline-flex;gap:12px;align-items:center;font-size:11px;color:var(--dim)}
 .vitkey b{font:600 11px var(--mono);color:var(--warn)}
 .vitkey i{display:inline-block;width:3px;height:12px;background:var(--crit);vertical-align:-2px;margin-right:4px}
@@ -542,7 +555,9 @@ dialog input[type=text]{width:100%}
 @media (max-width: 560px){
   /* keep the title whole on a phone now that button text is larger */
   .header-actions{gap:4px}
-  .header-actions button{font-size:13px;padding-left:9px;padding-right:9px}
+  .header-actions button,.header-actions a.btnlink{font-size:13px;padding-left:9px;padding-right:9px}
+  /* no room for a fifth header button on a phone: the link is in Settings instead */
+  #btnRepo{display:none}
   .num .val{font-size:22px}
   #numerics{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
   .tabs button{padding:7px 10px;font-size:13px}
@@ -550,7 +565,7 @@ dialog input[type=text]{width:100%}
 /* pointer-coarse devices get bigger hit targets on the scrub bar */
 @media (pointer: coarse){
   #timeline{height:82px}
-  button{min-height:40px;padding-left:12px;padding-right:12px}
+  button,a.btnlink{min-height:40px;padding-left:12px;padding-right:12px}
   select,input[type=text],input[type=number]{min-height:38px}
   .chip{padding:6px 11px;font-size:13px}
   .ev{padding:9px}
@@ -607,6 +622,9 @@ dialog input[type=text]{width:100%}
       <button id="btnTheme" title="Light / dark (T)">☀</button>
       <button id="btnSide" type="button" title="Hide event list (E)" aria-controls="side" aria-expanded="true">Hide events</button>
       <button id="btnLoad" title="Load another file">Open…</button>
+      <a id="btnRepo" class="btnlink" href="https://github.com/redcell6452/case-viewer"
+         target="_blank" rel="noopener noreferrer"
+         title="Source code, documentation and sources on GitHub (opens in a new tab)">GitHub</a>
     </div>
     <div class="tabs" id="tabs">
       <button data-view="monitor" class="on">Monitor</button>
@@ -1807,9 +1825,27 @@ function buildModel(json, xml, fileName){
       const known={1:'Pads',3:'Lead II',16:'SpO₂ pleth'};
       return ch ? ch.name : (known[+c.AssignedChan]||'Channel '+c.AssignedChan);
     });
-    M.displayHistory.push({t:elapsedOf(v.StdHdr), names});
+    M.displayHistory.push({t:elapsedOf(v.StdHdr), names, historic:isHistoric(v.StdHdr)});
   }
   M.displayHistory.sort((a,b)=>a.t-b.t);
+  /* The monitor only stores the waveforms it is showing, so a change of displayed
+     lead is also a change in what was recorded (and the switch itself can leave a
+     short stretch with nothing recorded). Put each change in the event list. */
+  {
+    const nice=n=>String(n).replace(/^12-Lead /,'Lead ').replace(/,\s*Waveform$/i,'');
+    let prev=null;
+    for(const c of M.displayHistory.filter(x=>!x.historic)){
+      if(prev){
+        const gone=prev.names.filter(n=>!c.names.includes(n)), added=c.names.filter(n=>!prev.names.includes(n));
+        if(gone.length || added.length)
+          pushEvent({t:c.t, kind:'display', group:'Display', name:'Monitor display changed',
+            detail:(gone.length?gone.map(nice).join(', '):'—')+' → '+(added.length?added.map(nice).join(', '):'—')+
+              '. The monitor records only the waveforms it shows.',
+            sev:'note', historic:false});
+      }
+      prev=c;
+    }
+  }
 
   /* NIBP auto-cycle interval, in minutes, as the monitor was set. DisplayInfo is
      re-written when someone changes a display setting, so the interval can change
@@ -2517,6 +2553,92 @@ const AXIS_TITLE = {
   hr:'Heart / pulse rate', rr:'Respiratory rate', spo2:'Oxygen saturation',
   pi:'Perfusion / variability index', sat:'Dyshaemoglobins', hb:'Haemoglobin',
   oc:'Oxygen content', bp:'Blood pressure', co2:'Capnography', temp:'Temperature'
+};
+/* stretches of at least 300 ms inside [a,b] where a channel has no samples */
+function recordingGaps(ch, a, b){
+  const out=[]; if(!(b>a)) return out;
+  const segs=ch.segs.map(s=>({t0:s.t0, t1:s.t0+s.n*1000/ch.hz})).sort((x,y)=>x.t0-y.t0);
+  let cur=a;
+  for(const s of segs){
+    if(s.t1<=cur) continue;
+    if(s.t0>=b) break;
+    if(s.t0-cur>=300) out.push({t0:cur, t1:Math.min(s.t0,b)});
+    cur=Math.max(cur, s.t1);
+    if(cur>=b) break;
+  }
+  if(b-cur>=300) out.push({t0:cur, t1:b});
+  return out;
+}
+/* why a channel has no samples at time t, as far as the file says */
+function gapLabel(ch, t){
+  let cfg=null;
+  for(const c of M.displayHistory||[]){ if(c.historic) continue; if(c.t<=t+500) cfg=c; else break; }
+  if(cfg && cfg.names.length && !cfg.names.includes(ch.name)) return 'not on monitor screen';
+  return 'not recorded';
+}
+/* ---------------- published sources ----------------
+   Where a method, formula or threshold comes from. Each result names its sources by
+   key; the results tables and Settings › Sources show them, linked. Links are DOI or
+   PubMed records checked against the title, or the issuing body's own page; a source
+   without a verified link is shown as text only. */
+const SOURCES = {
+  capnoPhases:{cite:'Bhavani-Shankar K et al. Terminology and the current limitations of time capnography: a brief review. J Clin Monit 1995;11(3):175-82.', url:'https://doi.org/10.1007/BF01617719', use:'capnogram phases, angles and EtCO₂'},
+  capnoObstruct:{cite:'Nik Hisamuddin NA et al. Correlations between capnographic waveforms and peak flow meter measurement in emergency department management of asthma. Int J Emerg Med 2009;2(2):83-9.', url:'https://doi.org/10.1007/s12245-009-0088-9', use:'phase III slope'},
+  capnoCpr:{cite:'Kodali BS, Urman RD. Capnography during cardiopulmonary resuscitation: current evidence and future directions. J Emerg Trauma Shock 2014;7(4):332-40.', url:'https://doi.org/10.4103/0974-2700.142778', use:'EtCO₂ during CPR'},
+  plethVar:{cite:'Cannesson M et al. Pleth variability index to monitor the respiratory variations in the pulse oximeter plethysmographic waveform amplitude and predict fluid responsiveness in the operating theatre. Br J Anaesth 2008;101(2):200-6.', url:'https://doi.org/10.1093/bja/aen133', use:'pleth amplitude and its variation'},
+  dpop:{cite:'Cannesson M et al. Respiratory variations in pulse oximetry plethysmographic waveform amplitude to predict fluid responsiveness in the operating room. Anesthesiology 2007;106(6):1105-11.', url:'https://doi.org/10.1097/01.anes.0000267593.72744.20', use:'ΔPOP'},
+  ppgResp:{cite:'Nilsson LM. Respiration signals from photoplethysmography. Anesth Analg 2013;117(4):859-65.', url:'https://doi.org/10.1213/ANE.0b013e31828098b2', use:'pleth pulse and breathing rate'},
+  spo2Fda:{cite:'US FDA. Pulse oximeters: accuracy and limitations (device information page).', url:'https://www.fda.gov/medical-devices/products-and-medical-procedures/pulse-oximeters', use:'SpO₂ accuracy limits'},
+  ecgStd:{cite:'Kligfield P et al. Recommendations for the standardization and interpretation of the electrocardiogram: part I. Circulation 2007;115(10):1306-24.', url:'https://doi.org/10.1161/CIRCULATIONAHA.106.180200', use:'ECG intervals, QRS width, axis'},
+  ecgQt:{cite:'Rautaharju PM et al. AHA/ACCF/HRS recommendations for the standardization and interpretation of the electrocardiogram: part IV: the ST segment, T and U waves, and the QT interval. Circulation 2009;119(10):e241-50.', url:'https://doi.org/10.1161/CIRCULATIONAHA.108.191096', use:'QT and QTc'},
+  bazett:{cite:'Bazett HC. An analysis of the time-relations of electrocardiograms. Heart 1920;7:353-70 (reprinted Ann Noninvasive Electrocardiol 1997;2(2):177-94).', url:'https://doi.org/10.1111/j.1542-474X.1997.tb00325.x', use:'QTc (Bazett)'},
+  fridericia:{cite:'Fridericia LS. Die Systolendauer im Elektrokardiogramm bei normalen Menschen und bei Herzkranken. Acta Med Scand 1920;53(1):469-86.', url:'https://doi.org/10.1111/j.0954-6820.1920.tb18266.x', use:'QTc (Fridericia)'},
+  panTompkins:{cite:'Pan J, Tompkins WJ. A real-time QRS detection algorithm. IEEE Trans Biomed Eng 1985;32(3):230-6.', url:'https://doi.org/10.1109/TBME.1985.325532', use:'QRS detection approach (slope-energy envelope)'},
+  hrvTaskForce:{cite:'Task Force of the ESC and NASPE. Heart rate variability: standards of measurement, physiological interpretation and clinical use. Circulation 1996;93(5):1043-65.', url:'https://doi.org/10.1161/01.CIR.93.5.1043', use:'SDNN, RMSSD, pNN50, LF/HF'},
+  lomb:{cite:'PhysioNet. lomb: estimate power spectrum using the Lomb periodogram method (WFDB Applications Guide).', url:'https://physionet.org/physiotools/wag/lomb-1.htm', use:'LF/HF from uneven beat intervals'},
+  ptt:{cite:'Mukkamala R et al. Toward ubiquitous blood pressure monitoring via pulse transit time: theory and practice. IEEE Trans Biomed Eng 2015;62(8):1879-901.', url:'https://doi.org/10.1109/TBME.2015.2441951', use:'pulse arrival time'},
+  gardner:{cite:'Gardner RM. Direct blood pressure measurement: dynamic response requirements. Anesthesiology 1981;54(3):227-36.', url:'https://doi.org/10.1097/00000542-198103000-00010', use:'flush test, damping and natural frequency'},
+  ppv:{cite:'Michard F et al. Relation between respiratory changes in arterial pulse pressure and fluid responsiveness in septic patients with acute circulatory failure. Am J Respir Crit Care Med 2000;162(1):134-8.', url:'https://doi.org/10.1164/ajrccm.162.1.9903035', use:'PPV'},
+  spv:{cite:'Perel A et al. Systolic blood pressure variation is a sensitive indicator of hypovolemia in ventilated dogs subjected to graded hemorrhage. Anesthesiology 1987;67(4):498-502.', url:'https://doi.org/10.1097/00000542-198710000-00009', use:'SPV and DPV'},
+  coFromBp:{cite:'Sun JX et al. The cardiac output from blood pressure algorithms trial. Crit Care Med 2009;37(1):72-80.', url:'https://doi.org/10.1097/CCM.0b013e3181930174', use:'stroke volume from the pressure waveform'},
+  liljestrand:{cite:'Liljestrand G, Zander E. Vergleichende Bestimmungen des Minutenvolumens des Herzens beim Menschen mittels der Stickoxydulmethode und durch Blutdruckmessung. Z Gesamte Exp Med 1928;59:105-22.', url:'https://doi.org/10.1007/BF02608853', use:'SV = k·PP/(SBP+DBP)'},
+  eaKelly:{cite:'Kelly RP et al. Effective arterial elastance as index of arterial vascular load in humans. Circulation 1992;86(2):513-21.', url:'https://doi.org/10.1161/01.cir.86.2.513', use:'Ea'},
+  eaChen:{cite:'Chen CH et al. Noninvasive single-beat determination of left ventricular end-systolic elastance in humans. J Am Coll Cardiol 2001;38(7):2028-34.', url:'https://doi.org/10.1016/s0735-1097(01)01651-5', use:'Ea ≈ 0.9·SBP/SV'},
+  eadyn:{cite:'Monge García MI et al. Dynamic arterial elastance as a predictor of arterial pressure response to fluid administration: a validation study. Crit Care 2014;18(6):626.', url:'https://doi.org/10.1186/s13054-014-0626-6', use:'Eadyn (withheld here)'},
+  esicmShock:{cite:'Monnet X et al. ESICM guidelines on circulatory shock and hemodynamic monitoring 2025. Intensive Care Med 2025;51(11):1971-2012.', url:'https://doi.org/10.1007/s00134-025-08137-z', use:'dynamic indices and their limits'},
+  cpo:{cite:'Fincke R et al. Cardiac power is the strongest hemodynamic correlate of mortality in cardiogenic shock: a report from the SHOCK trial registry. J Am Coll Cardiol 2004;44(2):340-8.', url:'https://doi.org/10.1016/j.jacc.2004.03.060', use:'cardiac power output (MAP×CO/451)'},
+  dubois:{cite:'Du Bois D, Du Bois EF. A formula to estimate the approximate surface area if height and weight be known. Arch Intern Med 1916;17(6_2):863-71.', url:'https://doi.org/10.1001/archinte.1916.00080130010002', use:'BSA (DuBois)'},
+  mosteller:{cite:'Mosteller RD. Simplified calculation of body-surface area. N Engl J Med 1987;317(17):1098.', url:'https://doi.org/10.1056/NEJM198710223171717', use:'BSA (Mosteller)'},
+  shockIndex:{cite:'Allgöwer M, Burri C. Schockindex. Dtsch Med Wochenschr 1967;92(43):1947-50.', url:'https://doi.org/10.1055/s-0028-1106070', use:'shock index'},
+  rpp:{cite:'Gobel FL et al. The rate-pressure product as an index of myocardial oxygen consumption during exercise in patients with angina pectoris. Circulation 1978;57(3):549-56.', url:'https://doi.org/10.1161/01.cir.57.3.549', use:'rate-pressure product'},
+  prx:{cite:'Czosnyka M et al. Continuous assessment of the cerebral vasomotor reactivity in head injury. Neurosurgery 1997;41(1):11-7.', url:'https://doi.org/10.1097/00006123-199707000-00005', use:'PRx'},
+  cppBtf:{cite:'Carney N et al. Guidelines for the management of severe traumatic brain injury, fourth edition. Neurosurgery 2017;80(1):6-15.', url:'https://doi.org/10.1227/NEU.0000000000001432', use:'CPP'},
+  sfRatio:{cite:'Rice TW et al. Comparison of the SpO2/FIO2 ratio and the PaO2/FIO2 ratio in patients with acute lung injury or ARDS. Chest 2007;132(2):410-7.', url:'https://doi.org/10.1378/chest.07-0617', use:'S/F ratio'},
+  cprAha:{cite:'Panchal AR et al. Part 3: Adult basic and advanced life support: 2020 American Heart Association guidelines for CPR and ECC. Circulation 2020;142(16 suppl 2):S366-S468.', url:'https://doi.org/10.1161/CIR.0000000000000916', use:'CPR rate and depth targets'},
+  cprRelease:{cite:'Kovacs A et al. Chest compression release velocity: association with survival and favorable neurologic outcome after out-of-hospital cardiac arrest. Resuscitation 2015;92:107-14.', url:'https://doi.org/10.1016/j.resuscitation.2015.04.026', use:'release velocity target'}
+};
+/* linked citations for one or more source keys */
+function sourcesHtml(keys){
+  return [].concat(keys||[]).filter(k=>SOURCES[k]).map(k=>{
+    const s=SOURCES[k];
+    return s.url ? '<a class="srcref" href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer">'+esc(s.cite)+'</a>'
+                 : '<span class="srcref">'+esc(s.cite)+'</span>';
+  }).join('; ');
+}
+/* sources for the haemodynamic results, by result id */
+const HEMO_REFS = {
+  sbp:['gardner'], dbp:['gardner'], map:['gardner'], pp:['gardner'],
+  ppv:['ppv','esicmShock'], spv:['spv'], dpv:['spv'],
+  sv:['liljestrand','coFromBp'], co:['liljestrand','coFromBp'], svi:['coFromBp','dubois','mosteller'],
+  ci:['coFromBp','dubois','mosteller'], svv:['esicmShock'],
+  ea:['eaKelly','eaChen'], eadyn:['eadyn'], cpo:['cpo'], cpi:['cpo','dubois','mosteller'],
+  bsa:['dubois','mosteller']
+};
+/* extra sources for signal results that cite more than one, or none in their row */
+const SIG_REFS = {
+  hr_ecg:['panTompkins','ecgStd'], qt:['ecgQt'], qtcf:['ecgQt','fridericia'], qtcb:['ecgQt','bazett'],
+  sdnn:['hrvTaskForce'], rmssd:['hrvTaskForce'], pnn50:['hrvTaskForce'], lfhf:['hrvTaskForce','lomb'],
+  dpop:['dpop'], sf_ratio:['sfRatio'], rr_cv:['hrvTaskForce']
 };
 /* first index in a sorted array of numbers whose value is >= x */
 function lowerBound(a, x){
@@ -3445,7 +3567,7 @@ function hemoResult(id, value, opts){
     reference_range: !opts.descriptive && d.normal ? {lower:d.normal[0], upper:d.normal[1], context:opts.context||null} : null,
     interpretation: opts.descriptive || d.trendOnly ? 'trend_only' : (d.interpretation||null),
     averaging: d.averaging||null, note: d.note||null,
-    validity: d.validity||null, n: opts.n||null
+    validity: d.validity||null, n: opts.n||null, reference: HEMO_REFS[id]||null
   };
 }
 const medianOf = a => { const s=a.filter(v=>v!=null&&isFinite(v)).sort((x,y)=>x-y);
@@ -3814,6 +3936,7 @@ function renderHemoPanel(computed){
       bits.push('<span style="color:var(--warn)">'+r.limitations.map(x=>esc(x.replace(/_/g,' '))).join(', ')+'</span>');
     if(r.note) bits.push(esc(r.note));
     if(r.valid && r.interpretation && r.interpretation!=='trend_only') bits.push(esc(r.interpretation));
+    if(r.reference && r.reference.length) bits.push('<span class="srclist">Source: '+sourcesHtml(r.reference)+'</span>');
     if(r.n) bits.push('<span style="opacity:.6">n='+r.n+'</span>');
     return bits.join('<br>');
   };
@@ -4862,16 +4985,8 @@ function rsaAnalysis(beats){
    Reference ranges are metadata. Where no defensible adult range exists the entry carries
    normal:null and interpretation 'trend_only', per the spec. Sources are attached so a
    threshold can be traced back to where it came from. */
-const REF = {
-  capnoPhases:'Bhavani-Shankar K et al. Terminology and the current limitations of time capnography. Anesth Analg 1995.',
-  capnoObstruct:'Hisamuddin NA et al. Correlations between capnographic waveforms and peak flow meter measurements.',
-  capnoCpr:'Kodali BS, Urman RD. Capnography during cardiopulmonary resuscitation.',
-  plethVar:'Cannesson M et al. Pleth variability index to monitor respiratory variations in the pulse oximeter waveform amplitude. Br J Anaesth 2008.',
-  ppgResp:'Nilsson LM. Respiration signals from photoplethysmography. Anesth Analg 2013.',
-  spo2Fda:'FDA pulse oximeter guidance and safety communication — accuracy limits with perfusion, pigmentation, motion, sensor position.',
-  ecgStd:'AHA/ACCF/HRS recommendations for the standardization and interpretation of the electrocardiogram.',
-  ptt:'Mukkamala R et al. Towards ubiquitous blood pressure monitoring via pulse transit time.'
-};
+/* REF.<key> names a source in SOURCES (defined with the other source data below) */
+const REF = new Proxy({}, {get:(_,k)=>String(k)});
 const SIG_DEFS=[
  /* ---- capnography ---- */
  {id:'etco2', group:'Pulmonary', name:'End-tidal carbon dioxide', abbr:'ETCO₂', units:'mmHg',
@@ -5104,7 +5219,8 @@ function sigResult(id, value, o){
     valid, limitations:lim,
     reference_range: d.normal ? {lower:d.normal[0], upper:d.normal[1], context:o.context||null} : null,
     interpretation: d.trendOnly ? 'trend_only' : (d.interpretation||null),
-    note:d.note, validity:d.validity, confounders:d.confounders, reference:d.ref,
+    note:d.note, validity:d.validity, confounders:d.confounders,
+    reference:[...new Set([].concat(SIG_REFS[id]||[], d.ref||[]))],
     n:o.n||null};
 }
 function sigCompute(winArg){
@@ -5441,7 +5557,7 @@ function sigTable(R, groups, opts){
       b.push('<span style="color:var(--dim)">'+esc(r.interpretation)+'</span>');
     if(r.confounders) b.push('<span style="opacity:.65">confounders: '+
       esc(r.confounders.slice(0,5).join(', '))+'</span>');
-    if(r.reference) b.push('<span style="opacity:.55">'+esc(r.reference)+'</span>');
+    if(r.reference && r.reference.length) b.push('<span class="srclist">Source: '+sourcesHtml(r.reference)+'</span>');
     if(r.n) b.push('<span style="opacity:.6">n='+r.n+'</span>');
     return b.join('<br>');
   };
@@ -6067,6 +6183,28 @@ function drawMonitor(){
     geo.rows.push({idx:ri, name:ch.name, lo, hi, yTop, yBot, rowH,
       units:ch.units, isEcg:ch.isEcg});
     const Y = v => yBot-4 - (v-lo)/(hi-lo)*(rowH-8);
+    /* Stretches with no samples at all, hatched and named, so a missing trace reads as
+       what the file holds rather than a drawing fault. When the monitor wasn't
+       displaying this waveform at the time it didn't record it either. */
+    if(!ch.captureOnly){
+      for(const gap of recordingGaps(ch, Math.max(0,t0), Math.min(M.durMs,t1))){
+        const x0=Math.max(LEFT, X(gap.t0)), x1=Math.min(LEFT+plotW, X(gap.t1));
+        if(x1-x0<2) continue;
+        g.save();
+        g.beginPath(); g.rect(x0, yTop+1, x1-x0, rowH-2); g.clip();
+        g.fillStyle = THEME.mode==='light' ? 'rgba(90,100,110,0.07)' : 'rgba(200,205,211,0.05)';
+        g.fillRect(x0, yTop+1, x1-x0, rowH-2);
+        g.strokeStyle = THEME.mode==='light' ? 'rgba(90,100,110,0.22)' : 'rgba(200,205,211,0.14)';
+        g.lineWidth=1;
+        for(let x=x0-rowH; x<x1; x+=8){ g.beginPath(); g.moveTo(x, yBot); g.lineTo(x+rowH, yTop); g.stroke(); }
+        if(x1-x0 > 96){
+          g.fillStyle = T0.dim; g.font='10px ui-monospace,monospace'; g.textAlign='center';
+          g.fillText(gapLabel(ch, (gap.t0+gap.t1)/2), (x0+x1)/2, (yTop+yBot)/2+3);
+          g.textAlign='start';
+        }
+        g.restore();
+      }
+    }
     const cols = Math.round(plotW);
     g.strokeStyle = traceCol(ch.color); g.lineWidth = ch.isEcg?1.3:1.2;
     g.beginPath();
@@ -7594,7 +7732,9 @@ function renderCprPane(){
       'Rate, depth and release velocity are '+
       (C.source&&/^waveform/.test(C.source)?'detected here from the compression waveform'
         :'read from the per-compression records')+
-      ' — measurement, not a scored interpretation.</div>';
+      ' — measurement, not a scored interpretation.</div>'+
+    '<div class="note-inline srclist">Targets from: '+sourcesHtml(['cprAha','cprRelease'])+
+      '. EtCO₂ during CPR: '+sourcesHtml('capnoCpr')+'.</div>';
 
   function strip(title, target, right, kind, hpx){
     return '<div style="margin-bottom:12px">'+
@@ -9078,7 +9218,18 @@ function renderSettings(){
       row('All settings', '<button id="cfgReset">Restore defaults</button>')+
     '</div>'+
     '<div class="note-inline">Settings and annotations live in this browser only. '+
-    'Nothing about this case leaves your machine.</div>';
+    'Nothing about this case leaves your machine.</div>'+
+
+    '<h2 class="sec">Project</h2><div class="setgrid">'+
+      row('Source code', '<a class="btnlink" href="https://github.com/redcell6452/case-viewer" '+
+        'target="_blank" rel="noopener noreferrer">Open on GitHub</a>',
+        'Code, documentation and the format notes. Opens in a new tab.')+
+    '</div>'+
+    '<h2 class="sec">Sources</h2>'+
+    '<p class="srcintro">Published sources behind the methods, formulas and thresholds this '+
+    'viewer uses. Links open the DOI record, or the issuing body’s own page, in a new tab.</p>'+
+    '<ul class="srcall">'+Object.keys(SOURCES).map(k=>'<li>'+sourcesHtml(k)+
+      ' <span class="srcuse">(used for '+esc(SOURCES[k].use)+')</span></li>').join('')+'</ul>';
 
   const on=(id,ev,fn)=>{ const e=$(id); if(e) e.addEventListener(ev,fn); };
   const put=(k,v,extra)=>{ CFG[k]=v; cfgSave(); applyCfgToSession(); if(extra) extra(); };

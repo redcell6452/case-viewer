@@ -782,3 +782,31 @@ test('ventilation marks come from one source, never two merged', () => {
   assert.equal(a.run('M.vents.length'), 20);
   assert.equal(a.run('M.ventSource'), 'EtCO2Ventilations');
 });
+
+test('unrecorded stretches are found and named, and display changes become events', () => {
+  const a = app();
+  a.run(`M.displayHistory=[{t:0, names:['12-Lead II']}, {t:5000, names:['12-Lead I']}];
+    globalThis.CH={name:'12-Lead II', hz:250, segs:[{t0:0, n:1250, data:new Float32Array(1250)}, {t0:9000, n:250, data:new Float32Array(250)}]};`);
+  assert.equal(a.run('JSON.stringify(recordingGaps(CH,0,10000))'), JSON.stringify([{t0:5000,t1:9000}]));
+  assert.equal(a.run('gapLabel(CH,7000)'), 'not on monitor screen');
+  a.run(`M.displayHistory=[{t:0, names:['12-Lead II']}];`);
+  assert.equal(a.run('gapLabel(CH,7000)'), 'not recorded');
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:60}},
+    {TraceConfigs:{StdHdr:{ElapsedTime:1}, TraceConfig:[{AssignedChan:3}]}},
+    {TraceConfigs:{StdHdr:{ElapsedTime:30}, TraceConfig:[{AssignedChan:16}]}}
+  ]}]}}),null,'synthetic.json')`);
+  assert.equal(a.run(`M.events.filter(e=>e.kind==='display').map(e=>e.detail.split('.')[0]).join()`), 'Lead II → SpO₂ pleth');
+});
+
+test('every cited source has a link, and every result source exists', () => {
+  const a = app();
+  const bad = JSON.parse(a.run(`JSON.stringify(Object.entries(SOURCES).filter(([k,s])=>
+    !s.cite || !s.use || !['https://doi.org/10.','https://www.fda.gov/','https://physionet.org/'].some(p=>(s.url||'').startsWith(p))).map(([k])=>k))`));
+  assert.deepEqual(bad, []);
+  const missing = JSON.parse(a.run(`JSON.stringify([
+    ...SIG_DEFS.flatMap(d=>[].concat(d.ref||[])), ...Object.values(SIG_REFS).flat(), ...Object.values(HEMO_REFS).flat()
+  ].filter(k=>!SOURCES[k]))`));
+  assert.deepEqual(missing, []);
+  assert.ok(a.run(`sourcesHtml('gardner').includes('href="https://doi.org/10.1097/00000542-198103000-00010"')`));
+});
