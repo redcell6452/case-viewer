@@ -64,13 +64,14 @@ annotations live in that browser's local storage.
 |---|---|
 | **Monitor** | Scrolling waveforms with a numerics panel, event markers, annotation bands, calipers and playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
+| **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. |
 | **Vitals** | Every selected parameter as a table at a chosen interval, with resizable columns, CSV export and a pop-out window. |
 | **Annotations** | Your notes on time ranges, with import/export. |
 | **CPR** | Resuscitation quality: the combined rate/depth quality graph, case metrics, and the stacked performance strips. |
-| **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. |
-| **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. |
+| **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. |
+| **Formulas** | Every measure the viewer calculates or explains, searchable: what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
 
 On Physiology, waveform filters, analysis window and sweep controls stay with the
 floating traces. Extra traces scroll within that area so results remain accessible.

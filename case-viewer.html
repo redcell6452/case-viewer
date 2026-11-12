@@ -134,7 +134,10 @@ header{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align
   gap:5px 14px;padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--line)}
 .header-context{min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden}
 header .title{font-weight:650;letter-spacing:.2px;white-space:nowrap}
-.app-brand{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
+.app-brand{display:grid;grid-template-columns:auto max-content;column-gap:8px;align-items:center;justify-content:start;flex:none}
+.app-brand .sidetoggle{grid-row:1 / span 2}
+.app-brand .title{grid-column:2}
+.app-brand .revision{grid-column:2}
 .revision{color:var(--dim);font-size:13px;font-weight:400;white-space:nowrap}
 header .meta{color:var(--dim);font:11px var(--mono);display:flex;gap:14px;white-space:nowrap;overflow:hidden;min-width:0}
 header .meta b{color:var(--fg);font-weight:600}
@@ -151,7 +154,14 @@ main{flex:1;display:flex;min-height:0}
 .sidehead{padding:8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
 .sideheading{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sideheading button{font-size:13px}
-#btnSide:focus-visible,#btnHideEvents:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#btnSide:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* the event-list toggle: a sidebar icon whose left panel fills in while the list is open */
+button.sidetoggle{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;min-height:0;padding:0;color:var(--dim);background:transparent;border:1px solid transparent}
+button.sidetoggle:hover{color:var(--fg);background:var(--hover);border-color:var(--line2)}
+button.sidetoggle .sidefill{opacity:0;transition:opacity .15s}
+button.sidetoggle.open{color:var(--fg)}
+button.sidetoggle.open .sidefill{opacity:.55}
+@media (prefers-reduced-motion: reduce){ button.sidetoggle .sidefill{transition:none} }
 .sidehead .row{display:flex;gap:6px;align-items:center}
 .sidehead input[type=text]{flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -249,6 +259,29 @@ main{flex:1;display:flex;min-height:0}
 .vittable td .vsrc{font:11px var(--sans);color:var(--dim)}
 .vittable td.alm{color:var(--crit);font-weight:700;box-shadow:inset 3px 0 0 var(--crit)}
 /* source citations: plain text in the page colour, underlined only when they link */
+/* info icons and the explanation popover */
+button.info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;min-height:0;padding:0;margin:0 0 0 5px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--dim);font:italic 600 10px/1 Georgia,"Times New Roman",serif;vertical-align:1px;cursor:help}
+button.info:hover,button.info[aria-expanded="true"]{color:var(--fg);border-color:var(--accent);background:var(--bg3)}
+button.info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#glossPop{position:fixed;z-index:60;display:none;max-height:70vh;overflow:auto;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px 12px 12px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13px;line-height:1.5;color:var(--fg)}
+.gl-head{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
+.gl-head b{font-size:13px}
+.gl-abbr{color:var(--dim);font:11px var(--mono)}
+.gl-close{margin-left:auto;min-height:0;padding:0 6px;border:0;background:transparent;color:var(--dim);font-size:16px;line-height:1}
+.gl-what{margin:0 0 6px}
+.gl-use{margin:0 0 8px;color:var(--dim)}
+.gl-row{display:grid;grid-template-columns:72px 1fr;gap:8px;margin:3px 0}
+.gl-k{color:var(--dim)}
+.gl-row code{font:12px var(--mono);white-space:normal}
+.gl-more{margin-top:8px}
+button.linkish{background:none;border:0;padding:0;min-height:0;color:var(--fg);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:2px;cursor:pointer}
+/* Formulas tab */
+.fm-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.fm-search input{flex:1 1 280px;max-width:520px;padding:7px 10px;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;color:var(--fg)}
+.fm-group h3{font-size:13px;color:var(--dim);margin:20px 0 6px;font-weight:600}
+.fm-item{max-width:90ch;padding:10px 0;border-bottom:1px solid var(--line)}
+.fm-item h4{margin:0 0 4px;font-size:13px}
+.fm-item.fm-hit{background:var(--sel);transition:background .6s}
 .srclist{color:var(--dim)}
 a.srcref{color:inherit;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:2px}
 a.srcref:hover{text-decoration-color:currentColor}
@@ -506,7 +539,7 @@ dialog input[type=text]{width:100%}
   .tabs button{flex:0 0 auto;padding:7px 12px;font-size:13px}
 
   main{position:relative}
-  /* the event list becomes a full-screen overlay toggled by Show events */
+  /* the event list becomes a full-screen overlay, toggled by the sidebar icon */
   #side{position:absolute;inset:0;width:auto;flex:none;z-index:20;
     border-right:0;display:none}
   #side.mobopen{display:flex}
@@ -566,6 +599,8 @@ dialog input[type=text]{width:100%}
 @media (pointer: coarse){
   #timeline{height:82px}
   button,a.btnlink{min-height:40px;padding-left:12px;padding-right:12px}
+  button.info{width:22px;height:22px;min-height:0;padding:0;font-size:12px}
+  button.sidetoggle{width:40px;height:40px}
   select,input[type=text],input[type=number]{min-height:38px}
   .chip{padding:6px 11px;font-size:13px}
   .ev{padding:9px}
@@ -613,14 +648,14 @@ dialog input[type=text]{width:100%}
 <div id="app">
   <header>
     <div class="header-context">
-      <div class="app-brand"><span class="title">Case Viewer</span><span class="revision" data-app-revision title="Viewer revision"></span></div>
+      <div class="app-brand"><button id="btnSide" class="sidetoggle" type="button" title="Hide event list (E)"
+        aria-label="Hide event list" aria-controls="side" aria-expanded="true"><svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true" focusable="false"><rect x="1" y="1.5" width="16" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect class="sidefill" x="2.2" y="2.7" width="4.6" height="10.6" rx="1" fill="currentColor"/><line x1="7.5" y1="2" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.2"/></svg></button><span class="title">Case Viewer</span><span class="revision" data-app-revision title="Viewer revision"></span></div>
       <div class="meta" id="caseMeta"></div>
     </div>
     <div class="header-clock"><span class="label">Case time</span><strong id="clock">--:--:--</strong></div>
     <div class="header-actions">
       <button id="btnInfo" title="Case details">ⓘ</button>
       <button id="btnTheme" title="Light / dark (T)">☀</button>
-      <button id="btnSide" type="button" title="Hide event list (E)" aria-controls="side" aria-expanded="true">Hide events</button>
       <button id="btnLoad" title="Load another file">Open…</button>
       <a id="btnRepo" class="btnlink" href="https://github.com/redcell6452/case-viewer"
          target="_blank" rel="noopener noreferrer"
@@ -629,20 +664,21 @@ dialog input[type=text]{width:100%}
     <div class="tabs" id="tabs">
       <button data-view="monitor" class="on">Monitor</button>
       <button data-view="trends">Trends</button>
+      <button data-view="hemo">Physiology</button>
       <button data-view="ecg">12-Lead / Snapshots</button>
       <button data-view="vitals">Vitals</button>
       <button data-view="annot">Annotations</button>
       <button data-view="cpr">CPR</button>
-      <button data-view="hemo">Physiology</button>
       <button data-view="analysis">Analysis</button>
       <button data-view="settings">Settings</button>
+      <button data-view="formulas">Formulas</button>
     </div>
   </header>
 
   <main>
     <div id="side" role="region" aria-label="Events">
       <div class="sidehead">
-        <div class="sideheading"><strong>Events</strong><button id="btnHideEvents" type="button" aria-label="Hide event list">Hide</button></div>
+        <div class="sideheading"><strong>Events</strong></div>
         <div class="row">
           <input type="text" id="evSearch" placeholder="Filter events…">
           <button id="evExport" title="Export events as CSV">CSV</button>
@@ -671,6 +707,7 @@ dialog input[type=text]{width:100%}
         <div id="hemoPane" class="pane"><div class="padded" id="hemoBody"></div></div>
         <div id="analysisPane" class="pane"><div class="padded" id="analysisBody"></div></div>
         <div id="settingsPane" class="pane"><div class="padded" id="settingsBody"></div></div>
+        <div id="formulasPane" class="pane"><div class="padded" id="formulasBody"></div></div>
       </div>
 
       <div id="transport">
@@ -2640,6 +2677,571 @@ const SIG_REFS = {
   sdnn:['hrvTaskForce'], rmssd:['hrvTaskForce'], pnn50:['hrvTaskForce'], lfhf:['hrvTaskForce','lomb'],
   dpop:['dpop'], sf_ratio:['sfRatio'], rr_cv:['hrvTaskForce']
 };
+/* ---------------- glossary ----------------
+   One plain-language entry per measure or method: what it is, how to read it, the
+   formula this viewer uses, typical values only where the viewer already states a
+   reference range, cautions, and where it comes from. The info icons and the Formulas
+   tab both read from here, so they can't disagree. `ids` are the result and trend
+   parameter ids the entry explains; `src` are SOURCES keys (primary papers); `read`
+   is an EXPLAIN key (a readable explainer article). */
+const GLOSSARY = [
+ /* ---- heart rate and ECG ---- */
+ {key:'hr_dev', group:'Heart rate and ECG', title:'Heart rate (monitor)', abbr:'HR', ids:['hr_dev'],
+  what:'The heart rate the monitor itself calculated and stored in its trend records.',
+  use:'Your reference rate. The source it was calculated from (ECG or SpO₂) is shown with the value; a rate from SpO₂ counts only beats that produced a pulse.',
+  formula:'Device value from the trend record', origin:'device', read:'respRate'},
+ {key:'hr_ecg', group:'Heart rate and ECG', title:'Heart rate from the ECG (detected here)', abbr:'HR ECG', ids:['hr_ecg'],
+  what:'Heart rate worked out by this viewer from the R waves it finds in the ECG waveform.',
+  use:'Compare with the monitor’s HR and the pulse rates. If it reads clearly lower than the pulse rate, beats are being missed and the viewer withholds rhythm results for that window.',
+  formula:'60 000 ÷ median R–R interval (ms), R waves found from the slope-energy envelope', typical:'60–100 /min at rest (adults)',
+  caution:'Noise, lead changes and pacing can hide or add beats.', src:['panTompkins','ecgStd'], read:'respRate'},
+ {key:'pr_art', group:'Heart rate and ECG', title:'Pulse rate from the arterial line', abbr:'PR art', ids:['hr_art','pr'],
+  what:'Pulse rate counted from the upstrokes on the invasive arterial pressure trace.',
+  use:'Counts beats that actually produced a pulse. Lower than the ECG rate means some beats are not perfusing (or are being missed).',
+  formula:'Valid arterial pulses per minute', typical:'60–100 /min at rest',
+  caution:'Damping, flushing and line occlusion distort it.', read:'pulseDeficit'},
+ {key:'pr_pleth', group:'Heart rate and ECG', title:'Pulse rate from the pleth', abbr:'PR pleth', ids:['hr_pleth','pr_ppg'],
+  what:'Pulse rate counted from the pulse-oximeter (plethysmograph) waveform.',
+  use:'A second pulse rate. Weak peripheral perfusion or movement makes it unreliable before the arterial one.',
+  formula:'Valid pleth pulses per minute', typical:'60–100 /min at rest', src:['ppgResp'], read:'pulseOximetry'},
+ {key:'rr_int', group:'Heart rate and ECG', title:'R–R interval / pulse interval', abbr:'RR', ids:['rr_int','rri'],
+  what:'Time between consecutive heartbeats (R waves on the ECG, or upstrokes on the arterial line).',
+  use:'The inverse of the heart rate, in milliseconds. 1000 ms is 60 /min.',
+  formula:'t(beat n) − t(beat n−1)', typical:'600–1000 ms'},
+ {key:'qrs', group:'Heart rate and ECG', title:'QRS duration', abbr:'QRS', ids:['qrs'],
+  what:'How long ventricular depolarisation takes on the ECG.',
+  use:'120 ms or more is conventionally a wide complex (bundle branch block, ventricular or paced rhythm).',
+  formula:'QRS onset to offset from the slope envelope', typical:'70–110 ms',
+  caution:'The monitoring-bandwidth ECG widens the apparent QRS; trust it only from diagnostic bandwidth.', src:['ecgStd'], read:'qrsDuration'},
+ {key:'pr_int', group:'Heart rate and ECG', title:'PR interval', abbr:'PR', ids:['pr_int'],
+  what:'Time from the start of atrial depolarisation (P wave) to the start of the QRS.',
+  use:'Long PR suggests AV conduction delay; short PR suggests pre-excitation. Not reported in an irregularly irregular rhythm.',
+  formula:'P onset to QRS onset', typical:'120–200 ms', src:['ecgStd'], read:'prInterval'},
+ {key:'p_dur', group:'Heart rate and ECG', title:'P-wave duration', abbr:'P', ids:['p_dur'],
+  what:'How long atrial depolarisation lasts.', use:'Prolonged P waves can reflect atrial enlargement or conduction delay.',
+  formula:'P onset to P offset', typical:'up to 120 ms', src:['ecgStd']},
+ {key:'qt', group:'Heart rate and ECG', title:'QT interval', abbr:'QT', ids:['qt'],
+  what:'Time from the start of the QRS to the end of the T wave: ventricular depolarisation plus repolarisation.',
+  use:'Changes with heart rate, so read the corrected QTc instead.',
+  formula:'QRS onset to T-wave end (tangent method)', src:['ecgQt'], read:'qtInterval'},
+ {key:'qtcf', group:'Heart rate and ECG', title:'Corrected QT, Fridericia', abbr:'QTcF', ids:['qtcf'],
+  what:'The QT adjusted to what it would be at 60 /min, using a cube-root correction.',
+  use:'Preferred for automated use. Around 450 ms (men) or 460 ms (women) is the upper reference; 500 ms or more carries substantially more arrhythmic concern.',
+  formula:'QTcF = QT ÷ ∛RR  (RR in seconds)', typical:'350–450 ms', src:['ecgQt','fridericia'], read:'qtInterval'},
+ {key:'qtcb', group:'Heart rate and ECG', title:'Corrected QT, Bazett', abbr:'QTcB', ids:['qtcb'],
+  what:'The QT adjusted to 60 /min using a square-root correction.',
+  use:'The traditional formula. It over-corrects at fast rates and under-corrects at slow ones, so prefer QTcF away from 60–90 /min.',
+  formula:'QTcB = QT ÷ √RR  (RR in seconds)', typical:'350–450 ms', src:['ecgQt','bazett'], read:'qtInterval'},
+ {key:'qrs_axis', group:'Heart rate and ECG', title:'QRS axis', abbr:'Axis', ids:['qrs_axis'],
+  what:'The overall direction of ventricular depolarisation in the frontal plane.',
+  use:'−30° to +90° is normal; more negative is left axis deviation, beyond +90° right axis deviation. Only from a 12-lead acquisition.',
+  formula:'The 12-lead’s own measured axis when recorded; otherwise atan2(net QRS in aVF, net QRS in I)', typical:'−30° to +90°',
+  src:['ecgStd'], read:'ecgAxis'},
+ {key:'rr_cv', group:'Heart rate and ECG', title:'R–R variability (coefficient of variation)', abbr:'RR CV', ids:['rr_cv'],
+  what:'How much the beat-to-beat interval varies, relative to its average.',
+  use:'Above about 0.20 the viewer describes the rhythm as irregularly irregular. A pattern description, not a diagnosis.',
+  formula:'SD(R–R) ÷ mean(R–R)', src:['hrvTaskForce'], read:'atrialFib'},
+ {key:'af_prob', group:'Heart rate and ECG', title:'AF pattern score', abbr:'AF pattern', ids:['af_prob'],
+  what:'A 0–1 score of how much the R–R pattern looks like atrial fibrillation (irregular and with many large successive changes).',
+  use:'A prompt to look at the ECG, never a diagnosis. Withheld when ECG beats are being missed, because gaps look irregular.',
+  formula:'clamp((RR CV − 0.10) ÷ 0.20) × clamp(pNN50 ÷ 60)', caution:'Not from a validated AF detector.', read:'atrialFib'},
+ {key:'sdnn', group:'Heart rate and ECG', title:'SDNN', abbr:'SDNN', ids:['sdnn'],
+  what:'Standard deviation of normal-to-normal beat intervals: overall heart-rate variability.',
+  use:'Higher generally means more variability. Depends strongly on recording length, so compare like with like.',
+  formula:'SD of NN intervals (ms)', src:['hrvTaskForce'], read:'hrv'},
+ {key:'rmssd', group:'Heart rate and ECG', title:'RMSSD', abbr:'RMSSD', ids:['rmssd'],
+  what:'Root mean square of successive differences between beats: short-term (beat-to-beat) variability.',
+  use:'Mostly reflects fast, vagally mediated changes. Ectopic beats inflate it.',
+  formula:'√ mean( (NNᵢ₊₁ − NNᵢ)² )', src:['hrvTaskForce'], read:'hrv'},
+ {key:'pnn50', group:'Heart rate and ECG', title:'pNN50', abbr:'pNN50', ids:['pnn50'],
+  what:'Share of successive beat pairs that differ by more than 50 ms.',
+  use:'Another short-term variability measure; tracks RMSSD.', formula:'count(|NNᵢ₊₁ − NNᵢ| > 50 ms) ÷ pairs × 100',
+  src:['hrvTaskForce'], read:'hrv'},
+ {key:'lfhf', group:'Heart rate and ECG', title:'LF/HF ratio', abbr:'LF/HF', ids:['lfhf'],
+  what:'Ratio of low-frequency (0.04–0.15 Hz) to high-frequency (0.15–0.4 Hz) power in the beat-interval signal.',
+  use:'Exploratory only. It is not a measure of sympathetic/parasympathetic balance, whatever older literature says.',
+  formula:'Lomb–Scargle band power 0.04–0.15 Hz ÷ 0.15–0.4 Hz', src:['hrvTaskForce','lomb'], read:'hrv'},
+ {key:'rsa', group:'Heart rate and ECG', title:'Respiratory sinus arrhythmia', abbr:'RSA', ids:['rsa'],
+  what:'How much the heart rate rises and falls with each breath.',
+  use:'Larger in the young and at rest; strongly age- and state-dependent. Needs a breath signal (capnogram).',
+  formula:'Range of mean R–R across the four quarters of each respiratory cycle', read:'rsa'},
+ {key:'pat', group:'Heart rate and ECG', title:'Pulse arrival time', abbr:'PAT', ids:['pat_art','pat_ppg'],
+  what:'Time from the ECG R wave to the arrival of the pulse at the arterial line or the finger.',
+  use:'Follow its trend. It includes the pre-ejection period, so it is not pulse transit time and not a blood-pressure measurement.',
+  formula:'Pulse foot time − R-wave time', src:['ptt'], read:'pulseTransitTime'},
+ {key:'deficit', group:'Heart rate and ECG', title:'Unmatched QRS (pulse deficit)', abbr:'Unmatched', ids:['deficit'],
+  what:'Share of QRS complexes that had no arterial pulse within 600 ms.',
+  use:'A high value suggests beats that did not produce a pulse (for example some ectopic beats), or detection/alignment errors.',
+  formula:'QRS with no arterial pulse 20–600 ms later ÷ all QRS × 100', read:'pulseDeficit'},
+ {key:'pacer', group:'Heart rate and ECG', title:'Pacer pulse marks', abbr:'Pacer', ids:['pacer'],
+  what:'Moments where the monitor detected a pacemaker pulse on the ECG.',
+  use:'Read with the waveform: a pacer mark followed by a QRS suggests capture. The monitor blanks the spike itself, so the mark is the only record of it.',
+  formula:'ECG sample-status bit 2 (bit 8 marks the ~24 ms the trace is held flat)', read:'pacemakerEcg'},
+
+ /* ---- blood pressure ---- */
+ {key:'nibp', group:'Blood pressure', title:'Non-invasive blood pressure', abbr:'NIBP', ids:['nibp'],
+  what:'The cuff reading the monitor took (oscillometric). Systolic/diastolic (mean).',
+  use:'Intermittent: each value stands until the next cuff cycle. The monitor’s +++/--- mean a reading outside what it can measure.',
+  formula:'Device value; sys, dia and mean are always from the same reading', origin:'device', read:'nibp'},
+ {key:'ibp', group:'Blood pressure', title:'Invasive pressure line (P1–P3)', abbr:'P1–P3', ids:['ibp1','ibp2','ibp3'],
+  what:'Systolic/diastolic (mean) from an invasive pressure line, as the monitor recorded it every few seconds. The label is the site chosen on the monitor (e.g. ART, CVP), or P1–P3 if none was chosen.',
+  use:'Check the line is zeroed and well damped before trusting it (see zeroing rows and the flush test). +++/--- mean outside what the monitor can measure.',
+  formula:'Device value; sys, dia and mean are always from the same record', origin:'device', read:'arterialWaveform'},
+ {key:'sbp', group:'Blood pressure', title:'Systolic arterial pressure', abbr:'SBP', ids:['sbp'],
+  what:'Peak pressure of each pulse on the arterial line.',
+  use:'Reads high when the line is underdamped (ringing) and low when it is overdamped.',
+  formula:'Systolic peak of each valid pulse; median over the window', typical:'90–120 mmHg', src:['gardner'], read:'arterialWaveform'},
+ {key:'dbp', group:'Blood pressure', title:'Diastolic arterial pressure', abbr:'DBP', ids:['dbp'],
+  what:'Lowest pressure before the next upstroke.', use:'Overdamping raises it; underdamping lowers it.',
+  formula:'Minimum before the next upstroke', typical:'60–80 mmHg', src:['gardner'], read:'arterialWaveform'},
+ {key:'map', group:'Blood pressure', title:'Mean arterial pressure', abbr:'MAP', ids:['map'],
+  what:'The average pressure across the whole beat: the pressure that drives organ perfusion.',
+  use:'The usual resuscitation target (commonly 65 mmHg or more in shock). Calculated here as a true average of the waveform.',
+  formula:'∫P(t)dt ÷ beat duration (not the ⅓-pulse-pressure shortcut)', typical:'70–100 mmHg', src:['gardner'], read:'map'},
+ {key:'pp', group:'Blood pressure', title:'Pulse pressure', abbr:'PP', ids:['pp'],
+  what:'The difference between systolic and diastolic pressure.',
+  use:'Narrow pulse pressure suggests low stroke volume (e.g. haemorrhage, tamponade); wide suggests stiff arteries, high output or aortic regurgitation.',
+  formula:'PP = SBP − DBP', typical:'30–60 mmHg', src:['gardner'], read:'pulsePressure'},
+ {key:'ppi', group:'Blood pressure', title:'Fractional pulse pressure', abbr:'PP/MAP', ids:['ppi'],
+  what:'Pulse pressure relative to the mean pressure.', use:'A unit-free way to compare pulse pressure across different pressure levels.',
+  formula:'PP ÷ MAP', typical:'0.4–0.6', read:'pulsePressure'},
+ {key:'upstroke', group:'Blood pressure', title:'Systolic upstroke time', abbr:'Upstroke', ids:['upstroke'],
+  what:'Time from the foot of the pulse to its peak.', use:'Long upstroke can reflect slow ejection (e.g. aortic stenosis) or overdamping.',
+  formula:'Peak time − foot time', typical:'100–180 ms', read:'arterialWaveform'},
+ {key:'lvet', group:'Blood pressure', title:'Ejection time estimate', abbr:'LVET', ids:['lvet'],
+  what:'Time from the pulse foot to the dicrotic notch: roughly how long the ventricle ejects.',
+  use:'Shortens as rate rises. A peripheral notch is not exactly aortic valve closure.',
+  formula:'Dicrotic notch time − foot time', typical:'250–350 ms', read:'arterialWaveform'},
+ {key:'notchp', group:'Blood pressure', title:'Dicrotic notch pressure', abbr:'Notch', ids:['notchp'],
+  what:'Pressure at the dicrotic notch.', use:'A low notch can go with vasodilation; a notch that disappears can mean overdamping.',
+  formula:'Pressure at the detected notch', read:'arterialWaveform'},
+ {key:'tau', group:'Blood pressure', title:'Diastolic decay constant', abbr:'τ', ids:['tau'],
+  what:'How fast pressure falls during diastole.', use:'Roughly vascular resistance × arterial compliance. Highly variable; follow its trend only.',
+  formula:'Fit of P(t) = P₀·e^(−t/τ) from the notch to the next foot', read:'arterialWaveform'},
+ {key:'dpdt', group:'Blood pressure', title:'Maximum arterial pressure rise', abbr:'dP/dt', ids:['dpdt'],
+  what:'The steepest rate of rise of pressure during the upstroke.',
+  use:'Follow its trend as a loose contractility signal. It is NOT left-ventricular dP/dt: site, vascular tone and the line’s dynamics all change it.',
+  formula:'max over the upstroke of ΔP/Δt, measured across the channel’s held sample pairs', read:'dpdt'},
+ {key:'auc', group:'Blood pressure', title:'Systolic and diastolic areas', abbr:'AUC', ids:['sysauc','diaauc'],
+  what:'Area under the pressure curve above diastolic, before and after the dicrotic notch.',
+  use:'Descriptive shape measures; follow trends only.', formula:'∫(P − DBP)dt, foot→notch and notch→next foot', read:'arterialWaveform'},
+ {key:'damping', group:'Blood pressure', title:'Arterial line damping (flush test)', abbr:'Damping', ids:['damping'],
+  what:'How faithfully the arterial line reproduces pressure, judged from the ringing after a fast flush.',
+  use:'Underdamped lines over-read systolic; overdamped lines under-read it and lose the notch. Zeroing or opening the line to air is not a flush test and is ignored.',
+  formula:'ζ = δ ÷ √(4π² + δ²), δ = ln(A₁/A₂) for peak-to-trough amplitudes one cycle apart; natural frequency = f_damped ÷ √(1 − ζ²)',
+  src:['gardner'], read:'artLineDamping'},
+ {key:'ppv', group:'Fluid responsiveness', title:'Pulse pressure variation', abbr:'PPV', ids:['ppv'],
+  what:'How much the pulse pressure swings with each breath.',
+  use:'In a fully ventilated patient in sinus rhythm with adequate tidal volume, a high PPV (often >12–13%) suggests the patient may respond to fluid. Invalid with spontaneous breathing, arrhythmia, low tidal volume or an open chest.',
+  formula:'(PPmax − PPmin) ÷ ((PPmax + PPmin)/2) × 100 per breath, median over ≥3 breaths', typical:'0–10 %',
+  src:['ppv','esicmShock'], read:'ppv'},
+ {key:'spv', group:'Fluid responsiveness', title:'Systolic pressure variation', abbr:'SPV', ids:['spv'],
+  what:'How much systolic pressure swings with each breath, in mmHg.', use:'Same conditions as PPV apply.',
+  formula:'SBPmax − SBPmin per breath', typical:'0–10 mmHg', src:['spv'], read:'spv'},
+ {key:'dpv', group:'Fluid responsiveness', title:'Diastolic pressure variation', abbr:'DPV', ids:['dpv'],
+  what:'How much diastolic pressure swings with each breath.', use:'Descriptive; read alongside PPV and SPV.',
+  formula:'DBPmax − DBPmin per breath', src:['spv'], read:'spv'},
+ {key:'svv', group:'Fluid responsiveness', title:'Stroke-volume variation (proxy)', abbr:'SVV', ids:['svv'],
+  what:'How much the modelled stroke volume swings with each breath.',
+  use:'A ratio of estimates, so it works without calibration, but the stroke volume behind it is a model. Same validity conditions as PPV.',
+  formula:'(SVmax − SVmin) ÷ SVmean × 100 per breath', typical:'0–10 %', src:['esicmShock'], read:'svv'},
+ {key:'sv', group:'Flow and resistance', title:'Stroke volume (model estimate)', abbr:'SV', ids:['sv'],
+  what:'Blood ejected per beat, estimated from the arterial pulse shape.',
+  use:'Needs a calibration constant k (from a measured cardiac output). Without it the viewer withholds SV; follow its trend rather than its absolute value.',
+  formula:'SV = k · PP ÷ (SBP + DBP)   (Liljestrand–Zander)', typical:'60–100 mL', src:['liljestrand','coFromBp'], read:'cardiacOutput'},
+ {key:'svi', group:'Flow and resistance', title:'Stroke volume index', abbr:'SVI', ids:['svi'],
+  what:'Stroke volume adjusted for body size.', use:'Needs SV and the patient’s height and weight.',
+  formula:'SVI = SV ÷ BSA', typical:'33–47 mL/m²', src:['coFromBp'], read:'cardiacIndex'},
+ {key:'co', group:'Flow and resistance', title:'Cardiac output (model estimate)', abbr:'CO', ids:['co'],
+  what:'Blood pumped per minute.', use:'Inherits the SV model and its calibration.', formula:'CO = SV × HR ÷ 1000',
+  typical:'4–8 L/min', src:['liljestrand','coFromBp'], read:'cardiacOutput'},
+ {key:'ci', group:'Flow and resistance', title:'Cardiac index', abbr:'CI', ids:['ci'],
+  what:'Cardiac output adjusted for body size.', use:'Below about 2.2 L/min/m² commonly marks significant low-output physiology.',
+  formula:'CI = CO ÷ BSA', typical:'2.5–4 L/min/m²', src:['coFromBp'], read:'cardiacIndex'},
+ {key:'svr', group:'Flow and resistance', title:'Systemic vascular resistance', abbr:'SVR', ids:['svr'],
+  what:'Resistance the circulation offers to the heart’s output.',
+  use:'High in vasoconstriction (cold, low-output shock); low in vasodilation (sepsis, anaphylaxis). Needs CO and a CVP (measured or entered).',
+  formula:'SVR = 80 · (MAP − CVP) ÷ CO', typical:'800–1200 dyn·s/cm⁵', read:'svr'},
+ {key:'svri', group:'Flow and resistance', title:'Systemic vascular resistance index', abbr:'SVRI', ids:['svri'],
+  what:'SVR adjusted for body size.', use:'As SVR.', formula:'SVRI = 80 · (MAP − CVP) ÷ CI', typical:'1970–2390 dyn·s·m²/cm⁵', read:'svr'},
+ {key:'ea', group:'Flow and resistance', title:'Effective arterial elastance', abbr:'Ea', ids:['ea'],
+  what:'The overall load the arteries place on the ventricle.', use:'Strongly load-dependent and inherits the SV model; follow its trend.',
+  formula:'Ea ≈ 0.9 · SBP ÷ SV', typical:'1.5–2 mmHg/mL', src:['eaKelly','eaChen'], read:'arterialElastance'},
+ {key:'eadyn', group:'Flow and resistance', title:'Dynamic arterial elastance', abbr:'Eadyn', ids:['eadyn'],
+  what:'PPV divided by SVV, proposed to predict whether pressure will rise with fluid.',
+  use:'Always withheld here: it needs an independently measured SVV, and this viewer’s SVV is a model of the same pressure signal.',
+  formula:'Eadyn = PPV ÷ SVV', src:['eadyn'], read:'eadyn'},
+ {key:'cpo', group:'Flow and resistance', title:'Cardiac power output', abbr:'CPO', ids:['cpo'],
+  what:'The heart’s hydraulic work rate (pressure × flow).', use:'Below about 0.6 W is associated with severe low-output states and higher mortality in cardiogenic shock.',
+  formula:'CPO = MAP × CO ÷ 451  (watts)', typical:'0.8–1.3 W', src:['cpo'], read:'cardiacPower'},
+ {key:'cpi', group:'Flow and resistance', title:'Cardiac power index', abbr:'CPI', ids:['cpi'],
+  what:'Cardiac power adjusted for body size.', use:'As CPO.', formula:'CPI = MAP × CI ÷ 451', typical:'0.5–0.7 W/m²', src:['cpo'], read:'cardiacPower'},
+ {key:'bsa', group:'Flow and resistance', title:'Body surface area', abbr:'BSA', ids:['bsa'],
+  what:'An estimate of body size from height and weight, used to index flows and resistances.',
+  use:'Choose DuBois or Mosteller under Optional case inputs; they differ by a few percent.',
+  formula:'Mosteller √(H·W ÷ 3600); DuBois 0.007184 · H^0.725 · W^0.425  (cm, kg)', typical:'1.6–2.2 m²', src:['dubois','mosteller'], read:'bsa'},
+ {key:'shockidx', group:'Shock and perfusion', title:'Shock index', abbr:'SI', ids:['shockidx'],
+  what:'Heart rate divided by systolic pressure.',
+  use:'A quick screen for hidden shock: it rises when the heart races to hold the pressure up. Above about 0.9–1.0 is commonly treated as concerning. Follow the trend.',
+  formula:'SI = HR ÷ SBP', typical:'0.5–0.7', src:['shockIndex'], read:'shockIndex'},
+ {key:'msi', group:'Shock and perfusion', title:'Modified shock index', abbr:'MSI', ids:['msi'],
+  what:'Heart rate divided by mean arterial pressure.', use:'As shock index, using MAP so diastolic pressure counts too.',
+  formula:'MSI = HR ÷ MAP', read:'modShockIndex'},
+ {key:'rpp', group:'Shock and perfusion', title:'Rate-pressure product', abbr:'RPP', ids:['rpp'],
+  what:'Heart rate × systolic pressure: a simple index of how hard the heart muscle works, and so how much oxygen it needs.',
+  use:'Follow its trend, especially in coronary disease, where demand outrunning supply causes ischaemia. Roughly 6 000–12 000 at rest; it normally exceeds 25 000 at peak exercise, so there is no single danger number.',
+  formula:'RPP = HR × SBP', src:['rpp'], read:'rpp'},
+ {key:'copp', group:'Shock and perfusion', title:'Coronary perfusion pressure', abbr:'CoPP', ids:['copp'],
+  what:'The pressure driving blood into the heart muscle: aortic diastolic minus right-atrial (central venous) pressure.',
+  use:'Most used during CPR, where higher CoPP goes with better chances of return of circulation. Needs arterial and central venous lines.',
+  formula:'CoPP = DBP − CVP', read:'coronaryPerfusion'},
+ {key:'icp', group:'Neuro', title:'Intracranial pressure', abbr:'ICP', ids:['icp'],
+  what:'Pressure inside the skull, from an intracranial monitor.', use:'Sustained values above about 22 mmHg are treated in severe brain injury guidance.',
+  formula:'Device waveform mean', origin:'device', src:['cppBtf'], read:'icp'},
+ {key:'cpp', group:'Neuro', title:'Cerebral perfusion pressure', abbr:'CPP', ids:['cpp'],
+  what:'The pressure driving blood through the brain.', use:'Brain-injury guidance targets roughly 60–70 mmHg.',
+  formula:'CPP = MAP − ICP', src:['cppBtf'], read:'cerebralPerfusion'},
+ {key:'prx', group:'Neuro', title:'Pressure reactivity index', abbr:'PRx', ids:['prx'],
+  what:'Whether brain pressure passively follows blood pressure (impaired autoregulation) or not.',
+  use:'Positive values suggest impaired autoregulation; negative or near-zero values intact. Follow its trend.',
+  formula:'Moving Pearson correlation of 10-s means of arterial pressure and ICP over 5 min', src:['prx'], read:'prx'},
+ {key:'mpap', group:'Neuro', title:'Mean pulmonary artery pressure', abbr:'mPAP', ids:['mpap'],
+  what:'Average pressure in the pulmonary artery, from a PA catheter.', use:'Above about 20 mmHg is pulmonary hypertension in current definitions.',
+  formula:'Device waveform mean', origin:'device', read:'paPressure'},
+
+ /* ---- oximetry ---- */
+ {key:'spo2', group:'Oximetry', title:'SpO₂', abbr:'SpO₂', ids:['spo2'],
+  what:'Oxygen saturation estimated optically by the pulse oximeter.',
+  use:'An estimate of arterial saturation, less accurate with poor perfusion, movement, darker skin pigmentation, nail polish and at low saturations.',
+  formula:'Device value from the trend record', typical:'95–100 %', origin:'device', src:['spo2Fda'], read:'pulseOximetry'},
+ {key:'spo2_min', group:'Oximetry', title:'Lowest SpO₂', abbr:'SpO₂ min', ids:['spo2_min'],
+  what:'The lowest SpO₂ in the window.', use:'Check the pleth at that moment: brief dips are often artefact.', formula:'min(SpO₂) over the window', read:'pulseOximetry'},
+ {key:'t90', group:'Oximetry', title:'Time below 90 %', abbr:'T90', ids:['t90'],
+  what:'How long saturation spent below 90 %.', use:'Duration of hypoxaemia; read with the hypoxic burden for depth.',
+  formula:'∫ dt while SpO₂ < 90 %', read:'hypoxicBurden'},
+ {key:'hypox_burden', group:'Oximetry', title:'Hypoxic burden', abbr:'Burden', ids:['hypox_burden'],
+  what:'How deep and how long saturation stayed below 90 %, combined.', use:'A dip to 80 % for one minute scores 10 %·min.',
+  formula:'∫(90 − SpO₂)dt while SpO₂ < 90 %', read:'hypoxicBurden'},
+ {key:'spo2_fall', group:'Oximetry', title:'Fastest desaturation', abbr:'ΔSpO₂', ids:['spo2_fall'],
+  what:'The steepest fall in SpO₂.', use:'Real desaturations develop over tens of seconds; a very fast fall with a poor pleth suggests artefact.',
+  formula:'Steepest (SpO₂ now − SpO₂ ~1 min earlier) ÷ time, over at least 30 s', read:'pulseOximetry'},
+ {key:'sf_ratio', group:'Oximetry', title:'SpO₂/FiO₂ ratio', abbr:'S/F', ids:['sf_ratio'],
+  what:'Saturation divided by inspired oxygen fraction: a surrogate for oxygenation when no blood gas is available.',
+  use:'Only valid with SpO₂ at or below about 97 %; needs the FiO₂ entered under case inputs. Not equivalent to P/F.',
+  formula:'S/F = SpO₂ ÷ FiO₂ (FiO₂ as a fraction)', src:['sfRatio'], read:'sfRatio'},
+ {key:'pi', group:'Oximetry', title:'Perfusion index', abbr:'PI', ids:['pi'],
+  what:'The pulsatile share of the light signal at the sensor site, from the monitor.',
+  use:'A low PI means a weak pulse at the sensor (cold, vasoconstricted), so SpO₂ is less reliable. Compare within one patient only.',
+  formula:'Device value (stored in tenths of a percent)', origin:'device', read:'perfusionIndex'},
+ {key:'pvi', group:'Oximetry', title:'Pleth variability index', abbr:'PVI', ids:['pvi'],
+  what:'How much the pleth amplitude varies with breathing, from the monitor.', use:'Proposed as a non-invasive fluid-responsiveness signal under the same conditions as PPV.',
+  formula:'Device value', origin:'device', src:['plethVar'], read:'pvi'},
+ {key:'spco', group:'Oximetry', title:'Carboxyhaemoglobin', abbr:'SpCO', ids:['spco'],
+  what:'Share of haemoglobin carrying carbon monoxide, measured by a multi-wavelength oximeter.',
+  use:'Raised in smoke inhalation and CO poisoning, where ordinary SpO₂ reads falsely normal. Confirm with a blood CO-oximetry sample.',
+  formula:'Device value', origin:'device', read:'pulseOximetry'},
+ {key:'spmet', group:'Oximetry', title:'Methaemoglobin', abbr:'SpMet', ids:['spmet'],
+  what:'Share of haemoglobin in the methaemoglobin form, which cannot carry oxygen.',
+  use:'Raised by some drugs and toxins; pulls ordinary SpO₂ towards about 85 %. Confirm with a blood sample.',
+  formula:'Device value', origin:'device', read:'pulseOximetry'},
+ {key:'sphb', group:'Oximetry', title:'Total haemoglobin (non-invasive)', abbr:'SpHb', ids:['sphb'],
+  what:'Haemoglobin concentration estimated optically.', use:'Follow its trend; the absolute value can differ from a lab result by more than 1 g/dL.',
+  formula:'Device value', origin:'device', read:'pulseOximetry'},
+ {key:'spoc', group:'Oximetry', title:'Oxygen content (non-invasive)', abbr:'SpOC', ids:['spoc'],
+  what:'Oxygen carried per 100 mL of blood, estimated from SpHb and SpO₂.', use:'Inherits the uncertainty of SpHb.',
+  formula:'Device value', origin:'device', read:'pulseOximetry'},
+ {key:'temp', group:'Temperature', title:'Temperature', abbr:'T1 / T2', ids:['temp1','temp2'],
+  what:'Temperature from the monitor’s probes.', use:'The probe site (oesophageal, rectal, skin) changes what the number means.',
+  formula:'Device value (stored in tenths of a degree)', origin:'device'},
+ {key:'tempd', group:'Temperature', title:'Temperature difference', abbr:'ΔT', ids:['tempd'],
+  what:'The difference between the two temperature probes.', use:'With core and skin probes, a widening gap can reflect peripheral vasoconstriction.',
+  formula:'Device value', origin:'device'},
+ {key:'ppg_amp', group:'Oximetry', title:'Pleth pulse amplitude', abbr:'POP', ids:['ppg_amp'],
+  what:'Peak-to-trough height of each pleth pulse, in the device’s raw units.', use:'Relative only; gain, site, tone and contact pressure change it.',
+  formula:'Peak − trough of each pulse', src:['plethVar'], read:'pulseOximetry'},
+ {key:'ppg_rel', group:'Oximetry', title:'Relative pleth amplitude', abbr:'rPAI', ids:['ppg_rel'],
+  what:'Pulse amplitude relative to the full recorded signal range.', use:'Deliberately not called perfusion index: the export lacks the DC light level PI needs.',
+  formula:'Pulse amplitude ÷ full recorded signal range × 100', src:['plethVar']},
+ {key:'dpop', group:'Fluid responsiveness', title:'ΔPOP', abbr:'ΔPOP', ids:['dpop'],
+  what:'Breath-to-breath variation in pleth pulse amplitude.', use:'Like PPV from the pulse oximeter, with the same validity conditions and more noise.',
+  formula:'(POPmax − POPmin) ÷ ((POPmax + POPmin)/2) × 100 per breath', src:['dpop'], read:'pvi'},
+ {key:'ppg_shape', group:'Oximetry', title:'Pleth pulse shape', abbr:'PPG rise/FWHM/AUC', ids:['ppg_rise','ppg_fwhm','ppg_auc'],
+  what:'Rise time (foot to peak), width at half height, and area of each pleth pulse.', use:'Descriptive shape measures; follow trends only.',
+  formula:'Rise = peak − foot; FWHM = width at half amplitude; AUC = ∫ above the foot', read:'pulseOximetry'},
+ {key:'rr_ppg', group:'Respiration', title:'Breathing rate from the pleth', abbr:'RR pleth', ids:['rr_ppg'],
+  what:'Breathing rate estimated from how pulse amplitude rises and falls with breathing.',
+  use:'An estimate only: random amplitude scatter alone produces a plausible number. Used only when no direct breath signal exists, and then with low confidence.',
+  formula:'Respiratory modulation (mean crossings) of pulse amplitude', src:['ppgResp'], read:'respRate'},
+
+ /* ---- capnography and respiration ---- */
+ {key:'etco2', group:'Capnography', title:'End-tidal CO₂', abbr:'EtCO₂', ids:['etco2'],
+  what:'The CO₂ level at the end of each exhaled breath.',
+  use:'Tracks ventilation and, during CPR, the blood flow compressions are producing. Not equal to arterial PaCO₂: the gap widens with dead space and low perfusion.',
+  formula:'Maximum expired CO₂ at the end of expiration (device value in trends)', typical:'35–45 mmHg', src:['capnoPhases'], read:'capnography'},
+ {key:'fico2', group:'Capnography', title:'Inspired CO₂', abbr:'FiCO₂', ids:['fico2'],
+  what:'CO₂ in the inhaled gas.', use:'Should be near zero; a raised baseline suggests rebreathing or an exhausted absorber.',
+  formula:'CO₂ just before expiration begins', typical:'0–3 mmHg', src:['capnoPhases'], read:'capnography'},
+ {key:'capno_shape', group:'Capnography', title:'Capnogram shape measures', abbr:'Phase II/III, α, β', ids:['phase2','phase3','phase3rel','alpha','beta','plateau','ttet'],
+  what:'Slopes and angles of the CO₂ waveform: the expiratory upstroke (phase II), the plateau (phase III) and the angles between them.',
+  use:'A steep, rising plateau and a wide α angle suggest uneven emptying of the lungs, as in bronchospasm (the "shark fin"). Descriptive; follow trends.',
+  formula:'Phase II = 10–90 % upstroke slope; Phase III = regression over the plateau; α, β = angles with 10 mmHg drawn equal to 1 s',
+  src:['capnoPhases','capnoObstruct'], read:'capnography'},
+ {key:'ie', group:'Capnography', title:'Capnographic I:E', abbr:'cI:E', ids:['ie'],
+  what:'Time with no CO₂ divided by time with CO₂ in each breath.',
+  use:'Not a true inspiratory:expiratory ratio: the CO₂-free part also contains the start of exhalation, so it reads higher than the ventilator’s I:E.',
+  formula:'CO₂-free time ÷ CO₂ time per breath', read:'ieRatio'},
+ {key:'etco2cv', group:'Capnography', title:'EtCO₂ variability', abbr:'EtCO₂ CV', ids:['etco2cv'],
+  what:'Breath-to-breath variation in end-tidal CO₂.', use:'Descriptive; irregular breathing or a poor sample line raise it.',
+  formula:'SD ÷ mean of breath EtCO₂ × 100', read:'capnography'},
+ {key:'apnea', group:'Capnography', title:'Longest low-CO₂ interval', abbr:'Low CO₂', ids:['apnea'],
+  what:'The longest stretch with exhaled CO₂ below 8 mmHg.', use:'Does not establish apnoea by itself: disconnection, low perfusion and sampling problems also do it. Missing data breaks the interval.',
+  formula:'Longest contiguous recorded interval below 8 mmHg', read:'apnea'},
+ {key:'rr_dev', group:'Respiration', title:'Respiratory rate (monitor)', abbr:'RR', ids:['rr_dev'],
+  what:'The breathing rate the monitor calculated, with its source (capnography or impedance).', use:'Absent when the monitor marked respiration unmonitored.',
+  formula:'Device value from the trend record', origin:'device', read:'respRate'},
+ {key:'rr_co2', group:'Respiration', title:'Breathing rate from the capnogram', abbr:'RR CO₂', ids:['rr_co2'],
+  what:'Breaths counted from the CO₂ waveform.', use:'The preferred breathing-rate source when a clean exhaled CO₂ waveform exists.',
+  formula:'Valid capnogram cycles per minute', typical:'12–20 /min', src:['capnoPhases'], read:'respRate'},
+ {key:'rr_imp', group:'Respiration', title:'Breathing rate from impedance', abbr:'RR imp', ids:['rr_imp'],
+  what:'Breaths counted from chest impedance (the ECG leads sensing chest movement).', use:'Movement and cardiac pulsation can be counted as breaths.',
+  formula:'Peaks of the impedance waveform per minute', read:'respRate'},
+ {key:'rr_vent', group:'Respiration', title:'Breathing rate from ventilation marks', abbr:'RR vent', ids:['rr_vent'],
+  what:'Rate of the ventilations the device recorded (one source only, capnography preferred).', use:'Useful during CPR to check ventilation rate.',
+  formula:'Ventilation marks per minute', read:'cprQuality'},
+ {key:'rr_consensus', group:'Respiration', title:'Breathing rate (consensus)', abbr:'RR', ids:['rr_consensus'],
+  what:'One breathing rate combined from the independent sources available.',
+  use:'Set by direct breath signals (CO₂, impedance, ventilation marks). Pulse-amplitude estimates stand in only when none exists, and then are marked as an estimate.',
+  formula:'Median of the direct sources (or of the pulse-amplitude estimates if none)', typical:'12–20 /min', read:'respRate'},
+
+ /* ---- CPR ---- */
+ {key:'ccf', group:'CPR', title:'Chest compression fraction', abbr:'CCF', ids:['ccf'],
+  what:'Share of the time in cardiac arrest during which compressions were being given.',
+  use:'Guidelines recommend at least 60 %, and higher is better. Return of circulation (ROSC) is not counted as arrest time.',
+  formula:'Compression time ÷ (CPR + pause periods − ROSC) × 100', src:['cprAha'], read:'ccf'},
+ {key:'cpr_rate', group:'CPR', title:'Compression rate', abbr:'Rate', ids:['cpr_rate'],
+  what:'Chest compressions per minute.', use:'Target 100–120 /min.', formula:'From per-compression records or the compression waveform',
+  typical:'100–120 /min', src:['cprAha'], read:'cprQuality'},
+ {key:'cpr_depth', group:'CPR', title:'Compression depth', abbr:'Depth', ids:['cpr_depth'],
+  what:'How far the chest is pressed with each compression.', use:'Adult target 2.0–2.4 in (5–6 cm).', typical:'2.0–2.4 in',
+  formula:'From per-compression records or the compression waveform', src:['cprAha'], read:'cprQuality'},
+ {key:'cpr_release', group:'CPR', title:'Release velocity', abbr:'Release', ids:['cpr_release'],
+  what:'How fast the chest is allowed to recoil after each compression.', use:'Faster release (about 400 mm/s or more) has been associated with better outcomes.',
+  formula:'From per-compression records or the compression waveform', src:['cprRelease'], read:'cprQuality'},
+
+ /* ---- how the viewer works ---- */
+ {key:'m_ecgbeats', group:'How the viewer works', title:'ECG beat detection', ids:[],
+  what:'How R waves are found: the squared slope of the ECG is summed over 80 ms, and peaks above 35 % of the third-largest peak within ±3 s count as beats (at least 220 ms apart).',
+  use:'Using the third-largest peak keeps one or two artefacts from hiding the beats around them. The post-pacing step is ignored.',
+  formula:'Slope-energy envelope; threshold 0.35 × third-largest local peak in ±3 s', src:['panTompkins']},
+ {key:'m_undercount', group:'How the viewer works', title:'ECG under-count check', ids:[],
+  what:'Every pulse needs an electrical beat, so an ECG rate clearly below the pulse rate means the ECG detector is missing beats.',
+  use:'When it fires, rhythm class, AF pattern, pauses, ectopy and HRV are withheld for that window, and the ECG rate is shown at low confidence.',
+  formula:'Flag when ECG rate < 0.93 × pulse rate and at least 5 /min below it'},
+ {key:'m_offscale', group:'How the viewer works', title:'+++ and --- readings', ids:[],
+  what:'The monitor’s own notation for a value above (+++) or below (---) what it can measure.',
+  use:'Shown as the monitor shows it rather than as a blank or the last good value. Hover the cell to see the number the monitor stored.',
+  formula:'Trend value DataState "+++" or "---"'},
+ {key:'m_fresh', group:'How the viewer works', title:'Freshness in the vitals list', ids:[],
+  what:'A value older than its limit is not the current reading, so its cell is left empty.',
+  use:'Trend values stay current for 90 s; NIBP for 1.5 cuff intervals, or only its own cycle on the NIBP-cycle grid.',
+  formula:'Empty when (row time − value time) exceeds the limit'},
+ {key:'m_smooth', group:'How the viewer works', title:'Display smoothing of paired samples', ids:[],
+  what:'The monitor stores invasive pressure with every value written twice, which draws as a small staircase.',
+  use:'The line is drawn through the middle of each pair instead. Drawing only: every measurement uses the stored samples. Can be turned off in Settings.',
+  formula:'One drawn point per identical pair, at the pair’s midpoint'},
+ {key:'m_gaps', group:'How the viewer works', title:'Unrecorded stretches', ids:[],
+  what:'The monitor records only the waveforms it is displaying, and a display change can drop a few seconds.',
+  use:'Stretches of 0.3 s or more with no samples are hatched and labelled "not on monitor screen" or "not recorded".',
+  formula:'Gaps between recorded segments, labelled from the monitor’s display configuration'}
+];
+/* readable explainer articles, by key: StatPearls, LITFL, Deranged Physiology or an open-access
+   review where possible; every link was checked to load (StatPearls via the NCBI catalogue) */
+const EXPLAIN = {
+  shockIndex:{"title":"Shock index in the emergency department: utility and limitations","site":"Open Access Emergency Medicine 2019","url":"https://doi.org/10.2147/OAEM.S178358"},
+  modShockIndex:{"title":"Shock index in the emergency department: utility and limitations (includes modified shock index)","site":"Open Access Emergency Medicine 2019","url":"https://doi.org/10.2147/OAEM.S178358"},
+  rpp:{"title":"Rate pressure product","site":"Wikipedia","url":"https://en.wikipedia.org/wiki/Rate_pressure_product"},
+  pulsePressure:{"title":"Physiology, Pulse Pressure","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK482408/"},
+  map:{"title":"Physiology, Mean Arterial Pressure","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK538226/"},
+  ppv:{"title":"Fluid responsiveness","site":"LITFL","url":"https://litfl.com/fluid-responsiveness/"},
+  svv:{"title":"Systolic pressure variation (also SVV and PPV)","site":"LITFL","url":"https://litfl.com/systolic-pressure-variation/"},
+  spv:{"title":"Systolic pressure variation","site":"LITFL","url":"https://litfl.com/systolic-pressure-variation/"},
+  cardiacOutput:{"title":"Physiology, Cardiac Output","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK470455/"},
+  cardiacIndex:{"title":"Physiology, Cardiac Index","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK539905/"},
+  svr:{"title":"Physiology, Systemic Vascular Resistance","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK556075/"},
+  arterialElastance:{"title":"Ventricular–arterial coupling: invasive and non-invasive assessment","site":"Artery Research 2013 (free on PMC)","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC3809068/"},
+  eadyn:{"title":"Dynamic arterial elastance and the pressure response to fluid: systematic review","site":"Annals of Intensive Care 2021","url":"https://doi.org/10.1186/s13613-021-00909-2"},
+  cardiacPower:{"title":"Utility of cardiac power hemodynamic measurements","site":"Healthcare (Basel) 2022 (PMC)","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC9777954/"},
+  bsa:{"title":"Body Surface Area","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK559005/"},
+  coronaryPerfusion:{"title":"Coronary Perfusion Pressure","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK551531/"},
+  cerebralPerfusion:{"title":"Cerebral Perfusion Pressure","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK537271/"},
+  prx:{"title":"The pressure reactivity index as a measure of cerebral autoregulation","site":"Critical Care and Resuscitation 2023 (PMC)","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC10790019/"},
+  icp:{"title":"Intracranial Pressure Monitoring","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK542298/"},
+  paPressure:{"title":"Pulmonary Artery Catheter","site":"LITFL","url":"https://litfl.com/pulmonary-artery-catheter/"},
+  dpdt:{"title":"Determinants of contractility (dP/dt max)","site":"Deranged Physiology","url":"https://derangedphysiology.com/main/cicm-primary-exam/cardiovascular-system/Chapter-026/determinants-contractility"},
+  arterialWaveform:{"title":"Information derived from the arterial pressure waveform","site":"Deranged Physiology","url":"https://derangedphysiology.com/main/required-reading/intensive-care-procedures/Chapter-217/information-derived-arterial-pressure-waveform"},
+  artLineDamping:{"title":"Arterial line and pressure transducer (damping, flush test)","site":"LITFL","url":"https://litfl.com/arterial-line-and-pressure-transducer/"},
+  capnography:{"title":"Capnography waveform interpretation","site":"LITFL","url":"https://litfl.com/capnography-waveform-interpretation/"},
+  capnoCpr:{"title":"Capnography during cardiopulmonary resuscitation","site":"J Emerg Trauma Shock 2014","url":"https://doi.org/10.4103/0974-2700.142778"},
+  ieRatio:{"title":"Inspiratory pause, I:E ratio and inspiratory rise time","site":"Deranged Physiology","url":"https://derangedphysiology.com/main/cicm-primary-exam/respiratory-system/Chapter-539/inspiratory-pause-ie-ratio-and-inspiratory-rise-time"},
+  apnea:{"title":"Apnea","site":"Wikipedia","url":"https://en.wikipedia.org/wiki/Apnea"},
+  pulseOximetry:{"title":"Principles of pulse oximetry","site":"Deranged Physiology","url":"https://derangedphysiology.com/main/cicm-primary-exam/respiratory-system/Chapter-410/principles-pulse-oximetry"},
+  perfusionIndex:{"title":"Peripheral perfusion index of pulse oximetry in adult patients: a narrative review","site":"Eur J Med Res 2024","url":"https://doi.org/10.1186/s40001-024-02048-3"},
+  pvi:{"title":"Reliability of pleth variability index in predicting preload responsiveness","site":"BMC Anesthesiology 2019","url":"https://doi.org/10.1186/s12871-019-0744-4"},
+  sfRatio:{"title":"Rationale and limitations of SpO₂/FiO₂ as a substitute for PaO₂/FiO₂","site":"Crit Care Sci 2022","url":"https://doi.org/10.5935/0103-507X.20220013-en"},
+  hypoxicBurden:{"title":"Hypoxic burden: definitions, concepts and clinical relevance","site":"Curr Opin Pulm Med 2024 (PMC)","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC11451971/"},
+  qtInterval:{"title":"QT Interval","site":"LITFL","url":"https://litfl.com/qt-interval-ecg-library/"},
+  prInterval:{"title":"PR Interval","site":"LITFL","url":"https://litfl.com/pr-interval-ecg-library/"},
+  qrsDuration:{"title":"QRS Interval","site":"LITFL","url":"https://litfl.com/qrs-interval-ecg-library/"},
+  ecgAxis:{"title":"ECG axis interpretation","site":"LITFL","url":"https://litfl.com/ecg-axis-interpretation/"},
+  hrv:{"title":"An overview of heart rate variability metrics and norms","site":"Front Public Health 2017","url":"https://doi.org/10.3389/fpubh.2017.00258"},
+  atrialFib:{"title":"Atrial Fibrillation","site":"LITFL","url":"https://litfl.com/atrial-fibrillation-ecg-library/"},
+  pulseDeficit:{"title":"Pulse (section: pulse deficit)","site":"Wikipedia","url":"https://en.wikipedia.org/wiki/Pulse"},
+  pulseTransitTime:{"title":"Toward ubiquitous blood pressure monitoring via pulse transit time","site":"IEEE TBME 2015 (PMC)","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC4515215/"},
+  rsa:{"title":"Sinus Arrhythmia","site":"LITFL","url":"https://litfl.com/sinus-arrhythmia-ecg-library/"},
+  respRate:{"title":"Physiology, Respiratory Rate","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK537306/"},
+  ccf:{"title":"Assessment of chest compression quality: a systematic review","site":"Disaster Emerg Med J 2020","url":"https://journals.viamedica.pl/disaster_and_emergency_medicine/article/view/66818"},
+  cprQuality:{"title":"Assessment of chest compression quality: a systematic review","site":"Disaster Emerg Med J 2020","url":"https://journals.viamedica.pl/disaster_and_emergency_medicine/article/view/66818"},
+  pacemakerEcg:{"title":"Pacemaker rhythms: normal patterns","site":"LITFL","url":"https://litfl.com/pacemaker-rhythms-normal-patterns/"},
+  nibp:{"title":"Blood Pressure Measurement","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK482189/"}
+};
+const GLOSS_BY_KEY = {}, GLOSS_BY_ID = {};
+for(const g of GLOSSARY){ GLOSS_BY_KEY[g.key]=g; for(const id of g.ids||[]) GLOSS_BY_ID[id]=g; }
+
+/* the small (i) next to a measure; nothing when the glossary has no entry for it */
+function infoBtn(id){
+  const g = GLOSS_BY_ID[id] || GLOSS_BY_KEY[id];
+  if(!g) return '';
+  return '<button type="button" class="info" data-gloss="'+esc(g.key)+'" aria-label="What is '+
+    esc(g.abbr||g.title)+'?" aria-haspopup="dialog">i</button>';
+}
+function explainHtml(key){
+  const e=EXPLAIN[key];
+  return e && e.url ? '<a class="srcref" href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">'+
+    esc(e.title)+'</a>'+(e.site?' <span class="srcuse">('+esc(e.site)+')</span>':'') : '';
+}
+/* the explanation itself, shared by the popover and the Formulas tab */
+function glossBody(g, inTab){
+  const row=(label, html)=> html ? '<div class="gl-row"><span class="gl-k">'+label+'</span><span>'+html+'</span></div>' : '';
+  return '<p class="gl-what">'+esc(g.what)+'</p>'+
+    (g.use ? '<p class="gl-use">'+esc(g.use)+'</p>' : '')+
+    row('Formula', g.formula ? '<code>'+esc(g.formula)+'</code>' : '')+
+    row('Typical', g.typical ? esc(g.typical) : '')+
+    row('Caution', g.caution ? esc(g.caution) : '')+
+    row('Value', g.origin==='device' ? 'recorded by the monitor, not calculated here' : '')+
+    row('Explained', g.read ? explainHtml(g.read) : '')+
+    row('Source', g.src ? sourcesHtml(g.src) : '')+
+    (inTab ? '' : '<div class="gl-more"><button type="button" class="linkish" data-formula="'+esc(g.key)+'">All formulas</button></div>');
+}
+
+/* popover: hover shows it on a mouse, a click (or tap) pins it; Esc or a click
+   elsewhere closes it */
+const GLOSS_POP = {el:null, pinned:false, owner:null, hideT:null, showT:null};
+function glossShow(btn, pin){
+  const g = GLOSS_BY_KEY[btn.dataset.gloss]; if(!g) return;
+  let el = GLOSS_POP.el;
+  if(!el){
+    el = GLOSS_POP.el = document.createElement('div');
+    el.id='glossPop'; el.setAttribute('role','dialog');
+    el.addEventListener('mouseenter', ()=>clearTimeout(GLOSS_POP.hideT));
+    el.addEventListener('mouseleave', ()=>{ if(!GLOSS_POP.pinned) glossHideSoon(); });
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<div class="gl-head"><b>'+esc(g.title)+'</b>'+(g.abbr?' <span class="gl-abbr">'+esc(g.abbr)+'</span>':'')+
+    '<button type="button" class="gl-close" aria-label="Close">×</button></div>'+glossBody(g,false);
+  el.setAttribute('aria-label', g.title);
+  el.style.display='block';
+  GLOSS_POP.owner=btn; GLOSS_POP.pinned=!!pin;
+  btn.setAttribute('aria-expanded','true');
+  /* below the icon, kept inside the window */
+  const r=btn.getBoundingClientRect(), w=Math.min(380, innerWidth-16);
+  el.style.width=w+'px';
+  let x=Math.min(Math.max(8, r.left-12), innerWidth-w-8), y=r.bottom+6;
+  el.style.left=x+'px'; el.style.top=y+'px';
+  const h=el.getBoundingClientRect().height;
+  if(y+h>innerHeight-8) el.style.top=Math.max(8, r.top-h-6)+'px';
+}
+function glossHide(){
+  clearTimeout(GLOSS_POP.hideT); clearTimeout(GLOSS_POP.showT);
+  if(GLOSS_POP.el) GLOSS_POP.el.style.display='none';
+  if(GLOSS_POP.owner) GLOSS_POP.owner.setAttribute('aria-expanded','false');
+  GLOSS_POP.owner=null; GLOSS_POP.pinned=false;
+}
+function glossHideSoon(){ clearTimeout(GLOSS_POP.hideT); GLOSS_POP.hideT=setTimeout(glossHide, 220); }
+function wireGlossary(){
+  const fine = typeof matchMedia==='function' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  /* capture phase, so an icon inside a label or a legend entry never also toggles it */
+  document.addEventListener('click', ev=>{
+    const b = ev.target.closest && ev.target.closest('button.info');
+    if(b){ ev.preventDefault(); ev.stopPropagation();
+      if(GLOSS_POP.owner===b && GLOSS_POP.pinned) glossHide(); else glossShow(b, true);
+      return; }
+    const f = ev.target.closest && ev.target.closest('[data-formula]');
+    if(f){ ev.preventDefault(); glossHide(); openFormula(f.dataset.formula); return; }
+    if(ev.target.closest && ev.target.closest('.gl-close')){ glossHide(); return; }
+    if(GLOSS_POP.el && GLOSS_POP.el.style.display==='block' && !GLOSS_POP.el.contains(ev.target)) glossHide();
+  }, true);
+  if(fine){
+    document.addEventListener('mouseover', ev=>{
+      const b = ev.target.closest && ev.target.closest('button.info');
+      if(!b || GLOSS_POP.pinned) return;
+      clearTimeout(GLOSS_POP.hideT); clearTimeout(GLOSS_POP.showT);
+      GLOSS_POP.showT=setTimeout(()=>glossShow(b,false), 180);
+    });
+    document.addEventListener('mouseout', ev=>{
+      const b = ev.target.closest && ev.target.closest('button.info');
+      if(!b) return;
+      clearTimeout(GLOSS_POP.showT);
+      if(!GLOSS_POP.pinned) glossHideSoon();
+    });
+  }
+  document.addEventListener('keydown', ev=>{
+    if(ev.key==='Escape' && GLOSS_POP.el && GLOSS_POP.el.style.display==='block'){
+      const o=GLOSS_POP.owner; glossHide(); if(o) o.focus(); ev.stopPropagation(); }
+  }, true);
+  /* a popover would point at the wrong place once the page moves */
+  addEventListener('scroll', ()=>{ if(!GLOSS_POP.pinned) glossHide(); }, true);
+  addEventListener('resize', glossHide);
+}
+
+/* ---------------- Formulas tab ---------------- */
+const FORM = {q:''};
+function renderFormulas(){
+  const b=$('#formulasBody'); if(!b) return;
+  const groups=[]; for(const g of GLOSSARY) if(!groups.includes(g.group)) groups.push(g.group);
+  b.innerHTML =
+    '<h2 class="sec">Formulas</h2>'+
+    '<p class="srcintro">Every measure this viewer calculates or explains: what it is, how to read it, the formula '+
+    'used here, and links to a readable explanation and the original source. Search by name, abbreviation or formula.</p>'+
+    '<div class="fm-search"><input type="search" id="fmQ" placeholder="Search, e.g. shock index, QTc, MAP" '+
+      'aria-label="Search formulas" value="'+esc(FORM.q)+'"><span id="fmCount" class="vithint" aria-live="polite"></span></div>'+
+    '<p id="fmNone" class="srcintro" hidden></p>'+
+    '<div id="fmList">'+groups.map(gp=>
+      '<section class="fm-group" data-group="'+esc(gp)+'"><h3>'+esc(gp)+'</h3>'+
+      GLOSSARY.filter(g=>g.group===gp).map(g=>
+        '<article class="fm-item" id="f-'+esc(g.key)+'" data-text="'+esc(
+          [g.title,g.abbr,g.formula,g.what,g.use,(g.ids||[]).join(' ')].join(' ').toLowerCase())+'">'+
+        '<h4>'+esc(g.title)+(g.abbr?' <span class="gl-abbr">'+esc(g.abbr)+'</span>':'')+'</h4>'+
+        glossBody(g,true)+'</article>').join('')+
+      '</section>').join('')+'</div>';
+  const apply=()=>{
+    const q=FORM.q.trim().toLowerCase(); let n=0;
+    $$('#fmList .fm-item').forEach(a=>{ const hit=!q || q.split(/\s+/).every(w=>a.dataset.text.includes(w));
+      a.hidden=!hit; if(hit) n++; });
+    $$('#fmList .fm-group').forEach(s=>{ s.hidden=![...s.querySelectorAll('.fm-item')].some(a=>!a.hidden); });
+    $('#fmCount').textContent = q ? n+' of '+GLOSSARY.length+' shown' : GLOSSARY.length+' entries';
+    $('#fmNone').hidden = n>0;
+    if(!n) $('#fmNone').textContent = 'Nothing matches “'+FORM.q.trim()+'”. Try a name, an abbreviation or part of a formula, such as HR ÷ SBP.';
+  };
+  $('#fmQ').oninput=e=>{ FORM.q=e.target.value; apply(); };
+  apply();
+}
+function openFormula(key){
+  FORM.q='';
+  setView('formulas');
+  const a=document.getElementById('f-'+key);
+  if(a){ a.scrollIntoView({block:'center'}); a.classList.add('fm-hit'); setTimeout(()=>a.classList.remove('fm-hit'), 1600); }
+}
+
 /* first index in a sorted array of numbers whose value is >= x */
 function lowerBound(a, x){
   let lo=0, hi=a.length;
@@ -3100,7 +3702,7 @@ function buildHemoParams(){
     add({id:'rpp', group:'Haemodynamics', label:'RPP', sub2:'rate-pressure product', unit:'',
       color:'#e08fd6', origin:'derived', dec:0,
       pts:rows.map(r=>({t:r.t, v:(r.hr!=null&&r.sys!=null)?r.hr*r.sys:null})),
-      note:'HR × SBP — myocardial oxygen demand, risk above ~20 000'});
+      note:'HR × SBP — an index of myocardial oxygen demand; follow its trend'});
 
     const beats=lineBeats(lines.art);
     const ppv=smoothSeries(variationSeries(beats, b=>b.pp));
@@ -3336,13 +3938,25 @@ function sigRowAvailable(r){
 function sampleHold(ch){
   if(ch._hold) return ch._hold;
   let eq=0, n=0;
-  for(const sg of ch.segs){
+  for(const sg of (ch.segs || [{n:ch.data.length, data:ch.data}])){
     for(let i=1;i<sg.n && n<200000;i++){ const a=sg.data[i], b=sg.data[i-1];
       if(a===a && b===b){ n++; if(a===b) eq++; } }
     if(n>=200000) break;
   }
-  ch._hold = n>1000 && eq/n>0.4 ? 2 : 1;
+  ch._hold = n>200 && eq/n>0.4 ? 2 : 1;
   return ch._hold;
+}
+/* Display smoothing for channels stored with each value repeated (see sampleHold):
+   the line goes through the middle of each identical pair instead of stepping at
+   every sample. Values are untouched, timing moves by half a sample, and nothing
+   that measures reads this — measurements use the stored samples. */
+function drawHeld(ch){ return CFG.smoothHeld!==false && sampleHold(ch)===2; }
+function eachDrawPoint(data, i0, i1, held, fn){
+  for(let i=i0;i<=i1;){
+    const v=data[i];
+    if(held && i<i1 && v===v && data[i+1]===v){ fn(i+0.5, v); i+=2; }
+    else { fn(i, v); i++; }
+  }
 }
 /* the top of the monitor's invasive-pressure range: only a plateau up here is clipping */
 const IBP_CLIP_MMHG = 290;
@@ -3981,7 +4595,7 @@ function renderHemoPanel(computed){
       '<th>Device value<br><span class="vithint">window median</span></th><th>Formula / method</th>'+
       '<th>Typical</th><th>Notes</th></tr>'+
       list.map(r=>'<tr><td>'+esc(r.name)+' <span style="color:var(--dim)">'+esc(r.abbreviation)+
-        '</span></td><td style="white-space:nowrap">'+
+        '</span>'+infoBtn(r.id)+'</td><td style="white-space:nowrap">'+
           (m==='waveform_derived'?'<span data-hemo-live="'+r.id+'">'+fmt(live[r.id])+'</span>'+
             '<small class="hemo-window">Window median: <span data-hemo-val="'+r.id+'">'+fmt(r)+'</span></small>':
             '<span data-hemo-val="'+r.id+'">'+fmt(r)+'</span>')+'</td>'+
@@ -4090,12 +4704,11 @@ function drawHemoWave(cv){
         const i0=Math.max(0,Math.floor((t0-sg.t0)*ch.hz/1000)-1);
         const i1=Math.min(sg.n-1,Math.ceil((t1-sg.t0)*ch.hz/1000)+1);
         let pen=false;
-        for(let i=i0;i<=i1;i++){
-          const v=sg.data[i];
-          if(!(v===v)){ pen=false; continue; }
+        eachDrawPoint(sg.data, i0, i1, drawHeld(ch), (i,v)=>{
+          if(!(v===v)){ pen=false; return; }
           const x=L+(sg.t0+i*1000/ch.hz-t0)/span*plotW, y=clamp(Y(v),yTop+1,yBot-1);
           if(!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
-        }
+        });
       }
     } else {
       const cols=Math.round(plotW), env=envelope(ch,t0,t1,cols);
@@ -5565,7 +6178,7 @@ function sigTable(R, groups, opts){
     '<table class="grid lefty"><tr><th>Parameter</th><th>Value</th><th>Provenance</th>'+
     '<th>Formula</th><th>Typical</th><th>Notes &amp; sources</th></tr>'+
     rows.map(r=>'<tr><td>'+esc(r.name)+' <span style="color:var(--dim)">'+esc(r.abbreviation||'')+
-      '</span></td><td style="white-space:nowrap" data-sig-val="'+r.id+'">'+fmt(r)+'</td>'+
+      '</span>'+infoBtn(r.id)+'</td><td style="white-space:nowrap" data-sig-val="'+r.id+'">'+fmt(r)+'</td>'+
       '<td><span class="prov prov-'+r.method+'">'+esc(r.methodLabel)+'</span>'+
         (r.source?'<div style="font-size:10px;color:var(--dim2)">'+esc(r.source.join(' + '))+'</div>':'')+
       '</td>'+
@@ -5954,7 +6567,8 @@ function wireCaseInputs(){
 function renderPhysPane(){
   if(!SEC.phys) secLoad();
   const b=$('#hemoBody');
-  if(HV.chans==null) HV.chans=hemoDefaultChans();
+  /* remembered waveforms that this case doesn't have fall back to the defaults */
+  if(HV.chans==null || !HV.chans.some(k=>hemoChanList().some(c=>c.key===k))) HV.chans=hemoDefaultChans();
   const all=hemoChanList();
   const boxes=all.map(x=>
     '<label class="hvchk"><input type="checkbox" data-k="'+esc(x.key)+'"'+
@@ -6018,6 +6632,7 @@ function renderPhysPane(){
     const k=cb.dataset.k;
     if(cb.checked){ if(HV.chans.indexOf(k)<0) HV.chans.push(k); }
     else HV.chans=HV.chans.filter(x=>x!==k);
+    CFG.hemoChans=HV.chans.slice(); cfgSave();
     renderPhysPane();
     const next=$$('#hemoBody .hvchk input').find(el=>el.dataset.k===k);
     if(next) next.focus({preventScroll:true});
@@ -6029,7 +6644,7 @@ function renderPhysPane(){
   };
   $('#hvWin').onchange=e=>{
     const sp=hvSpan(), mid=(sp.t0+sp.t1)/2;
-    HV.win=+e.target.value;
+    HV.win=+e.target.value; CFG.hemoSweep=HV.win; cfgSave();
     HV.anchor=clamp(mid-HV.win/2, 0, Math.max(0,M.durMs-HV.win));
     drawHemoWave($('#hemoWave')); drawHemoScrub($('#hemoScrub'));
   };
@@ -6219,13 +6834,12 @@ function drawMonitor(){
         const i0=Math.max(0, Math.floor((t0-sg.t0)*ch.hz/1000)-1);
         const i1=Math.min(sg.n-1, Math.ceil((t1-sg.t0)*ch.hz/1000)+1);
         let pen=false;
-        for(let i=i0;i<=i1;i++){
-          const v=sg.data[i];
-          if(!(v===v)){ pen=false; continue; }
+        eachDrawPoint(sg.data, i0, i1, drawHeld(ch), (i,v)=>{
+          if(!(v===v)){ pen=false; return; }
           const x = LEFT + (sg.t0 + i*1000/ch.hz - t0)/span*plotW;
           const y = clamp(Y(v), yTop+1, yBot-1);
           if(!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
-        }
+        });
       }
     } else {
       /* Zoomed out: one min/max pair per pixel column keeps peaks visible. */
@@ -6398,7 +7012,7 @@ function renderParamChooser(){
       return '<label class="prow'+(on?' on':'')+'" title="'+esc(p.note||'')+'">'+
         '<input type="checkbox" data-id="'+p.id+'"'+(on?' checked':'')+'>'+
         '<i style="background:'+traceCol(p.color)+'"></i>'+
-        '<span class="pn">'+esc(p.label)+(p.sub2?' <em>'+esc(p.sub2)+'</em>':'')+'</span>'+
+        '<span class="pn">'+esc(p.label)+(p.sub2?' <em>'+esc(p.sub2)+'</em>':'')+infoBtn(p.id)+'</span>'+
         '<span class="pu">'+esc(p.unit||'')+'</span>'+
         '<span class="po">'+(p.origin==='derived'?'derived':'device')+' · '+n+'</span>'+
         '</label>';
@@ -6872,7 +7486,7 @@ function vitalsHead(ps, inline){
     if(p.unit) parts.push('<span>'+esc(p.unit)+'</span>');
     /* stacked, so a column only has to be as wide as its longest single line
        instead of the whole label run together */
-    return '<th style="color:'+traceCol(p.color)+'">'+parts.join(inline?' ':'<br>')+'</th>';
+    return '<th style="color:'+traceCol(p.color)+'">'+parts.join(inline?' ':'<br>')+(inline?'':infoBtn(p.id))+'</th>';
   }).join('');
 }
 /* Column widths: drag a header edge to resize, double-click it to fit the column
@@ -7021,8 +7635,8 @@ function renderVitals(){
   makeResizable($('#vitalsBody table'));
   vitFitWidth();
   $('#vitPick').onclick = openParamChooser;
-  $('#vitEvery').onchange = e=>{ VIT.every = parseEvery(e.target.value); renderVitals(); };
-  $('#vitChg').onchange = e=>{ VIT.onlyChanges = e.target.checked; renderVitals(); };
+  $('#vitEvery').onchange = e=>{ VIT.every = parseEvery(e.target.value); CFG.vitalsEvery=VIT.every; cfgSave(); renderVitals(); };
+  $('#vitChg').onchange = e=>{ VIT.onlyChanges = e.target.checked; CFG.vitalsChanges=VIT.onlyChanges; cfgSave(); renderVitals(); };
   if($('#vitZero')) $('#vitZero').onchange = e=>{
     VIT.showZero = CFG.vitalsZero = e.target.checked; cfgSave(); renderVitals(); };
   $('#vitFit').onclick = ()=>{ VIT.widths={}; VIT.userSized=false; renderVitals(); };
@@ -7988,8 +8602,9 @@ function syncEventPanel(){
   side.classList.toggle('collapsed',!open);
   side.classList.toggle('mobopen',narrow&&open);
   side.setAttribute('aria-hidden',String(!open));
-  button.textContent=open?'Hide events':'Show events';
   button.title=(open?'Hide':'Show')+' event list (E)';
+  button.setAttribute('aria-label', (open?'Hide':'Show')+' event list');
+  button.classList.toggle('open', open);
   button.setAttribute('aria-expanded',String(open));
   if(!open && side.contains(document.activeElement)) button.focus({preventScroll:true});
   return open;
@@ -8018,7 +8633,6 @@ function setEventPanelVisible(open){
 }
 function wireEventPanel(){
   $('#btnSide').onclick=()=>setEventPanelVisible(!syncEventPanel());
-  $('#btnHideEvents').onclick=()=>setEventPanelVisible(false);
   window.matchMedia('(max-width: 900px)').addEventListener('change',()=>{
     syncEventPanel(); redrawAfterEventPanel();
   });
@@ -8277,6 +8891,7 @@ function resetAllViews(){
 }
 function toggleHidden(id){
   if(TRD.hidden.has(id)) TRD.hidden.delete(id); else TRD.hidden.add(id);
+  CFG.hiddenSeries=[...TRD.hidden]; cfgSave();
   if(APP.view==='trends') renderTrends();
   if($('#chartDlg') && $('#chartDlg').open) drawChartDlg();
 }
@@ -8394,7 +9009,7 @@ function legendHtml(B, clickable){
     return '<span class="lg'+(L.hidden?' off':'')+'" data-id="'+L.p.id+'" title="'+
       esc((L.p.note?L.p.note+' — ':'')+'click to show or hide on the chart')+
       '"><i style="background:'+(L.hidden?'transparent':traceCol(L.p.color))+
-      ';box-shadow:inset 0 0 0 1.5px '+traceCol(L.p.color)+'"></i>'+esc(L.p.full)+
+      ';box-shadow:inset 0 0 0 1.5px '+traceCol(L.p.color)+'"></i>'+esc(L.p.full)+infoBtn(L.p.id)+
       (L.p.origin==='derived'?' <em>derived</em>':'')+
       (st?'<span class="lgstat">'+st+'</span>':'')+'</span>'+
       (L.parts ? '<span class="lgparts">'+L.parts.map(c=>
@@ -8438,7 +9053,7 @@ function wireTrendCtl(){
   const m=$('#trMean'), t=$('#trTrend'), k=$('#trPeaks');
   if(m) m.onclick = ()=>{ TRD.mean=!TRD.mean; CFG.meanLines=TRD.mean; cfgSave(); renderTrends(); };
   if(t) t.onclick = ()=>{ TRD.trend=!TRD.trend; CFG.trendLines=TRD.trend; cfgSave(); renderTrends(); };
-  if(k) k.onclick = ()=>{ TRD.extrema=!TRD.extrema; renderTrends(); };
+  if(k) k.onclick = ()=>{ TRD.extrema=!TRD.extrema; CFG.peakLabels=TRD.extrema; cfgSave(); renderTrends(); };
   const rs=$('#trReset'); if(rs) rs.onclick = resetTrendsView;
 }
 /* ignore the transient spikes that zeroing or flushing a line produces */
@@ -8558,13 +9173,12 @@ function paperDraw(cv, traces, opts){
     }
     g.strokeStyle = p.notEcg ? '#7a3fb8' : '#111';
     g.beginPath(); let pen=false;
-    for(let i=i0;i<i1;i++){
-      const v=tr.data[i];
+    eachDrawPoint(tr.data, i0, i1-1, !tr.isEcg && drawHeld(tr), (i,v)=>{
       const x = x0 + (i-i0)/tr.hz*pxPerSec;
-      if(!(v===v)){ pen=false; continue; }
+      if(!(v===v)){ pen=false; return; }
       const y = baseY - (v-mid)*scale;
       if(!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
-    }
+    });
     g.stroke();
     /* pacer pulses the monitor flagged in this recording, as on a printed strip */
     if(!p.notEcg && APP.showPace && tr.pace && tr.pace.length){
@@ -9019,12 +9633,14 @@ function capnoBreaths(ch){
 const CFG_KEY = 'zollviewer:cfg';
 const CFG_DEFAULT = {
   uiScale:100, theme:'auto',
-  win:8000, gain:10, speed:1, showGrid:true, showBeats:false, showVents:false, showPace:true,
+  win:8000, gain:10, speed:1, showGrid:true, showBeats:false, showVents:false, showPace:true, smoothHeld:true,
   hrWin:10000, rrWin:30000, staleMs:30000, timelineH:null, hemoScope:60000, fio2:null,
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true,
+  /* remembered between runs: the last setup of each view */
+  peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
 const CFG = Object.assign({}, CFG_DEFAULT);
 const CASE_INPUT_KEYS=['heightCm','weightKg','svK','assumedCvp','fio2'];
@@ -9130,8 +9746,12 @@ function applyCfgToSession(){
   VIT.every = parseEvery(CFG.vitalsEvery);
   VIT.showZero = CFG.vitalsZero!==false;
   VIT.onlyChanges = !!CFG.vitalsChanges;
-  TRD.mean=!!CFG.meanLines; TRD.trend=!!CFG.trendLines;
+  TRD.mean=!!CFG.meanLines; TRD.trend=!!CFG.trendLines; TRD.extrema=!!CFG.peakLabels;
+  TRD.hidden=new Set(Array.isArray(CFG.hiddenSeries)?CFG.hiddenSeries:[]);
   EV.showLog=!!CFG.showDeviceLog;
+  EV.groups=new Set(Array.isArray(CFG.eventGroups)?CFG.eventGroups:[]);
+  if(CFG.hemoSweep) HV.win=+CFG.hemoSweep;
+  HV.chans=Array.isArray(CFG.hemoChans)?CFG.hemoChans.slice():null;
   const set=(id,v)=>{ const e=$(id); if(e) e.value=String(v); };
   set('#winSel',APP.win); set('#gainSel',APP.gain); set('#speed',APP.speed);
   const tog=(id,on)=>{ const e=$(id); if(e) e.classList.toggle('on',on); };
@@ -9162,6 +9782,13 @@ function renderSettings(){
       row('Playback speed', sel('cfgSpeed',[[0.25,'0.25×'],[0.5,'0.5×'],[1,'1×'],[2,'2×'],[4,'4×'],
         [8,'8×'],[20,'20×']],CFG.speed))+
       row('Show ECG grid', chk('cfgGrid',CFG.showGrid))+
+      row('Smooth paired pressure samples', chk('cfgSmooth',CFG.smoothHeld!==false),
+        'The monitor stores invasive pressure with every value written twice in a row, '+
+        'so drawn sample by sample the trace looks like a small staircase. With this on, '+
+        'the line is drawn through the middle of each repeated pair instead. It changes '+
+        'only the drawing: the values shown are the stored ones, and every measurement '+
+        '(systolic, diastolic, MAP, PPV, dP/dt and the rest) uses the stored samples '+
+        'either way, so no result changes.')+
       row('Mark detected beats', chk('cfgBeats',CFG.showBeats))+
       row('Mark detected ventilations', chk('cfgVents',CFG.showVents))+
       row('Numerics go grey after', sel('cfgStale',[[10000,'10 s'],[30000,'30 s'],[60000,'1 min'],
@@ -9195,7 +9822,7 @@ function renderSettings(){
       row('Vitals interval', sel('cfgVitEvery',[['device','NIBP cycle (1 min when none)'],[60000,'1 min'],[300000,'5 min'],[600000,'10 min'],
         [900000,'15 min'],[1200000,'20 min'],[1800000,'30 min'],[3600000,'60 min'],
         [7200000,'120 min'],['trend','trend record']],CFG.vitalsEvery),
-        'A case that records an NIBP auto interval always opens on that cycle; this applies to cases that do not.')+
+        'The vitals list opens with the interval you last chose there. NIBP cycle is the default; a case without an NIBP auto interval uses 1 min.')+
       row('Vitals: only rows that changed', chk('cfgVitChg',CFG.vitalsChanges))+
       row('Show device log by default', chk('cfgLog',CFG.showDeviceLog),
         'Same-day self-tests and the monitor’s continuous background rhythm analysis.')+
@@ -9215,6 +9842,16 @@ function renderSettings(){
         'Runs the extraction and the invalidation rules against synthetic arterial waveforms — '+
         'normal, hypo- and hypertensive, narrow and wide pulse pressure, tachy- and bradycardia, '+
         'respiratory swing, arrhythmia, noise, clipping, absent dicrotic notch and low amplitude.')+
+      row('Back up settings',
+        '<button id="cfgExport">Export settings</button> '+
+        '<button id="cfgImport">Import settings…</button>'+
+        '<input type="file" id="cfgImportFile" accept=".json,application/json" hidden>'+
+        '<label class="cfg-inline"><input type="checkbox" id="cfgExportAnn"> include annotations</label>',
+        'Saves your preferences and layout (parameter choices, vitals and monitor setup, '+
+        'theme, per-case inputs and line sites) to a file, so you can restore them if this '+
+        'browser’s storage is cleared, or copy them to another device. Annotations are left out '+
+        'unless you include them, because notes can contain patient details. The list of '+
+        'recent files and the case folder belong to this computer and are never exported.')+
       row('All settings', '<button id="cfgReset">Restore defaults</button>')+
     '</div>'+
     '<div class="note-inline">Settings and annotations live in this browser only. '+
@@ -9245,6 +9882,11 @@ function renderSettings(){
   on('#cfgGain','change',e=>put('gain',+e.target.value,()=>drawMonitor()));
   on('#cfgSpeed','change',e=>put('speed',+e.target.value));
   on('#cfgGrid','change',e=>put('showGrid',e.target.checked,()=>drawMonitor()));
+  on('#cfgSmooth','change',e=>put('smoothHeld',e.target.checked,()=>{
+    drawMonitor();
+    const hv=$('#hemoWave'); if(hv && typeof drawHemoWave==='function') drawHemoWave(hv);
+    const pc=$('#paper'); if(pc && pc._redraw) pc._redraw();
+  }));
   on('#cfgBeats','change',e=>put('showBeats',e.target.checked,()=>drawMonitor()));
   on('#cfgVents','change',e=>put('showVents',e.target.checked,()=>drawMonitor()));
   on('#cfgStale','change',e=>put('staleMs',+e.target.value));
@@ -9283,10 +9925,67 @@ function renderSettings(){
     box.id='selfTestResults';
     $('#cfgSelfTest').closest('.setgrid').after(box);
   });
+  on('#cfgExport','click',()=>exportSettings($('#cfgExportAnn') && $('#cfgExportAnn').checked));
+  on('#cfgImport','click',()=>$('#cfgImportFile').click());
+  on('#cfgImportFile','change',e=>{ const f=e.target.files && e.target.files[0]; if(f) importSettings(f); e.target.value=''; });
   on('#cfgReset','click',()=>{ if(confirm('Restore all settings to defaults?')){
       Object.assign(CFG, CFG_DEFAULT); cfgSave(); applyUiScale(); applyCfgToSession();
       setTheme((window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');
       renderSettings(); } });
+}
+
+/* ---------------- settings backup ----------------
+   Everything the viewer keeps in this browser lives under "zollviewer:" keys. The
+   backup is those keys and their stored text, as JSON. Recent files and the chosen
+   folder name belong to this computer; annotations are opt-in. */
+const SETTINGS_KIND = 'case-viewer-settings';
+const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName'];
+function settingsKeys(includeAnn){
+  const out=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k || !k.startsWith('zollviewer:') || DEVICE_ONLY_KEYS.includes(k)) continue;
+      if(!includeAnn && k.startsWith('zollviewer:ann:')) continue;
+      out.push(k);
+    }
+  }catch(e){}
+  return out.sort();
+}
+function exportSettings(includeAnn){
+  cfgSave(); selSave();
+  const items={};
+  for(const k of settingsKeys(includeAnn)){ try{ items[k]=localStorage.getItem(k); }catch(e){} }
+  const day=new Date().toISOString().slice(0,10);
+  download('case-viewer-settings-'+day+'.json', new Blob([JSON.stringify({kind:SETTINGS_KIND, version:1,
+    exported:new Date().toISOString(), annotations:!!includeAnn, items}, null, 2)], {type:'application/json'}));
+  toast('Settings exported ('+Object.keys(items).length+' items'+(includeAnn?', with annotations':'')+')');
+}
+async function importSettings(file){
+  let data;
+  try{ data=JSON.parse(await file.text()); }
+  catch(e){ toast('That file isn’t valid JSON. Choose a file saved with Export settings.'); return; }
+  if(!data || data.kind!==SETTINGS_KIND || !data.items || typeof data.items!=='object'){
+    toast('That isn’t a Case Viewer settings file. Choose a file saved with Export settings.'); return;
+  }
+  const items=Object.entries(data.items).filter(([k,v])=>
+    typeof k==='string' && k.startsWith('zollviewer:') && !DEVICE_ONLY_KEYS.includes(k) &&
+    typeof v==='string' && v.length < 2e6);
+  if(!items.length){ toast('That settings file has nothing to import.'); return; }
+  const ann=items.filter(([k])=>k.startsWith('zollviewer:ann:')).length;
+  if(!confirm('Replace your current settings with the '+items.length+' saved items in this file'+
+      (ann?' (including annotations for '+ann+' case'+(ann>1?'s':'')+')':'')+'?')) return;
+  let written=0;
+  for(const [k,v] of items){ try{ localStorage.setItem(k,v); written++; }catch(e){} }
+  /* start from the defaults so a setting absent from the file doesn't linger */
+  Object.assign(CFG, CFG_DEFAULT); cfgLoad();
+  applyUiScale();
+  try{ setTheme(CFG.theme==='auto' ? systemTheme() : CFG.theme); }catch(e){}
+  if(M.params && M.params.length){ selLoad(); annLoad(); loadSites(); }
+  applyCfgToSession();
+  renderChips(); renderEvents(); refreshParamViews();
+  setView(APP.view);
+  toast('Settings imported ('+written+' items)');
 }
 
 /* ---------------- transport ---------------- */
@@ -9350,14 +10049,15 @@ function deferRender(sel, fn, label){
   requestAnimationFrame(()=>requestAnimationFrame(run));
   setTimeout(run, 60);
 }
-const NO_TRANSPORT_VIEWS = new Set(['vitals','cpr','analysis','settings']);
+const NO_TRANSPORT_VIEWS = new Set(['vitals','cpr','analysis','settings','formulas']);
 function setView(v){
   APP.view = v;
+  if(CFG.lastView!==v){ CFG.lastView=v; cfgSave(); }
   $$('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   $$('.pane').forEach(p=>p.classList.remove('on'));
   const map = {monitor:'#monitorPane', trends:'#trendsPane', ecg:'#ecgPane',
     vitals:'#vitalsPane', annot:'#annotPane', cpr:'#cprPane', hemo:'#hemoPane',
-    analysis:'#analysisPane', settings:'#settingsPane'};
+    analysis:'#analysisPane', settings:'#settingsPane', formulas:'#formulasPane'};
   $(map[v]).classList.add('on');
   /* the playback bar and timeline only earn their space on tabs that follow the
      cursor; elsewhere the page gets the room back */
@@ -9375,6 +10075,7 @@ function setView(v){
   if(v==='hemo') deferRender('#hemoBody', renderPhysPane, 'Measuring the signals');
   if(v==='analysis') deferRender('#analysisBody', renderAnalysis, 'Summarising the case');
   if(v==='settings') renderSettings();
+  if(v==='formulas') renderFormulas();
 }
 
 /* ---------------- timeline interaction ---------------- */
@@ -9417,12 +10118,12 @@ function tlInit(){
 /* ---------------- wiring ---------------- */
 function wire(){
   $('#btnPlay').onclick = ()=> setPlaying(!APP.playing);
-  $('#speed').onchange = e=> APP.speed = +e.target.value;
-  $('#winSel').onchange = e=>{ APP.win=+e.target.value; syncWinSel(); drawMonitor(); };
-  $('#gainSel').onchange = e=>{ APP.gain=+e.target.value; drawMonitor(); };
-  $('#btnGrid').onclick = e=>{ APP.showGrid=!APP.showGrid; e.target.classList.toggle('on',APP.showGrid); drawMonitor(); };
-  $('#btnBeats').onclick = e=>{ APP.showBeats=!APP.showBeats; e.target.classList.toggle('on',APP.showBeats); drawMonitor(); };
-  $('#btnVent').onclick = e=>{ APP.showVents=!APP.showVents; e.target.classList.toggle('on',APP.showVents); drawMonitor(); };
+  $('#speed').onchange = e=>{ APP.speed = +e.target.value; CFG.speed=APP.speed; cfgSave(); };
+  $('#winSel').onchange = e=>{ APP.win=+e.target.value; CFG.win=APP.win; cfgSave(); syncWinSel(); drawMonitor(); };
+  $('#gainSel').onchange = e=>{ APP.gain=+e.target.value; CFG.gain=APP.gain; cfgSave(); drawMonitor(); };
+  $('#btnGrid').onclick = e=>{ APP.showGrid=!APP.showGrid; e.target.classList.toggle('on',APP.showGrid); CFG.showGrid=APP.showGrid; cfgSave(); drawMonitor(); };
+  $('#btnBeats').onclick = e=>{ APP.showBeats=!APP.showBeats; e.target.classList.toggle('on',APP.showBeats); CFG.showBeats=APP.showBeats; cfgSave(); drawMonitor(); };
+  $('#btnVent').onclick = e=>{ APP.showVents=!APP.showVents; e.target.classList.toggle('on',APP.showVents); CFG.showVents=APP.showVents; cfgSave(); drawMonitor(); };
   $('#btnPace').onclick = e=>{ APP.showPace=!APP.showPace; e.target.classList.toggle('on',APP.showPace);
     CFG.showPace=APP.showPace; cfgSave(); drawMonitor();
     const pc=$('#paper'); if(APP.view==='ecg' && pc && pc._redraw) pc._redraw(); };
@@ -9470,6 +10171,7 @@ function wire(){
     const g=c.dataset.g;
     if(g==='__log'){ EV.showLog=!EV.showLog; }
     else { if(EV.groups.has(g)) EV.groups.delete(g); else EV.groups.add(g); }
+    CFG.eventGroups=[...EV.groups]; CFG.showDeviceLog=EV.showLog; cfgSave();
     renderChips(); renderEvents();
   };
   $('#eventlist').onclick = ev=>{
@@ -9547,11 +10249,11 @@ function wire(){
       case '-': case '_': zoomStep(1/0.6); break;
       case '1': setView('monitor'); break;
       case '2': setView('trends'); break;
-      case '3': setView('ecg'); break;
-      case '4': setView('vitals'); break;
-      case '5': setView('annot'); break;
-      case '6': setView('cpr'); break;
-      case '7': setView('hemo'); break;
+      case '3': setView('hemo'); break;
+      case '4': setView('ecg'); break;
+      case '5': setView('vitals'); break;
+      case '6': setView('annot'); break;
+      case '7': setView('cpr'); break;
       case '8': setView('analysis'); break;
       case '9': setView('settings'); break;
     }
@@ -9587,7 +10289,7 @@ async function loadFile(file){
     buildHemoParams(); selLoad(); annLoad(); applyCfgToSession();
     /* the vitals list opens on the monitor's own NIBP cycle whenever the case
        records one; the saved interval only covers cases that do not */
-    if(M.nibpAuto && M.nibpAuto.length){ VIT.every='device'; VIT.userSized=false; }
+    VIT.userSized=false;
     startApp();
     prog(1,'Done');
     recentAdd({id:M.caseId||(from&&from.path)||M.fileName, name:M.fileName,
@@ -9636,7 +10338,9 @@ function startApp(){
   APP.cursor = 0; APP.sel=null;
   seek(firstValidTime());
   drawTimeline();
-  setView('monitor');
+  /* reopen on the tab that was open last time */
+  const lastView = CFG.lastView;
+  setView(lastView && $('#tabs button[data-view="'+lastView+'"]') ? lastView : 'monitor');
   wireStripTools();
   wireTransportGrip();
   applyTimelineH();
@@ -9648,6 +10352,7 @@ function startApp(){
   applyAppIdentity();
   cfgLoad();
   wire();
+  wireGlossary();
   watchVitalsWidth();
   applyUiScale();
   initTheme();

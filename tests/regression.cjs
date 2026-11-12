@@ -553,7 +553,7 @@ function eventPanelHarness() {
   const media={matches:false,addEventListener(type,fn){this.onchange=fn;}}, frames=[];
   const classes=new Set(), attrs={}, toggleAttrs={};
   const document={activeElement:null};
-  const hide={}, toggle={setAttribute:(k,v)=>{toggleAttrs[k]=v;},
+  const hide={}, toggle={setAttribute:(k,v)=>{toggleAttrs[k]=v;}, classList:{toggle(){}},
     focus(){document.activeElement=toggle;}};
   const panel={classList:{contains:k=>classes.has(k),toggle(k,on){on?classes.add(k):classes.delete(k);}},
     setAttribute:(k,v)=>{attrs[k]=v;},contains:n=>n===hide};
@@ -567,15 +567,15 @@ function eventPanelHarness() {
   return {a,media,frames,classes,attrs,toggleAttrs,document,hide,toggle};
 }
 
-test('event panel buttons hide and restore the desktop list, remember the choice and resize Physiology', () => {
+test('the event-list icon hides and restores the desktop list, remember the choice and resize Physiology', () => {
   const h=eventPanelHarness(), a=h.a;
-  assert.equal(h.toggle.textContent,'Hide events');
+  assert.equal(h.toggleAttrs['aria-label'],'Hide event list');
   assert.equal(h.toggleAttrs['aria-expanded'],'true');
   a.run('APP.cursor=12345; APP.playing=true');
-  h.document.activeElement=h.hide; h.hide.onclick();
+  h.document.activeElement=h.hide; h.toggle.onclick();
   assert.equal(h.classes.has('collapsed'),true);
   assert.equal(h.attrs['aria-hidden'],'true');
-  assert.equal(h.toggle.textContent,'Show events');
+  assert.equal(h.toggleAttrs['aria-label'],'Show event list');
   assert.equal(h.document.activeElement,h.toggle,'focus stays in the visible interface');
   assert.equal(a.run('JSON.parse(localStorage.getItem(CFG_KEY)).eventsVisible'),false);
   a.run('CFG.eventsVisible=true; cfgLoad(); syncEventPanel()');
@@ -593,13 +593,13 @@ test('a desktop-hidden event list can reopen on mobile without changing the desk
   const h=eventPanelHarness(), a=h.a;
   h.toggle.onclick();
   h.media.matches=true; h.media.onchange();
-  assert.equal(h.toggle.textContent,'Show events');
+  assert.equal(h.toggleAttrs['aria-label'],'Show event list');
   h.toggle.onclick();
   assert.equal(h.classes.has('mobopen'),true);
   assert.equal(h.classes.has('collapsed'),false);
   assert.equal(h.toggleAttrs['aria-expanded'],'true');
   assert.equal(a.run('CFG.eventsVisible'),false);
-  h.hide.onclick();
+  h.toggle.onclick();
   assert.equal(h.classes.has('mobopen'),false);
   assert.equal(h.toggleAttrs['aria-expanded'],'false');
   h.media.matches=false; h.media.onchange();
@@ -809,4 +809,36 @@ test('every cited source has a link, and every result source exists', () => {
   ].filter(k=>!SOURCES[k]))`));
   assert.deepEqual(missing, []);
   assert.ok(a.run(`sourcesHtml('gardner').includes('href="https://doi.org/10.1097/00000542-198103000-00010"')`));
+});
+
+test('paired samples are drawn once per pair, and only when smoothing is on', () => {
+  const a = app();
+  const pts = held => JSON.parse(a.run(`(()=>{const o=[]; eachDrawPoint(Float32Array.from([69,69,71,71,73,NaN,76,76]),0,7,${held},(i,v)=>o.push([i,v===v?v:null])); return JSON.stringify(o);})()`));
+  assert.deepEqual(pts(true), [[0.5,69],[2.5,71],[4,73],[5,null],[6.5,76]]);
+  assert.equal(pts(false).length, 8);
+});
+
+test('every measure the viewer can show has an explanation, and every explanation cites known sources', () => {
+  const a = app();
+  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'case-viewer.html'), 'utf8');
+  const trend = [...html.matchAll(/add\(\{id:'([a-z0-9_]+)', group/g)].map(m=>m[1]);
+  const ids = JSON.parse(a.run('JSON.stringify(SIG_DEFS.map(d=>d.id).concat(HEMO_DEFS.map(d=>d.id)))')).concat(trend, ['ibp1','ibp2','ibp3']);
+  const missing = JSON.parse(a.run(`JSON.stringify(${JSON.stringify(ids)}.filter(id=>!GLOSS_BY_ID[id]))`));
+  assert.deepEqual(missing, []);
+  assert.equal(a.run(`GLOSSARY.flatMap(g=>(g.src||[]).filter(k=>!SOURCES[k])).length`), 0);
+  assert.ok(a.run(`infoBtn('rpp').includes('data-gloss="rpp"')`));
+  assert.equal(a.run(`infoBtn('no_such_measure')`), '');
+});
+
+test('every explainer link exists, and a settings backup round-trips without device-only or annotation keys', () => {
+  const m = new Map();
+  const a = app({localStorage: {getItem: k => m.get(k) ?? null, setItem: (k,v) => m.set(k, String(v)),
+    removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length(){ return m.size; }}});
+  assert.equal(a.run(`GLOSSARY.filter(g=>g.read && !(EXPLAIN[g.read] && EXPLAIN[g.read].url.startsWith('https://'))).length`), 0);
+  a.run(`localStorage.setItem('zollviewer:cfg','{"win":12000}'); localStorage.setItem('zollviewer:recent','[1]');
+    localStorage.setItem('zollviewer:dirName','x'); localStorage.setItem('zollviewer:ann:case1','[]');`);
+  const plain = JSON.parse(a.run('JSON.stringify(settingsKeys(false))'));
+  assert.ok(plain.includes('zollviewer:cfg'));
+  assert.ok(!plain.some(k=>/recent|dirName|ann:/.test(k)));
+  assert.ok(JSON.parse(a.run('JSON.stringify(settingsKeys(true))')).includes('zollviewer:ann:case1'));
 });
