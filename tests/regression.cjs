@@ -869,3 +869,14 @@ test('the formula index lists every entry, abbreviations too, in A–Z order wit
   assert.equal(a.run(`fmLetter('τ')`), '#');
   assert.equal(a.run(`fmLetter('Écart')`), 'E');
 });
+
+test('case details list everything in full and leave out what was not recorded', () => {
+  const a = app();
+  const html = a.run(`(()=>{ Object.assign(M, {caseId:'C1', fileName:'c1.zol', t0Wall:Date.UTC(2026,0,1,10), durMs:600000,
+    device:{serial:'SN1', sw:'1.0', dept:'Agency', unit:''}, patient:{PatientId:'P9', Age:'45', Weight:{'#text':'150','@Units':'lb'}},
+    summary:{shocks:2}, channels:{}, trends:[], events:[], snapshots:[], pace:[]});
+    return caseDetailsHtml(); })()`);
+  for (const s of ['C1', 'SN1', 'Agency', 'P9', '45 y', '150 lb', 'Shocks', '10:00']) assert.ok(html.includes(s), s);
+  assert.ok(!html.includes('>Unit<'));
+  assert.ok(!html.includes('Pacer pulses'));
+});
