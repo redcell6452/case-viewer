@@ -842,3 +842,18 @@ test('every explainer link exists, and a settings backup round-trips without dev
   assert.ok(!plain.some(k=>/recent|dirName|ann:/.test(k)));
   assert.ok(JSON.parse(a.run('JSON.stringify(settingsKeys(true))')).includes('zollviewer:ann:case1'));
 });
+
+test('march-out calipers repeat the exact interval both ways, and presses pick resize, slide or new', () => {
+  const a = app();
+  const t = JSON.parse(a.run('JSON.stringify(marchTimes(1000, 1800, 0, 4000))'));
+  assert.deepEqual(t, [2600, 3400, 200]);
+  /* whole multiples of the interval, so a long walk never drifts */
+  const far = JSON.parse(a.run('JSON.stringify(marchTimes(0.1, 0.3, 0, 1000).slice(0,400))'));
+  assert.ok(Math.abs(far[far.length-1] - (0.3 + far.length*0.2)) < 1e-9);
+  assert.equal(a.run('marchTimes(5, 5, 0, 100).length'), 0);
+  assert.equal(a.run('marchTimes(0, 1, 0, 1e9).length'), 400);
+  assert.equal(a.run(`calHit(102, 100, 200, 6)`), 'a');
+  assert.equal(a.run(`calHit(197, 100, 200, 6)`), 'b');
+  assert.equal(a.run(`calHit(150, 100, 200, 6)`), 'move');
+  assert.equal(a.run(`calHit(250, 100, 200, 6)`), null);
+});

@@ -234,6 +234,8 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num.stale .val{opacity:.34}
 .num.alarm{border-color:var(--crit);box-shadow:0 0 0 1px var(--crit) inset}
 .num .lbl em{font-style:normal;opacity:.6;font-size:11px}
+.num .lbl > span:first-child{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 3px}
+.num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
 .numpick{width:100%;font-size:11px;padding:4px}
 .vitctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .vitctl label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px}
@@ -778,6 +780,7 @@ dialog input[type=text]{width:100%}
           </div>
           <div class="grp adv">
             <button id="btnCal" title="Calipers: drag on a trace to measure (C)">⟺</button>
+            <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false">March</button>
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -7075,6 +7078,33 @@ function monPoint(ev){
   const v=row ? row.lo + (row.yBot-4-y)/(row.rowH-8)*(row.hi-row.lo) : null;
   return {x, y, t, row, v};
 }
+/* March-out calipers: the measured interval is repeated along the trace, the way a
+   paper caliper is walked along a rhythm strip. Beats that land on the marks are
+   regular; beats that drift off them are not. Returns the extra upright positions
+   between lo and hi, beyond the two the caliper already has. Each one is computed
+   as a whole multiple of the interval so rounding never accumulates. */
+function marchTimes(a, b, lo, hi, max){
+  max = max || 400;
+  const step=Math.abs(b-a), s=Math.min(a,b), e=Math.max(a,b), out=[];
+  if(!(step>0) || !isFinite(lo) || !isFinite(hi)) return out;
+  for(let k=1; out.length<max; k++){ const t=e+k*step; if(t>hi) break; out.push(t); }
+  for(let k=1; out.length<max; k++){ const t=s-k*step; if(t<lo) break; out.push(t); }
+  return out;
+}
+/* what a press near an existing caliper grabs: one upright (resize), the span
+   between them (slide the whole caliper, marched marks and all), or nothing */
+function calHit(x, xa, xb, tol){
+  if(Math.abs(x-xa)<=tol) return 'a';
+  if(Math.abs(x-xb)<=tol) return 'b';
+  if(x>Math.min(xa,xb) && x<Math.max(xa,xb)) return 'move';
+  return null;
+}
+function setCalMarch(on){
+  CFG.calMarch=!!on; cfgSave();
+  for(const id of ['#btnMarch','#stripMarch']){ const b=$(id); if(b){ b.classList.toggle('on', CFG.calMarch); b.setAttribute('aria-pressed', CFG.calMarch); } }
+  if(typeof drawMonitor==='function' && M.channels) drawMonitor();
+  const cv=$('#paper'); if(cv && cv._redraw) cv._redraw();
+}
 function drawCaliper(g2, geo){
   const c=APP.caliper; if(!c || !geo) return;
   const row=geo.rows[c.rowIdx]; if(!row) return;
@@ -7084,6 +7114,13 @@ function drawCaliper(g2, geo){
   const col = THEME.mode==='light' ? '#0a66c2' : '#ffd166';
   g2.save();
   g2.strokeStyle=col; g2.fillStyle=col; g2.lineWidth=1.2;
+  if(CFG.calMarch && Math.abs(x1-x0)>=3){
+    g2.save(); g2.globalAlpha=0.6; g2.lineWidth=1; g2.beginPath();
+    for(const t of marchTimes(c.t0, c.t1, geo.t0, geo.t1)){
+      const x=X(t); g2.moveTo(x,row.yTop+1); g2.lineTo(x,row.yBot-1);
+    }
+    g2.stroke(); g2.restore();
+  }
   /* uprights */
   g2.beginPath(); g2.moveTo(x0,row.yTop+1); g2.lineTo(x0,row.yBot-1);
   g2.moveTo(x1,row.yTop+1); g2.lineTo(x1,row.yBot-1); g2.stroke();
@@ -7113,21 +7150,43 @@ function wireStripTools(){
   const cv=$('#waveCanvas'); if(!cv) return;
   let dragging=false;
 
+  let grab=null;   /* 'a' | 'b' | 'move' | 'new' */
+  let from=null;   /* pointer and caliper at the start of a slide */
+  const hitAt=p=>{
+    const c=APP.caliper, g=monGeom();
+    if(!c || !g || !p.row || p.row.idx!==c.rowIdx) return null;
+    const X=t=>g.LEFT+(t-g.t0)/(g.t1-g.t0)*g.plotW;
+    return calHit(p.x, X(c.t0), X(c.t1), 6);
+  };
   cv.addEventListener('pointerdown', ev=>{
     if(!APP.calMode) return;
     const p=monPoint(ev); if(!p || !p.row) return;
     ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
     dragging=true;
-    APP.caliper={rowIdx:p.row.idx, t0:p.t, v0:p.v, t1:p.t, v1:p.v};
+    grab=hitAt(p);
+    if(grab==='move') from={t:p.t, v:p.v, c:Object.assign({}, APP.caliper)};
+    else if(!grab){ grab='b'; APP.caliper={rowIdx:p.row.idx, t0:p.t, v0:p.v, t1:p.t, v1:p.v}; }
     drawMonitor();
   });
   cv.addEventListener('pointermove', ev=>{
-    if(!dragging) return;
+    if(!dragging){
+      if(!APP.calMode) return;
+      const p=monPoint(ev), h=p && hitAt(p);
+      cv.style.cursor = h==='move' ? 'grab' : 'ew-resize';
+      return;
+    }
     const p=monPoint(ev); if(!p) return;
-    APP.caliper.t1=p.t; APP.caliper.v1=p.v;
+    const c=APP.caliper;
+    if(grab==='move'){
+      const dt=p.t-from.t, dv=(p.v!=null && from.v!=null) ? p.v-from.v : 0;
+      c.t0=from.c.t0+dt; c.t1=from.c.t1+dt;
+      if(from.c.v0!=null) c.v0=from.c.v0+dv; if(from.c.v1!=null) c.v1=from.c.v1+dv;
+      cv.style.cursor='grabbing';
+    } else if(grab==='a'){ c.t0=p.t; if(p.v!=null) c.v0=p.v; }
+    else { c.t1=p.t; if(p.v!=null) c.v1=p.v; }
     drawMonitor();
   });
-  const stop=()=>{ dragging=false; };
+  const stop=()=>{ dragging=false; grab=null; from=null; };
   cv.addEventListener('pointerup', stop);
   cv.addEventListener('pointercancel', stop);
   cv.addEventListener('dblclick', ()=>{ APP.caliper=null; drawMonitor(); });
@@ -7257,7 +7316,7 @@ function drawNumerics(){
       sub = (sub?sub+'  ':'')+'@'+clock;
     }
     return '<div class="num'+(stale?' stale':'')+'" data-id="'+p.id+'" style="border-color:'+traceCol(p.color)+'55">'+
-      '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+'</span>'+
+      '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+infoBtn(p.id)+'</span>'+
         '<span>'+esc(p.unit||'')+'</span></div>'+
       '<div class="val" style="color:'+traceCol(p.color)+'">'+v.main+'</div>'+
       '<div class="sub">'+esc(sub)+'</div>'+
@@ -9272,6 +9331,13 @@ function drawPaperCaliper(g, geo){
   const y0=p.baseY-(c.v0-p.mid)*p.scale, y1=p.baseY-(c.v1-p.mid)*p.scale;
   g.save();
   g.strokeStyle='#0a58c2'; g.fillStyle='#0a58c2'; g.lineWidth=1.3;
+  if(CFG.calMarch && Math.abs(x1-x0)>=3){
+    g.save(); g.globalAlpha=0.55; g.lineWidth=1; g.beginPath();
+    for(const t of marchTimes(c.s0, c.s1, p.t0, p.t0+(p.x1-p.x0)/geo.pxPerSec)){
+      const x=p.x0+(t-p.t0)*geo.pxPerSec; g.moveTo(x,p.yTop+2); g.lineTo(x,p.yBot-2);
+    }
+    g.stroke(); g.restore();
+  }
   g.beginPath(); g.moveTo(x0,p.yTop+2); g.lineTo(x0,p.yBot-2);
   g.moveTo(x1,p.yTop+2); g.lineTo(x1,p.yBot-2); g.stroke();
   const ym=(y0+y1)/2;
@@ -9306,23 +9372,44 @@ function attachPaperTools(cv){
   paperCalSync();
   if(cv._toolsWired) return;
   cv._toolsWired = true;
-  let dragging=false;
+  let dragging=false, grab=null, from=null;
+  const hitAt=p=>{
+    const c=PAPER.cal, geo=cv._paper;
+    if(!c || !geo || p.panel!==c.panel) return null;
+    const pn=geo.panels[c.panel]; if(!pn) return null;
+    const X=sec=>pn.x0+(sec-pn.t0)*geo.pxPerSec;
+    /* canvas pixels can be larger than screen pixels once the strip is zoomed */
+    const r=cv.getBoundingClientRect(), tol=7*geo.W/Math.max(1,r.width);
+    return calHit(p.x, X(c.s0), X(c.s1), tol);
+  };
   cv.addEventListener('pointerdown', ev=>{
     /* a finger on a disarmed strip belongs to the scroller, not the caliper */
     if(!PAPER.calOn && ev.pointerType==='touch') return;
     const p=paperPoint(cv, ev); if(!p) return;
     ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
     dragging=true;
-    PAPER.cal={panel:p.panel, s0:p.secs, v0:p.val, s1:p.secs, v1:p.val};
+    grab=hitAt(p);
+    if(grab==='move') from={s:p.secs, v:p.val, c:Object.assign({}, PAPER.cal)};
+    else if(!grab){ grab='b'; PAPER.cal={panel:p.panel, s0:p.secs, v0:p.val, s1:p.secs, v1:p.val}; }
     cv._redraw();
   });
   cv.addEventListener('pointermove', ev=>{
-    if(!dragging) return;
+    if(!dragging){
+      if(!PAPER.calOn) return;
+      const p=paperPoint(cv, ev), h=p && hitAt(p);
+      cv.style.cursor = h==='move' ? 'grab' : h ? 'ew-resize' : 'crosshair';
+      return;
+    }
     const p=paperPoint(cv, ev); if(!p || p.panel!==PAPER.cal.panel) return;
-    PAPER.cal.s1=p.secs; PAPER.cal.v1=p.val;
+    const c=PAPER.cal;
+    if(grab==='move'){
+      const ds=p.secs-from.s, dv=p.val-from.v;
+      c.s0=from.c.s0+ds; c.s1=from.c.s1+ds; c.v0=from.c.v0+dv; c.v1=from.c.v1+dv;
+    } else if(grab==='a'){ c.s0=p.secs; c.v0=p.val; }
+    else { c.s1=p.secs; c.v1=p.val; }
     cv._redraw();
   });
-  const stop=()=>{ dragging=false; };
+  const stop=()=>{ dragging=false; grab=null; from=null; };
   cv.addEventListener('pointerup', stop);
   cv.addEventListener('pointercancel', stop);
   cv.addEventListener('dblclick', ()=>{ PAPER.cal=null; cv._redraw(); });
@@ -9390,6 +9477,7 @@ function renderEcgPane(){
         '</select></label>'+
       '<label style="color:var(--dim);font-size:12px"><input type="checkbox" id="stripAll"> include pressure / CO2</label>'+
       '<button id="stripCal" title="Arm the calipers, then drag across the strip">⟺ Calipers</button>'+
+      '<button id="stripMarch" title="March out: repeat the caliper interval along the strip to check regularity (M)" aria-pressed="false">March</button>'+
       '<button id="stripCalClr" title="Clear the caliper (or double-click the strip)">Clear</button>'+
       '<button type="button" id="paperZoomOut" aria-label="Zoom out">−</button>'+
       '<label aria-label="ECG zoom percentage"><input class="zoom-input" type="number" id="paperZoomValue" min="25" max="400" step="5" value="100">%</label>'+
@@ -9399,7 +9487,8 @@ function renderEcgPane(){
       '<button id="stripPng">Save PNG</button>'+
     '</div>'+
     '<div class="note-inline" style="margin:4px 0 8px">Drag across the strip to measure — '+
-    'the caliper reads the interval, the equivalent rate and the amplitude. Double-click to clear.</div>'+
+    'the caliper reads the interval, the equivalent rate and the amplitude. Drag an upright to resize it or the middle to slide it. '+
+    '<b>March</b> repeats the interval along the strip, so beats that drift off the marks stand out. Double-click to clear.</div>'+
     '<div id="paperWrap"><canvas id="paper"></canvas></div>';
   b.innerHTML = html;
   let selectedSnap=null;
@@ -9482,6 +9571,10 @@ function renderEcgPane(){
   };
   $('#stripCal').onclick = ()=>{ PAPER.calOn=!PAPER.calOn; paperCalSync();
     toast(PAPER.calOn ? 'Calipers armed — drag across the strip' : 'Calipers off — the strip scrolls'); };
+  $('#stripMarch').onclick = ()=>{ setCalMarch(!CFG.calMarch);
+    if(CFG.calMarch && !PAPER.calOn){ PAPER.calOn=true; paperCalSync(); }
+    toast(CFG.calMarch ? 'March on — drag across one interval, then slide it onto a beat' : 'March off'); };
+  setCalMarch(CFG.calMarch);
   $('#stripCalClr').onclick = ()=>{ PAPER.cal=null; const cv=$('#paper'); if(cv._redraw) cv._redraw(); };
   paperCalSync();
   $('#stripBtn').onclick = ()=>doStrip(false);
@@ -9672,7 +9765,7 @@ const CFG_DEFAULT = {
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true,
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false,
   /* remembered between runs: the last setup of each view */
   peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
@@ -10164,6 +10257,12 @@ function wire(){
   $('#btnResetView').onclick = resetMonitorView;
   $('#btnZoomIn').onclick = ()=> zoomStep(0.6);
   $('#btnZoomOut').onclick = ()=> zoomStep(1/0.6);
+  $('#btnMarch').onclick = ()=>{
+    setCalMarch(!CFG.calMarch);
+    if(CFG.calMarch && !APP.calMode) $('#btnCal').click();
+    else toast(CFG.calMarch ? 'March on — drag across one interval, then slide it onto a beat' : 'March off');
+  };
+  setCalMarch(CFG.calMarch);
   $('#btnCal').onclick = ()=>{
     APP.calMode=!APP.calMode;
     $('#btnCal').classList.toggle('on', APP.calMode);
@@ -10171,7 +10270,8 @@ function wire(){
     wc.style.cursor = APP.calMode?'ew-resize':'';
     wc.classList.toggle('calarm', APP.calMode);
     if(!APP.calMode){ APP.caliper=null; drawMonitor(); }
-    else toast('Calipers on — drag across a trace to measure, double-click to clear');
+    else toast(CFG.calMarch ? 'March calipers on — drag across one interval; it repeats along the trace'
+      : 'Calipers on — drag across a trace to measure, double-click to clear');
   };
   $('#btnMark').onclick = annAddHere;
   $('#btnTheme').onclick = ()=>{
@@ -10282,6 +10382,7 @@ function wire(){
       case 'e': case 'E': $('#btnSide').click(); break;
       case 't': case 'T': $('#btnTheme').click(); break;
       case 'c': case 'C': $('#btnCal').click(); break;
+      case 'm': case 'M': (APP.view==='ecg' && $('#stripMarch') ? $('#stripMarch') : $('#btnMarch')).click(); break;
       case '+': case '=': zoomStep(0.6); break;
       case '-': case '_': zoomStep(1/0.6); break;
       case '1': setView('monitor'); break;

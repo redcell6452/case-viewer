@@ -114,7 +114,7 @@ shared across all three views. Averaging windows for the derived rates are in Se
 ## Playback and navigation
 
 - **Space** play/pause · **← →** step 1 s (**Shift** 10 s) · **Home/End** ends
-- **, .** previous / next event · **A** annotate · **C** calipers · **T** theme
+- **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **T** theme
 - **E** event list · **+ −** zoom · **1**–**7** switch tabs
 - Speed 0.25×–20×; sweep window 1–60 s; ECG gain 5–40 mm/mV
 - **Mouse wheel over the strip** zooms about the pointer
@@ -142,6 +142,12 @@ page; tap **⟺ Calipers** to arm them, and the strip stops scrolling until you 
 again. Either way the readout gives the interval in milliseconds, the equivalent rate
 per minute, and the amplitude difference in that row's own units. Double-click, or
 **Clear**, to remove it.
+
+Drag an upright to resize a caliper, or the space between them to slide it. **March**
+(or **M**) walks the caliper along the trace: the measured interval is repeated as faint
+uprights across the whole row, the way a paper caliper is stepped along a rhythm strip.
+Line the first pair up on two R waves; beats that stay on the marks are regular, and
+beats that drift off them are not. March stays on until you turn it off.
 
 ## Strips cascade
 
