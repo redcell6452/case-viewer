@@ -27,6 +27,10 @@ SOFTWARE.
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Nothing leaves this browser: the page may not open any network connection (fetch, XHR,
+     WebSocket, beacons), load outside scripts, styles, fonts or frames, or submit forms.
+     Links still open in a new tab; they carry no case data. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Case Viewer</title>
 <style>
 :root{
@@ -134,17 +138,27 @@ header{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align
   gap:5px 14px;padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--line)}
 .header-context{min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden}
 header .title{font-weight:650;letter-spacing:.2px;white-space:nowrap}
-.app-brand{display:grid;grid-template-columns:auto max-content;column-gap:8px;align-items:center;justify-content:start;flex:none}
-.app-brand .sidetoggle{grid-row:1 / span 2}
-.app-brand .title{grid-column:2}
-.app-brand .revision{grid-column:2}
+/* the title doubles as the way back to the start page */
+button.homebtn{background:none;border:0;padding:0;min-height:0;color:var(--fg);font:inherit;font-weight:650;cursor:pointer;text-align:left}
+button.homebtn:hover{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+button.homebtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+/* the privacy statement: the first thing on the start screen */
+.privacy{display:flex;gap:14px;align-items:flex-start;margin:4px 0 16px;padding:14px 16px;border:1px solid var(--line2);border-left:4px solid var(--ok);border-radius:8px;background:var(--bg2)}
+.privacy .lockicon{flex:none;color:var(--ok);margin-top:2px}
+.privacy h2{margin:0 0 4px;font-size:16px;font-weight:650;letter-spacing:0;text-transform:none;color:var(--fg)}
+.privacy p{margin:0;max-width:68ch;color:var(--dim);font-size:13px;line-height:1.55}
+/* header reminder: a pill that opens the same explanation */
+button.info.localbadge{width:auto;height:auto;gap:5px;padding:4px 9px;margin:0;border-radius:999px;border-color:var(--line2);color:var(--ok);font:600 11px var(--sans);font-style:normal;cursor:pointer}
+button.info.localbadge span{color:var(--fg)}
+.app-brand{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
 .revision{color:var(--dim);font-size:13px;font-weight:400;white-space:nowrap}
 header .meta{color:var(--dim);font:11px var(--mono);display:flex;gap:14px;white-space:nowrap;overflow:hidden;min-width:0}
 header .meta b{color:var(--fg);font-weight:600}
 .header-clock{text-align:center;white-space:nowrap;line-height:1.1}
 .header-clock .label{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
 .header-clock #clock{display:block;font:700 22px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)}
-.tabs{grid-column:1/-1;display:flex;gap:4px;min-width:0;overflow-x:auto}
+.tabrow{grid-column:1/-1;display:flex;gap:4px;min-width:0;align-items:flex-start}
+.tabs{display:flex;gap:4px;min-width:0;overflow-x:auto;flex:1 1 auto}
 .tabs button{padding:5px 14px;flex:0 0 auto}
 .header-actions{display:flex;align-items:center;gap:6px;justify-self:end}
 
@@ -156,8 +170,8 @@ main{flex:1;display:flex;min-height:0}
 .sideheading button{font-size:13px}
 #btnSide:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* the event-list toggle: a sidebar icon whose left panel fills in while the list is open */
-button.sidetoggle{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;min-height:0;padding:0;color:var(--dim);background:transparent;border:1px solid transparent}
-button.sidetoggle:hover{color:var(--fg);background:var(--hover);border-color:var(--line2)}
+button.sidetoggle{display:inline-flex;align-items:center;justify-content:center;flex:none;padding:5px 9px;margin-right:6px;color:var(--dim)}
+button.sidetoggle:hover{color:var(--fg)}
 button.sidetoggle .sidefill{opacity:0;transition:opacity .15s}
 button.sidetoggle.open{color:var(--fg)}
 button.sidetoggle.open .sidefill{opacity:.55}
@@ -533,7 +547,8 @@ dialog input[type=text]{width:100%}
     background:var(--bg2);border-bottom:1px solid var(--line);padding:8px}
   .header-clock{grid-column:1/-1;grid-row:2}
   .header-clock #clock{font-size:22px}
-  .tabs{grid-row:3;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  .tabrow{grid-row:3;width:100%}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;
     scrollbar-width:none;padding-bottom:2px}
   .tabs::-webkit-scrollbar{display:none}
   .tabs button{flex:0 0 auto;padding:7px 12px;font-size:13px}
@@ -589,6 +604,8 @@ dialog input[type=text]{width:100%}
   /* keep the title whole on a phone now that button text is larger */
   .header-actions{gap:4px}
   .header-actions button,.header-actions a.btnlink{font-size:13px;padding-left:9px;padding-right:9px}
+  button.info.localbadge{padding:4px 7px}
+  button.info.localbadge span{display:none}
   /* no room for a fifth header button on a phone: the link is in Settings instead */
   #btnRepo{display:none}
   .num .val{font-size:22px}
@@ -600,7 +617,8 @@ dialog input[type=text]{width:100%}
   #timeline{height:82px}
   button,a.btnlink{min-height:40px;padding-left:12px;padding-right:12px}
   button.info{width:22px;height:22px;min-height:0;padding:0;font-size:12px}
-  button.sidetoggle{width:40px;height:40px}
+  button.sidetoggle{min-height:42px;padding:0 11px}
+  button.info.localbadge{min-height:36px}
   select,input[type=text],input[type=number]{min-height:38px}
   .chip{padding:6px 11px;font-size:13px}
   .ev{padding:9px}
@@ -627,14 +645,21 @@ dialog input[type=text]{width:100%}
         <button id="dzClose" class="hide">Back to the case</button>
       </div>
     </div>
+    <section class="privacy" aria-label="Privacy"><svg class="lockicon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor"/></svg>
+      <div>
+        <h2>Your case files never leave this computer</h2>
+        <p>Files are opened and analysed entirely inside this browser. Nothing is uploaded or
+        sent anywhere, and the page is locked so it can’t connect to the internet at all, even
+        by mistake. Once it has loaded, it works with no connection.</p>
+      </div>
+    </section>
     <input id="fileinput" type="file" accept=".zol,.zip,.json" class="hide">
     <input id="libFallback" type="file" accept=".zol,.zip,.json" multiple class="hide">
     <div id="libBody"></div>
     <div id="progress"><i></i></div>
     <div id="progtext"></div>
     <div class="hint">
-      Everything is parsed in your browser — nothing is uploaded, and the folder you choose
-      is remembered on this machine only.<br>
+      The folder you choose is remembered on this computer only.<br>
       Reads X Series / R Series / Propaq MD full-disclosure exports. Drop a file anywhere to open it.<br>
       <kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> step · <kbd>,</kbd><kbd>.</kbd> event · <kbd>A</kbd> annotate · <kbd>T</kbd> theme · <kbd>1</kbd>–<kbd>9</kbd> tabs
       <p class="legal">An independent project, not affiliated with or endorsed by ZOLL Medical
@@ -648,12 +673,13 @@ dialog input[type=text]{width:100%}
 <div id="app">
   <header>
     <div class="header-context">
-      <div class="app-brand"><button id="btnSide" class="sidetoggle" type="button" title="Hide event list (E)"
-        aria-label="Hide event list" aria-controls="side" aria-expanded="true"><svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true" focusable="false"><rect x="1" y="1.5" width="16" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect class="sidefill" x="2.2" y="2.7" width="4.6" height="10.6" rx="1" fill="currentColor"/><line x1="7.5" y1="2" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.2"/></svg></button><span class="title">Case Viewer</span><span class="revision" data-app-revision title="Viewer revision"></span></div>
+      <div class="app-brand"><button type="button" id="btnHome" class="title homebtn" title="Back to the start page">Case Viewer</button><span class="revision" data-app-revision title="Viewer revision"></span></div>
       <div class="meta" id="caseMeta"></div>
     </div>
     <div class="header-clock"><span class="label">Case time</span><strong id="clock">--:--:--</strong></div>
     <div class="header-actions">
+      <button type="button" class="info localbadge" data-gloss="m_local" aria-label="Local only: nothing leaves this computer"
+        title="Local only: nothing leaves this computer"><svg class="lockicon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor"/></svg><span>Local only</span></button>
       <button id="btnInfo" title="Case details">ⓘ</button>
       <button id="btnTheme" title="Light / dark (T)">☀</button>
       <button id="btnLoad" title="Load another file">Open…</button>
@@ -661,6 +687,9 @@ dialog input[type=text]{width:100%}
          target="_blank" rel="noopener noreferrer"
          title="Source code, documentation and sources on GitHub (opens in a new tab)">GitHub</a>
     </div>
+    <div class="tabrow">
+      <button id="btnSide" class="sidetoggle" type="button" title="Hide event list (E)"
+        aria-label="Hide event list" aria-controls="side" aria-expanded="true"><svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true" focusable="false"><rect x="1" y="1.5" width="16" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect class="sidefill" x="2.2" y="2.7" width="4.6" height="10.6" rx="1" fill="currentColor"/><line x1="7.5" y1="2" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.2"/></svg></button>
     <div class="tabs" id="tabs">
       <button data-view="monitor" class="on">Monitor</button>
       <button data-view="trends">Trends</button>
@@ -672,6 +701,7 @@ dialog input[type=text]{width:100%}
       <button data-view="analysis">Analysis</button>
       <button data-view="settings">Settings</button>
       <button data-view="formulas">Formulas</button>
+    </div>
     </div>
   </header>
 
@@ -3029,6 +3059,10 @@ const GLOSSARY = [
   formula:'From per-compression records or the compression waveform', src:['cprRelease'], read:'cprQuality'},
 
  /* ---- how the viewer works ---- */
+ {key:'m_local', group:'How the viewer works', title:'Everything stays on this computer', abbr:'Local only', ids:[],
+  what:'Case files are opened and analysed entirely inside this browser. Nothing is uploaded or sent anywhere: no server receives your files, results or notes.',
+  use:"This is enforced, not just promised: the page carries a security policy that blocks every network connection (connect-src 'none'), so even a bug couldn’t send data out. Settings and annotations are kept in this browser’s own storage. Once loaded, the page works with no connection. Links to articles and to GitHub open in a new tab and carry no case data.",
+  formula:"Content-Security-Policy: connect-src 'none'; default-src 'none'"},
  {key:'m_ecgbeats', group:'How the viewer works', title:'ECG beat detection', ids:[],
   what:'How R waves are found: the squared slope of the ECG is summed over 80 ms, and peaks above 35 % of the third-largest peak within ±3 s count as beats (at least 220 ms apart).',
   use:'Using the third-largest peak keeps one or two artefacts from hiding the beats around them. The post-pacing step is ignored.',
@@ -10149,11 +10183,14 @@ function wire(){
   $('#btnInfo').onclick = ()=> $('#caseMeta').classList.toggle('open');
   $('#btnPrevEv').onclick = ()=> stepEvent(-1);
   $('#btnNextEv').onclick = ()=> stepEvent(1);
-  $('#btnLoad').onclick = ()=>{
+  /* the start page: the case list and the privacy statement; the open case stays loaded */
+  const goHome = ()=>{
     $('#drop').style.display='flex';
     $('#dzClose').classList.toggle('hide', !$('#app').classList.contains('live'));
     prog(0,''); renderLibrary();
   };
+  $('#btnLoad').onclick = goHome;
+  if($('#btnHome')) $('#btnHome').onclick = goHome;
   $('#btnPng').onclick = ()=> $('#waveCanvas').toBlob(bl=>
     download(M.caseId+'-strip-'+fmtClock(M.t0Wall+APP.cursor).replace(/:/g,'')+'.png', bl));
   $('#btnPrintMonitor').onclick=()=>printCanvas($('#waveCanvas'),

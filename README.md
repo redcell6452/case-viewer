@@ -3,6 +3,8 @@
 A single-file, offline web viewer for full-disclosure case exports
 (X Series / R Series / Propaq MD `.zol` files, zipped or raw).
 
+**Your case files never leave your computer.** Files are opened and analysed entirely in your browser; nothing is uploaded or sent anywhere. This is enforced, not just promised: the page carries a Content-Security-Policy that blocks every network connection (`connect-src 'none'`), so even a bug couldn't send data out. Once loaded, it works with no connection. Settings and annotations stay in your browser's own storage.
+
 **Repository contents:** viewer source, documentation and synthetic tests only. No ZOLL vendor software, SDKs, proprietary algorithm implementations, real cases or patient data are included. The Git ignore rules allow only explicitly reviewed project files.
 
 **Validation status:** exploratory retrospective review software. The documented real-file
