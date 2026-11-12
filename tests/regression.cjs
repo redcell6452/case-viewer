@@ -607,3 +607,74 @@ test('a desktop-hidden event list can reopen on mobile without changing the desk
   h.toggle.onclick();
   assert.equal(h.classes.has('collapsed'),false);
 });
+
+test('vitals NIBP cycle grid follows the case interval and lands on cuff readings', () => {
+  const a = app();
+  // 5-min cycles, switched to 15 min at +4:27; readings at +4:31, +15:26, +31:15; one aborted cycle at +45
+  a.run(`M.durMs = 50*60000; M.nibpAuto = [{t:0,min:5},{t:266500,min:15}];
+    M._nibp = [{t:271000},{t:926000},{t:1875000}];`);
+  assert.deepEqual(Array.from(a.run('nibpCycleGrid()')), [271000, 926000, 1875000, 2700000]);
+  a.run('M.nibpAuto = []');
+  assert.equal(a.run('nibpCycleGrid()'), null);
+  assert.equal(a.run('parseEvery("device")'), 'device');
+  assert.equal(a.run('parseEvery("300000")'), 300000);
+});
+
+test('every invasive line with data is shown unless it was deliberately unticked', () => {
+  const a = app();
+  a.run(`M.params = ['hr_dev','nibp','ibp1','ibp2','ibp3'].map(id=>({id}));
+    M.paramById = Object.fromEntries(M.params.map(p=>[p.id,p]));
+    localStorage.setItem(SEL_KEY, JSON.stringify(['hr_dev','nibp'])); selLoad();`);
+  assert.equal(a.run('SEL.ids.join()'), 'hr_dev,nibp,ibp1,ibp2,ibp3');
+  a.run(`refreshParamViews = ()=>{}; selToggle('ibp2', false); selLoad();`);
+  assert.equal(a.run('SEL.ids.join()'), 'hr_dev,nibp,ibp1,ibp3');
+  a.run(`delete M.paramById.ibp3; M.params = M.params.filter(p=>p.id!=='ibp3'); selLoad();`);
+  assert.equal(a.run('SEL.ids.join()'), 'hr_dev,nibp,ibp1');
+});
+
+test('vitals list adds a row when a shown invasive line was zeroed, and only when asked', () => {
+  const a = app();
+  a.run(`M.params = ['nibp','ibp1','ibp2'].map(id=>({id, label:id, sub:{sys:[],dia:[],map:[]}}));
+    M.paramById = Object.fromEntries(M.params.map(p=>[p.id,p]));
+    SEL.ids = ['nibp','ibp1']; M.durMs = 600000; M.nibpAuto = [{t:0,min:5}]; M._nibp = [{t:1}];
+    M.events = [{kind:'annotation', t:95000, name:'IBP Probe1 Zeroed'},
+                {kind:'annotation', t:96000, name:'IBP Probe2 Zeroed'},
+                {kind:'annotation', t:97000, name:'IBP Probe1 Connected'}];
+    VIT.every = 'device'; VIT.showZero = true;`);
+  const z = a.run('JSON.stringify(vitalRows().filter(r=>r.zero).map(r=>[r.t, r.cells.map(c=>c.txt)]))');
+  assert.equal(z, JSON.stringify([[95000, ['', 'zeroed']]]));
+  a.run('VIT.showZero = false');
+  assert.equal(a.run('vitalRows().some(r=>r.zero)'), false);
+});
+
+test('pacer pulses come from bit 2 of ECG sample status, merged across leads', () => {
+  const a = app();
+  const wave = (name, status) => ({WaveRec:{WaveType:name==='IBP'?18:3, WaveTypeVar:name, SampleTime:4000,
+    UnpackedSamples: status.map(() => 10), SampleStatus: status}});
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:60}},
+    {DataChannels:{DataChannel:[{ChanType:3,Scalar:1,ScalarType:1},{ChanType:18,Scalar:10,ScalarType:2}]}},
+    {ContinWaveRec:{StdHdr:{ElapsedTime:0}, Waveform:[
+      ${JSON.stringify(wave('12-Lead II', [0,0,2,8,8,0,0,0,0,1]))},
+      ${JSON.stringify(wave('12-Lead III', [0,0,10,8,8,0,0,0,0,1]))},
+      ${JSON.stringify(wave('IBP', [0,0,0,0,0,2,0,0,0,0]))}]}}
+  ]}]}}),null,'synthetic.json')`);
+  assert.deepEqual(Array.from(a.run('M.pace')), [8]);
+});
+
+test('off-scale readings and alarm flags are kept, and shown instead of a stale value', () => {
+  const a = app();
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:120}},
+    {TrendRpt:{StdHdr:{ElapsedTime:0},Trend:{Hr:{TrendData:{DataState:'valid',Val:70,Alarm:0}}}}},
+    {TrendRpt:{StdHdr:{ElapsedTime:30},Trend:{Hr:{TrendData:{DataState:'---',Val:16,Alarm:1}},
+      Ibp:{'@ChanNum':1,Sys:{TrendData:{DataState:'+++',Val:303}},Dia:{TrendData:{DataState:'valid',Val:60}},
+        Map:{TrendData:{DataState:'valid',Val:80,Alarm:1}}}}}}
+  ]}]}}),null,'synthetic.json')`);
+  assert.equal(a.run('JSON.stringify(M.trends[1].fl.hr)'), JSON.stringify({range:'low', alarm:true, raw:16}));
+  a.run(`M.paramById = {hr_dev:{id:'hr_dev', label:'HR', pts:[{t:0,v:70},{t:30000,v:null}]},
+    ibp1:{id:'ibp1', label:'P1', sub:{sys:[{t:30000,v:null}], dia:[{t:30000,v:60}], map:[{t:30000,v:80}]}}};
+    M.params = Object.values(M.paramById); SEL.ids = ['hr_dev','ibp1']; VIT.every = 'trend'; VIT.showZero = false;`);
+  const last = JSON.parse(a.run('JSON.stringify(vitalRows()[1].cells.map(c=>[c.txt,c.alarm,c.range]))'));
+  assert.deepEqual(last, [['---', true, 'low'], ['+++/60 (80)', true, 'high']]);
+});

@@ -30,27 +30,29 @@ SOFTWARE.
 <title>Case Viewer</title>
 <style>
 :root{
-  --bg:#0d1117; --bg2:#131a22; --bg3:#1b242e; --line:#2a3644; --line2:#3a4a5c;
-  --fg:#e6edf3; --dim:#8b98a5; --dim2:#5f6d7a;
-  --accent:#4aa3ff; --warn:#ffb020; --crit:#ff4d4d; --ok:#3fd68b;
+  --bg:#111315; --bg2:#181b1e; --bg3:#202427; --line:#2c3136; --line2:#3d444b;
+  --fg:#e8eaec; --dim:#9aa2aa; --dim2:#7f878f;
+  /* interface highlight: a neutral, so colour on screen only ever means a
+     parameter (trace colours) or an alarm (warn / crit) */
+  --accent:#c9cfd5; --sel:#353b41; --hover:#2a2f34; --warn:#ffb020; --crit:#ff4d4d; --ok:#3fd68b;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 :root[data-theme="light"]{
   --bg:#ffffff; --bg2:#f4f6f8; --bg3:#e9edf1; --line:#dde3e9; --line2:#c3ccd5;
-  --fg:#16202a; --dim:#5f6d7a; --dim2:#8b98a5;
-  --accent:#0a66c2; --warn:#8a5300; --crit:#c0392b; --ok:#1e7f4f;
+  --fg:#16202a; --dim:#56616c; --dim2:#6b7680;
+  --accent:#2f3943; --sel:#d5dbe0; --hover:#e3e7eb; --warn:#8a5300; --crit:#c0392b; --ok:#1e7f4f;
 }
 :root[data-theme="light"] button:hover{background:#dde4ea;border-color:#a7b4c0}
 :root[data-theme="light"] .ev{border-bottom-color:#e6ebf0}
-:root[data-theme="light"] .ev.sel{background:#dbe9f7}
+:root[data-theme="light"] .ev.sel{background:var(--sel)}
 :root[data-theme="light"] .ev.crit .n{color:#a3271b}
 :root[data-theme="light"] .ev.warn .n{color:#7a4a00}
 :root[data-theme="light"] .ev.note .n{color:#186b43}
 :root[data-theme="light"] .ev.snap .n{color:#5c3d9e}
 :root[data-theme="light"] table.grid tr:hover td{background:#eef2f6}
 :root[data-theme="light"] .annrow{border-bottom-color:#e6ebf0}
-:root[data-theme="light"] .prow.on{background:#dbe9f7}
+:root[data-theme="light"] .prow.on{background:var(--sel)}
 :root[data-theme="light"] #toast{background:#16202ae6;color:#fff}
 :root[data-theme="light"] #tlTip{background:#16202ae6;color:#fff;border-color:#16202a}
 :root[data-theme="light"] #tlCursor{background:#16202a;box-shadow:0 0 5px rgba(0,0,0,.35)}
@@ -61,18 +63,18 @@ html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 var(--sans);overflow:hidden}
 button,select,input{font:inherit;color:inherit}
 button{background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:5px 10px;cursor:pointer}
-button:hover{background:#26333f;border-color:#4c6076}
-button.on{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+button:hover{background:var(--hover);border-color:#5a636c}
+button.on{background:var(--sel);border-color:var(--accent);color:var(--fg);font-weight:600}
 button:disabled{opacity:.4;cursor:not-allowed}
 select,input[type=text],input[type=number]{background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:4px 7px}
 .mono{font-family:var(--mono)}
 .hide{display:none!important}
 
 #drop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:50}
-#drop.dragging .dz{border-color:var(--accent);background:#16222e}
+#drop.dragging .dz{border-color:var(--accent);background:var(--bg2)}
 .dz{width:min(1180px,94vw);max-height:92vh;overflow:auto;border:2px dashed var(--line2);
   border-radius:14px;padding:20px 22px;text-align:left;transition:.15s}
-.dz h1{margin:0;font-size:20px;letter-spacing:.2px}
+.dz h1{margin:0;font-size:22px;letter-spacing:.2px}
 .dzhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .libwrap{display:flex;gap:16px;align-items:flex-start}
 .libmain{flex:1;min-width:0}
@@ -80,7 +82,7 @@ select,input[type=text],input[type=number]{background:var(--bg3);border:1px soli
 .libhead{display:flex;align-items:center;justify-content:space-between;gap:12px;
   border:1px solid var(--line);border-radius:9px;background:var(--bg2);padding:9px 12px;font-size:13px}
 .libbtns{display:flex;gap:6px}
-.libdim{color:var(--dim2);font-size:12px}
+.libdim{color:var(--dim2);font-size:13px}
 .libctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0}
 .libctl input[type=text]{min-width:200px}
 .librange{display:flex;align-items:center;gap:6px}
@@ -88,34 +90,34 @@ select,input[type=text],input[type=number]{background:var(--bg3);border:1px soli
 .libtable table{width:100%}
 .libtable tbody tr{cursor:pointer}
 .libtable tbody tr:nth-child(even) td{background:var(--bg2)}
-.libtable tbody tr:hover td{background:#1d2c3c}
+.libtable tbody tr:hover td{background:var(--hover)}
 :root[data-theme="light"] .libtable tbody tr:nth-child(even) td{background:#eef2f6}
-:root[data-theme="light"] .libtable tbody tr:hover td{background:#dbe9f7}
+:root[data-theme="light"] .libtable tbody tr:hover td{background:var(--hover)}
 .libsort{cursor:pointer;user-select:none;white-space:nowrap}
 .libsort:hover{color:var(--fg)}
 .libsort.on{color:var(--accent)}
 .libopen{font-size:11px;padding:2px 8px;min-height:0}
 .librec{padding:6px 7px;border-radius:6px;cursor:pointer}
 .librec:hover{background:var(--bg3)}
-.librec-n{font-size:12px;word-break:break-all}
-.librec-s{font-size:10.5px;color:var(--dim2);margin-top:1px}
+.librec-n{font-size:13px;word-break:break-all}
+.librec-s{font-size:11px;color:var(--dim2);margin-top:1px}
 .libclear{width:100%;margin-top:8px;font-size:11px;padding:4px}
 .libside{flex:0 0 290px}
 .libtable tbody tr.sel td{background:#1d3550}
 :root[data-theme="light"] .libtable tbody tr.sel td{background:#cfe3f8}
-.libpv .pvname{font-size:12.5px;font-weight:600;word-break:break-all;margin:2px 0 8px}
-.pvsec{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim2);
+.libpv .pvname{font-size:13px;font-weight:600;word-break:break-all;margin:2px 0 8px}
+.pvsec{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim2);
   margin:10px 0 4px;padding-top:6px;border-top:1px solid var(--line)}
-.pvrow{display:grid;grid-template-columns:88px 1fr;gap:6px;padding:2px 0;font-size:11.5px}
+.pvrow{display:grid;grid-template-columns:88px 1fr;gap:6px;padding:2px 0;font-size:11px}
 .pvk{color:var(--dim2)}
 .pvv{color:var(--fg)}
 @media (max-width:900px){ .libwrap{flex-direction:column} .libside{width:100%;flex:none} }
 .dz p{color:var(--dim);margin:6px 0}
-.dz .hint{font-size:12px;color:var(--dim2);margin-top:18px;line-height:1.7}
+.dz .hint{font-size:13px;color:var(--dim2);margin-top:18px;line-height:1.7}
 .dz kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:1px 5px;font:11px var(--mono)}
 #progress{margin-top:14px;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
 #progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-#progtext{margin-top:8px;font:12px var(--mono);color:var(--dim);min-height:18px}
+#progtext{margin-top:8px;font:13px var(--mono);color:var(--dim);min-height:18px}
 
 #app{display:none;height:100vh;flex-direction:column}
 /* 100vh is taller than the visible area on mobile once browser chrome is showing,
@@ -128,12 +130,12 @@ header{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align
 .header-context{min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden}
 header .title{font-weight:650;letter-spacing:.2px;white-space:nowrap}
 .app-brand{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
-.revision{color:var(--dim);font-size:12px;font-weight:400;white-space:nowrap}
-header .meta{color:var(--dim);font:11.5px var(--mono);display:flex;gap:14px;white-space:nowrap;overflow:hidden;min-width:0}
+.revision{color:var(--dim);font-size:13px;font-weight:400;white-space:nowrap}
+header .meta{color:var(--dim);font:11px var(--mono);display:flex;gap:14px;white-space:nowrap;overflow:hidden;min-width:0}
 header .meta b{color:var(--fg);font-weight:600}
 .header-clock{text-align:center;white-space:nowrap;line-height:1.1}
-.header-clock .label{display:block;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.1em}
-.header-clock #clock{display:block;font:700 24px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)}
+.header-clock .label{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.header-clock #clock{display:block;font:700 22px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)}
 .tabs{grid-column:1/-1;display:flex;gap:4px;min-width:0;overflow-x:auto}
 .tabs button{padding:5px 14px;flex:0 0 auto}
 .header-actions{display:flex;align-items:center;gap:6px;justify-self:end}
@@ -143,21 +145,21 @@ main{flex:1;display:flex;min-height:0}
 #side.collapsed{display:none}
 .sidehead{padding:8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
 .sideheading{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.sideheading button{font-size:12px}
+.sideheading button{font-size:13px}
 #btnSide:focus-visible,#btnHideEvents:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sidehead .row{display:flex;gap:6px;align-items:center}
 .sidehead input[type=text]{flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
 .chip{font-size:11px;padding:2px 8px;border-radius:11px;border:1px solid var(--line2);background:var(--bg3);cursor:pointer;user-select:none}
-.chip.on{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+.chip.on{background:var(--sel);border-color:var(--accent);color:var(--fg);font-weight:600}
 #eventlist{flex:1;overflow:auto;min-height:0;-webkit-overflow-scrolling:touch;
   overscroll-behavior:contain}
 .ev{display:grid;grid-template-columns:62px 1fr;gap:8px;padding:5px 9px;border-bottom:1px solid #1c242d;cursor:pointer;border-left:3px solid transparent}
 .ev:hover{background:var(--bg3)}
-.ev.sel{background:#1d2c3c;border-left-color:var(--accent)}
+.ev.sel{background:var(--sel);border-left-color:var(--accent)}
 .ev .t{font:11px var(--mono);color:var(--dim)}
-.ev .n{font-size:12px;line-height:1.3}
-.ev .d{font:10.5px var(--mono);color:var(--dim2);margin-top:1px}
+.ev .n{font-size:13px;line-height:1.3}
+.ev .d{font:11px var(--mono);color:var(--dim2);margin-top:1px}
 .ev.crit{border-left-color:var(--crit)}
 .ev.crit .n{color:#ff9a9a}
 .ev.warn{border-left-color:var(--warn)}
@@ -166,11 +168,11 @@ main{flex:1;display:flex;min-height:0}
 .ev.note .n{color:#9ff0c6}
 .ev.snap{border-left-color:#b388ff}
 .ev.snap .n{color:#d3bcff}
-.emptynote{padding:22px 14px;color:var(--dim2);text-align:center;font-size:12px}
+.emptynote{padding:22px 14px;color:var(--dim2);text-align:center;font-size:13px}
 /* where the playback cursor sits between events */
 #nowLine{position:relative;height:0;border-top:2px solid var(--accent);pointer-events:none;z-index:2}
 #nowLine span{position:absolute;left:8px;top:-9px;background:var(--accent);color:#04121f;
-  font:10px/17px var(--mono);font-weight:700;padding:0 6px;border-radius:9px;white-space:nowrap}
+  font:11px/17px var(--mono);font-weight:700;padding:0 6px;border-radius:9px;white-space:nowrap}
 #nowLine::after{content:"";position:absolute;right:0;top:-4px;border:4px solid transparent;
   border-right-color:var(--accent)}
 
@@ -194,33 +196,59 @@ main{flex:1;display:flex;min-height:0}
 #waveCanvas{position:absolute;inset:0;width:100%;height:100%}
 #numerics{width:212px;flex:0 0 212px;border-left:1px solid var(--line);background:var(--bg2);overflow:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
 .num{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--bg)}
-.num .lbl{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between}
+.num .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between}
 .num .val{font:600 30px/1.05 var(--mono);letter-spacing:-1px}
 .num .val small{font-size:13px;font-weight:500;color:var(--dim)}
 .num .sub{font:11px var(--mono);color:var(--dim)}
-.num .alarm-setting{font:10px/1.4 var(--mono);color:var(--warn);margin-top:3px}
+/* the configured limits, not an alarm: dim, so amber and red only mean something happened */
+.num .alarm-setting{font:11px/1.4 var(--mono);color:var(--dim);margin-top:3px}
 .num.stale .val{opacity:.34}
 .num.alarm{border-color:var(--crit);box-shadow:0 0 0 1px var(--crit) inset}
-.num .lbl em{font-style:normal;opacity:.6;font-size:9.5px}
-.numpick{width:100%;font-size:11.5px;padding:4px}
+.num .lbl em{font-style:normal;opacity:.6;font-size:11px}
+.numpick{width:100%;font-size:11px;padding:4px}
 .vitctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-.vitctl label{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:4px}
+.vitctl label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px}
 .vittable{max-height:calc(100vh - 300px);overflow:auto;border-radius:8px;
   -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-/* size the columns to their contents instead of stretching to fill the pane */
-.vittable table{width:auto;min-width:0}
-.vittable th,.vittable td{padding:2px 7px}
-.vittable th{white-space:nowrap;line-height:1.2;font-size:11px;vertical-align:bottom}
-.vittable th span{font-weight:400;opacity:.6;font-size:10px}
+/* size the columns to their contents instead of stretching to fill the pane, and
+   centre the result; --vs is the reader's text size for this table */
+.vittable table.grid{width:auto;min-width:0;margin:0 auto;font-size:calc(13px*var(--vs,1))}
+.vittable th,.vittable td{padding:calc(2px*var(--vs,1)) calc(7px*var(--vs,1))}
+.vittable th{white-space:nowrap;line-height:1.2;font-size:calc(11px*var(--vs,1));vertical-align:bottom}
+.vittable th span{font-weight:400;opacity:.6;font-size:calc(11px*var(--vs,1))}
+.vitsize{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--dim)}
+.vitsize button{min-width:30px;font-weight:600}
+.vitsize output{min-width:38px;text-align:center;font:13px var(--mono);color:var(--fg)}
+.vitsize output.fitted{color:var(--dim)}
+.vitsize output.fitted::after{content:' fit';font:11px var(--sans)}
+/* when the table still has to scroll sideways, keep the time column in view.
+   Pinned cells only cover what scrolls beneath them when each cell draws its own
+   borders, so this table uses separate borders: right and bottom per cell,
+   left and top on the table. */
+.vittable table.grid{border-collapse:separate;border-spacing:0;
+  border-left:1px solid var(--line);border-top:1px solid var(--line)}
+.vittable table.grid th,.vittable table.grid td{border-width:0 1px 1px 0}
+.vittable td:first-child,.vittable th:first-child{position:sticky;left:0;z-index:1;
+  background:var(--bg);box-shadow:1px 0 0 var(--line2)}
+.vittable th:first-child{z-index:3;background:var(--bg2)}
 .vittable th{position:relative}
 .vittable th,.vittable td{overflow:hidden;text-overflow:ellipsis}
 .colgrip{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;
   z-index:3;user-select:none;touch-action:none}
 .colgrip:hover,.colgrip.drag{background:var(--accent);opacity:.55}
 .vittable tbody tr:nth-child(even) td{background:var(--bg2)}
-.vittable tbody tr:hover td{background:#1d2c3c}
+/* off the monitor's measurable scale, and in alarm: colour plus a shape, so neither
+   depends on colour alone */
+.vittable td.oor{color:var(--warn);font-weight:600}
+.vittable td.alm{color:var(--crit);font-weight:700;box-shadow:inset 3px 0 0 var(--crit)}
+.vitkey{display:inline-flex;gap:12px;align-items:center;font-size:11px;color:var(--dim)}
+.vitkey b{font:600 11px var(--mono);color:var(--warn)}
+.vitkey i{display:inline-block;width:3px;height:12px;background:var(--crit);vertical-align:-2px;margin-right:4px}
+.vittable tbody tr.zero td{color:var(--dim);font-style:italic;border-top-style:dashed}
+.vittable tbody tr.zero td.zc{font-weight:600}
+.vittable tbody tr:hover td{background:var(--hover)}
 :root[data-theme="light"] .vittable tbody tr:nth-child(even) td{background:#eef2f6}
-:root[data-theme="light"] .vittable tbody tr:hover td{background:#dbe9f7}
+:root[data-theme="light"] .vittable tbody tr:hover td{background:var(--hover)}
 .vithint{font-size:11px;color:var(--dim2)}
 .setgrid{border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .setrow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
@@ -232,10 +260,10 @@ main{flex:1;display:flex;min-height:0}
 .setrow input[type=range]{width:170px;vertical-align:middle}
 .legend .lg.off{opacity:.45;text-decoration:line-through}
 .legend .lgparts{display:inline-flex;gap:2px;margin-left:6px}
-.legend .lgpart{font:9.5px var(--mono);padding:1px 5px;min-height:0;border-radius:4px;
+.legend .lgpart{font:11px var(--mono);padding:1px 5px;min-height:0;border-radius:4px;
   opacity:.45;letter-spacing:.3px}
 .legend .lgpart.on{opacity:1;background:var(--bg3);border-color:var(--line2)}
-.hvchk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--fg);
+.hvchk{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--fg);
   padding:4px 8px;border:1px solid var(--line);border-radius:7px;cursor:pointer}
 .hvchk i{width:10px;height:10px;border-radius:2px;display:block}
 .hvchk:hover{background:var(--bg3)}
@@ -255,13 +283,13 @@ main{flex:1;display:flex;min-height:0}
 .anside{position:sticky;top:var(--asideTop,0px);z-index:5;flex:0 0 184px;
   max-height:var(--asideHeight,calc(100vh - 190px));overflow:auto;
   border:1px solid var(--line);border-radius:9px;background:var(--bg2);padding:8px}
-.anhead{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
+.anhead{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
   cursor:pointer;padding:4px}
-.anhead span{float:right;font-size:10px;letter-spacing:0;text-transform:none}
-.anidx-g{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim2);
+.anhead span{float:right;font-size:11px;letter-spacing:0;text-transform:none}
+.anidx-g{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim2);
   margin:9px 0 3px;padding-top:6px;border-top:1px solid var(--line)}
 .anidx-group:first-child .anidx-g{border-top:0;padding-top:0;margin-top:2px}
-.anidx{display:flex;align-items:center;gap:4px;border-radius:6px;font-size:12px}
+.anidx{display:flex;align-items:center;gap:4px;border-radius:6px;font-size:13px}
 .anidx:hover{background:var(--bg3)}
 .anidx.off .anjump{color:var(--dim)}
 .anidx.none{opacity:.4;cursor:default}
@@ -274,7 +302,7 @@ main{flex:1;display:flex;min-height:0}
   outline:2px solid var(--accent);outline-offset:2px}
 .anbtns{display:flex;gap:5px;margin-top:10px}
 .anbtns button{flex:1;font-size:11px;padding:4px}
-.anscope{margin-top:10px;font-size:10.5px;color:var(--dim2);line-height:1.5}
+.anscope{margin-top:10px;font-size:11px;color:var(--dim2);line-height:1.5}
 .anmain{flex:1;min-width:0}
 .ansec{scroll-margin-top:var(--sectionTop,8px);margin-bottom:24px}
 .anwrap.compact{display:block}
@@ -286,7 +314,7 @@ main{flex:1;display:flex;min-height:0}
 .resulttable table{min-width:680px}
 .hemo-window{display:block;margin-top:4px;font-size:11px;color:var(--dim)}
 .hemo-window b{font-weight:400}
-.prov{display:inline-block;font-size:10px;padding:1px 6px;border-radius:9px;white-space:nowrap;
+.prov{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;white-space:nowrap;
   border:1px solid var(--line2);color:var(--dim)}
 .prov-measured{border-color:#3fd68b;color:#3fd68b}
 .prov-waveform{border-color:#4aa3ff;color:#4aa3ff}
@@ -305,7 +333,7 @@ main{flex:1;display:flex;min-height:0}
 .caseinputs-field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .caseinputs-field label{font-size:13px;color:var(--fg);margin:0}
 .caseinputs-field input,.caseinputs-field select{width:100%;min-width:0;box-sizing:border-box}
-.caseinputs-field small{color:var(--dim);font-size:12px;line-height:1.5}
+.caseinputs-field small{color:var(--dim);font-size:13px;line-height:1.5}
 .caseinputs-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:16px}
 .caseinputs-error{color:var(--warn);margin:12px 0 0}
 @media (max-width:900px){
@@ -321,10 +349,10 @@ main{flex:1;display:flex;min-height:0}
 .phys-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .phys-heading h2.sec{margin:0}
 .phys-timing{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap}
-.phys-timing label{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:12px}
+.phys-timing label{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:13px}
 .phys-channels{display:flex;flex-wrap:wrap;gap:4px}
-.phys-scope{color:var(--dim);font-size:12px;margin:0}
-.wavehelp{margin:8px 0 16px;color:var(--dim);font-size:12px}
+.phys-scope{color:var(--dim);font-size:13px;margin:0}
+.wavehelp{margin:8px 0 16px;color:var(--dim);font-size:13px}
 .wavehelp summary{cursor:pointer;width:fit-content}
 .wavehelp .note-inline{margin-bottom:0;max-width:100ch}
 .legend .lg:hover{color:var(--fg)}
@@ -339,22 +367,23 @@ canvas.chart{cursor:zoom-in}
 @media (max-width:900px){ #chartDlg canvas{height:48vh} }
 .legend .lg{cursor:pointer;display:inline-flex;align-items:center;gap:4px}
 .legend .lg:hover{color:var(--fg);text-decoration:line-through}
-.legend .lg em{font-style:normal;color:var(--dim2);font-size:10px}
-.legend .lgstat{color:var(--dim);margin-left:7px;font-size:10.5px}
+.legend .lg em{font-style:normal;color:var(--dim2);font-size:11px}
+.legend .lgstat{color:var(--dim);margin-left:7px;font-size:11px}
 .legend .lgstat b{color:var(--fg);font-weight:600}
 #paramList{max-height:60vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
-.pgrp .pgh{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
+.pgrp .pgh{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
   margin:0 0 4px;padding-bottom:3px;border-bottom:1px solid var(--line)}
 .prow{display:grid;grid-template-columns:16px 12px 1fr auto auto;gap:8px;align-items:center;
   padding:4px 6px;border-radius:6px;cursor:pointer}
 .prow:hover{background:var(--bg3)}
-.prow.on{background:#1a2836}
+.prow.on{background:var(--sel)}
 .prow i{width:11px;height:11px;border-radius:3px;display:block}
-.prow .pn{font-size:12.5px}
+.prow .pn{font-size:13px}
 .prow .pn em{font-style:normal;color:var(--dim2);font-size:11px}
 .prow .pu{font:11px var(--mono);color:var(--dim)}
-.prow .po{font:10px var(--mono);color:var(--dim2);min-width:74px;text-align:right}
+.prow .po{font:11px var(--mono);color:var(--dim2);min-width:74px;text-align:right}
 
+body.no-transport #transport{display:none}
 #transport{border-top:1px solid var(--line);background:var(--bg2);padding:0 10px 9px;
   display:flex;flex-direction:column;gap:6px}
 #transportGrip{height:9px;margin:0 -10px 0;flex:0 0 auto;cursor:ns-resize;position:relative;
@@ -365,20 +394,20 @@ canvas.chart{cursor:zoom-in}
 #transportGrip.drag::after{background:var(--accent);width:74px}
 @media (pointer:coarse){ #transportGrip{height:18px} #transportGrip::after{top:7px;height:4px;width:60px} }
 .tbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.tbar .clock{font:600 15px var(--mono);letter-spacing:.4px;min-width:96px}
-.tbar .elapsed{font:12px var(--mono);color:var(--dim);min-width:74px}
+.tbar .clock{font:600 16px var(--mono);letter-spacing:.4px;min-width:96px}
+.tbar .elapsed{font:13px var(--mono);color:var(--dim);min-width:74px}
 .grp{display:flex;gap:3px;align-items:center}
 .grp>span{font-size:11px;color:var(--dim);margin-right:2px}
 #timeline{position:relative;height:78px;border:1px solid var(--line);border-radius:7px;background:var(--bg);overflow:hidden;cursor:crosshair;user-select:none}
 #timeline canvas{position:absolute;inset:0;width:100%;height:100%}
 #tlCursor{position:absolute;top:0;bottom:0;width:1px;background:#fff;pointer-events:none;box-shadow:0 0 5px rgba(255,255,255,.7)}
-#tlSel{position:absolute;top:0;bottom:0;background:rgba(74,163,255,.18);border-left:1px solid var(--accent);border-right:1px solid var(--accent);pointer-events:none;display:none}
+#tlSel{position:absolute;top:0;bottom:0;background:rgba(201,207,213,.14);border-left:1px solid var(--accent);border-right:1px solid var(--accent);pointer-events:none;display:none}
 #tlTip{position:absolute;transform:translate(-50%,-100%);background:#000d;border:1px solid var(--line2);border-radius:5px;padding:2px 7px;font:11px var(--mono);pointer-events:none;white-space:nowrap;display:none;z-index:5}
 
 .padded{padding:14px 16px}
 h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:18px 0 10px;font-weight:600}
 h2.sec:first-child{margin-top:0}
-table.grid{border-collapse:collapse;width:100%;font:12px var(--mono)}
+table.grid{border-collapse:collapse;width:100%;font:13px var(--mono)}
 table.grid th,table.grid td{border:1px solid var(--line);padding:3px 8px;text-align:right;white-space:nowrap}
 table.grid th{background:var(--bg2);position:sticky;top:0;color:var(--dim);font-weight:600;z-index:1}
 table.grid td:first-child,table.grid th:first-child{text-align:left}
@@ -386,29 +415,29 @@ table.grid.lefty td,table.grid.lefty th{text-align:left}
 table.grid tr:hover td{background:#182029}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
 .card{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--bg2)}
-.card .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim)}
-.card .v{font:600 21px/1.25 var(--mono);margin-top:3px}
+.card .k{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim)}
+.card .v{font:600 22px/1.25 var(--mono);margin-top:3px}
 .card .s{font:11px var(--mono);color:var(--dim2);margin-top:2px}
 canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:var(--bg2);margin-bottom:10px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font:11px var(--mono);color:var(--dim);margin:-4px 0 10px 2px}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
-.note-inline{font-size:11.5px;color:var(--dim2);margin:6px 0 12px;line-height:1.6}
+.note-inline{font-size:11px;color:var(--dim2);margin:6px 0 12px;line-height:1.6}
 
 .snaplist{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.snaplist button{font:11.5px var(--mono)}
+.snaplist button{font:11px var(--mono)}
 .lead-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-.lead-picker .lead-label{font-size:12px;color:var(--dim);margin-right:2px}
+.lead-picker .lead-label{font-size:13px;color:var(--dim);margin-right:2px}
 .lead-picker #leadChoices{display:flex;gap:5px;flex-wrap:wrap}
-.lead-picker label{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid var(--line2);border-radius:5px;font:12px var(--mono);cursor:pointer}
+.lead-picker label{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid var(--line2);border-radius:5px;font:13px var(--mono);cursor:pointer}
 .lead-picker label:has(input:checked){border-color:var(--accent);color:var(--accent)}
-.lead-picker button{font-size:12px}
-.ecg-interpretation{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg2);font-size:12px}
+.lead-picker button{font-size:13px}
+.ecg-interpretation{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg2);font-size:13px}
 .ecg-interpretation summary{font-weight:700;cursor:pointer}
 .ecg-interpretation[open] summary{margin-bottom:5px}
 .ecg-interpretation ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}
 .ecg-interpretation .measurements{color:var(--dim);font:11px var(--mono)}
 .paperctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-.paperctl .zoom-input{width:52px;text-align:right;font:12px var(--mono)}
+.paperctl .zoom-input{width:52px;text-align:right;font:13px var(--mono)}
 #paperWrap{background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;width:max-content;
   max-width:100%;overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 300px);
   -webkit-overflow-scrolling:touch}
@@ -425,27 +454,27 @@ canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius
 .annrow .sw{width:12px;height:12px;border-radius:3px;margin-top:3px}
 .annrow .rng{font:11px var(--mono);color:var(--dim);cursor:pointer}
 .annrow .rng:hover{color:var(--accent);text-decoration:underline}
-.annrow .txt{font-size:12.5px;white-space:pre-wrap;word-break:break-word}
-.annrow .cat{font:10.5px var(--mono);color:var(--dim2);margin-top:2px}
+.annrow .txt{font-size:13px;white-space:pre-wrap;word-break:break-word}
+.annrow .cat{font:11px var(--mono);color:var(--dim2);margin-top:2px}
 dialog{background:var(--bg2);color:var(--fg);border:1px solid var(--line2);border-radius:12px;padding:0;width:min(520px,92vw)}
 dialog::backdrop{background:#000a}
 dialog .dh{padding:12px 15px;border-bottom:1px solid var(--line);font-weight:600}
 dialog .db{padding:14px 15px;display:flex;flex-direction:column;gap:11px}
 dialog .df{padding:11px 15px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
-dialog label{font-size:11.5px;color:var(--dim);display:block;margin-bottom:4px}
+dialog label{font-size:11px;color:var(--dim);display:block;margin-bottom:4px}
 dialog textarea{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:7px;color:var(--fg);font:13px var(--sans);resize:vertical;min-height:76px}
 dialog input[type=text]{width:100%}
 .swatches{display:flex;gap:6px}
 .swatches i{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;display:block}
 .swatches i.on{border-color:#fff}
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:12.5px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000d;border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.on{opacity:1}
 /* ---------------- narrow / touch layout ----------------
    Below 900px the event list stops being a sidebar and becomes its own view,
    the numerics move under the waveforms, and the controls wrap into rows that
    stay reachable with a thumb. */
 @media (max-width: 900px){
-  body{font-size:14px}
+  body{font-size:16px}
   header{grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;padding:6px 8px;position:relative}
   .header-context{overflow:visible}
   header .title{font-size:13px}
@@ -458,7 +487,7 @@ dialog input[type=text]{width:100%}
   .tabs{grid-row:3;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
     scrollbar-width:none;padding-bottom:2px}
   .tabs::-webkit-scrollbar{display:none}
-  .tabs button{flex:0 0 auto;padding:7px 12px;font-size:12.5px}
+  .tabs button{flex:0 0 auto;padding:7px 12px;font-size:13px}
 
   main{position:relative}
   /* the event list becomes a full-screen overlay toggled by Show events */
@@ -477,11 +506,11 @@ dialog input[type=text]{width:100%}
     display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;
     overflow:visible}
   .numpick{grid-column:1/-1}
-  .num .val{font-size:24px}
+  .num .val{font-size:22px}
 
   #transport{padding:6px 8px 8px;gap:5px}
   .tbar{gap:6px}
-  .tbar .clock{font-size:14px;min-width:78px}
+  .tbar .clock{font-size:16px;min-width:78px}
   .tbar .elapsed{min-width:0}
   .tbar button,.tbar select{padding:7px 10px}
   /* keep the essentials on screen; the rest lives behind the ⋯ button */
@@ -495,8 +524,9 @@ dialog input[type=text]{width:100%}
   .vitctl{gap:6px}
   .vitctl button,.vitctl select{padding:7px 10px}
   .vittable{max-height:none}
+  .vitdrag{display:none}
   h2.sec{margin:14px 0 8px}
-  .legend{gap:8px;font-size:10.5px}
+  .legend{gap:8px;font-size:11px}
   .legend .lgstat{display:block;margin:2px 0 0 15px}
   .annrow{grid-template-columns:12px 1fr;gap:6px}
   .annrow .rng{grid-column:2}
@@ -507,16 +537,19 @@ dialog input[type=text]{width:100%}
   table.grid th,table.grid td{padding:5px 7px}
 }
 @media (max-width: 560px){
-  .num .val{font-size:21px}
+  /* keep the title whole on a phone now that button text is larger */
+  .header-actions{gap:4px}
+  .header-actions button{font-size:13px;padding-left:9px;padding-right:9px}
+  .num .val{font-size:22px}
   #numerics{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
-  .tabs button{padding:7px 10px;font-size:12px}
+  .tabs button{padding:7px 10px;font-size:13px}
 }
 /* pointer-coarse devices get bigger hit targets on the scrub bar */
 @media (pointer: coarse){
   #timeline{height:82px}
   button{min-height:40px;padding-left:12px;padding-right:12px}
   select,input[type=text],input[type=number]{min-height:38px}
-  .chip{padding:6px 11px;font-size:12px}
+  .chip{padding:6px 11px;font-size:13px}
   .ev{padding:9px}
   .tabs button{min-height:42px}
   .hvchk,.ancheck,.anjump{min-height:40px}
@@ -527,6 +560,7 @@ dialog input[type=text]{width:100%}
 ::-webkit-scrollbar{width:11px;height:11px}
 ::-webkit-scrollbar-thumb{background:#2c3945;border-radius:6px;border:2px solid var(--bg2)}
 ::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-corner{background:transparent}
 </style>
 </head>
 <body>
@@ -656,6 +690,7 @@ dialog input[type=text]{width:100%}
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
             <button id="btnVent" title="Mark detected ventilations">Vents</button>
+            <button id="btnPace" class="on" hidden>Pacer</button>
           </div>
           <span style="flex:1"></span>
           <button id="btnMark" title="Annotate selection, or ±5 s around cursor (A)">＋ Annotate</button>
@@ -1532,7 +1567,7 @@ function buildModel(json, xml, fileName){
   if(!recs.length && !xml) throw new Error('No full-disclosure records found in this file.');
 
   M.fileName = fileName; M.caseId=''; M.channels={}; M.monitorExtra=[]; M.displayHistory=[];
-  M.trends=[]; M.events=[]; M.snapshots=[]; M.vents=[]; M.deviceLog=[];
+  M.trends=[]; M.events=[]; M.snapshots=[]; M.vents=[]; M.deviceLog=[]; M.pace=[];
   M.ventSamplesIgnored=false;
   M._nibp=null; M._lineBeats={}; M._hemoBeats={}; M._wholeSig=null;
 
@@ -1614,6 +1649,12 @@ function buildModel(json, xml, fileName){
 
   /* --- continuous waveforms --- */
   const frames = {};
+  /* Pacer pulses the monitor detected. ECG SampleStatus carries one flag word per
+     sample; bit 2 marks a detected pacer pulse, and bit 8 marks the following
+     ~24 ms the monitor holds the trace flat to blank the spike out — so the spike
+     itself is not in the samples, only this flag. Every ECG lead carries the same
+     flags; they are merged into one list of times. */
+  const paceRaw = [];
   for(const r of recs){
     const cw = r.ContinWaveRec; if(!cw) continue;
     const t = elapsedOf(cw.StdHdr);
@@ -1625,8 +1666,16 @@ function buildModel(json, xml, fileName){
       const name = wr.WaveTypeVar || ('Wave '+wr.WaveType);
       (frames[name] = frames[name] || {wt:wr.WaveType, st:wr.SampleTime, set:w.WaveSetting, list:[]})
         .list.push({t, s});
+      const ss = wr.SampleStatus;
+      if(Array.isArray(ss) && ss.length===s.length && (scalars[wr.WaveType]||{}).type===1){
+        const dt = (wr.SampleTime||4000)/1000;
+        for(let i=0;i<ss.length;i++) if(ss[i]&2) paceRaw.push(t+i*dt);
+      }
     }
   }
+  paceRaw.sort((a,b)=>a-b);
+  for(const p of paceRaw)
+    if(!M.pace.length || p-M.pace[M.pace.length-1] > 30) M.pace.push(p);
   for(const name in frames){
     const F = frames[name];
     const hz = 1e6/(F.st||8000);
@@ -1688,6 +1737,22 @@ function buildModel(json, xml, fileName){
   }
   M.displayHistory.sort((a,b)=>a.t-b.t);
 
+  /* NIBP auto-cycle interval, in minutes, as the monitor was set. DisplayInfo is
+     re-written when someone changes a display setting, so the interval can change
+     mid-case (5 → 15 min in one export). Auto cycles fire on multiples of the
+     interval counted from case start, which the cuff readings in both reference
+     exports bear out. */
+  M.nibpAuto = [];
+  for(const d of by('DisplayInfo')){
+    const min = +d.ParmNibpAutoModeInterval;
+    if(!(min>0)) continue;
+    const t = Math.max(0, elapsedOf(d.StdHdr));
+    const last = M.nibpAuto[M.nibpAuto.length-1];
+    if(last && last.min===min) continue;
+    M.nibpAuto.push({t, min, mode: d.parmNibpMode!=null ? +d.parmNibpMode : null});
+  }
+  M.nibpAuto.sort((a,b)=>a.t-b.t);
+
   /* --- trends --- */
   const tv = n => { if(!n||typeof n!=='object') return null;
     const d = n.TrendData || n; if(!d || typeof d!=='object') return null;
@@ -1695,6 +1760,20 @@ function buildModel(json, xml, fileName){
     const V = d.Val; if(V==null) return null;
     const x = (typeof V==='object') ? V['#text'] : V;
     return (typeof x==='number' && isFinite(x)) ? x : null; };
+  /* What tv() throws away but a reader wants: "+++"/"---" are the monitor's
+     above-/below-measurable-range readings (not missing data), and Alarm=1 marks a
+     value that was in alarm when the row was written. Kept beside the values,
+     keyed like them, only when something is set. */
+  const tf = n => { if(!n||typeof n!=='object') return null;
+    const d = n.TrendData || n; if(!d || typeof d!=='object') return null;
+    const range = d.DataState==='+++' ? 'high' : d.DataState==='---' ? 'low' : null;
+    const alarm = +d.Alarm===1;
+    if(!range && !alarm) return null;
+    const V = d.Val, x = (V && typeof V==='object') ? V['#text'] : V;
+    return {range, alarm, raw: typeof x==='number' ? x : null}; };
+  const flagsOf = obj => { const o={}; let any=false;
+    for(const k in obj){ const f=tf(obj[k]); if(f){ o[k]=f; any=true; } }
+    return any ? o : null; };
   for(const r of recs){
     const tr = r.TrendRpt; if(!tr || !tr.Trend) continue;
     const T = tr.Trend, t = elapsedOf(tr.StdHdr);
@@ -1710,8 +1789,11 @@ function buildModel(json, xml, fileName){
       etco2: tv(T.Etco2), fico2: tv(T.Fico2),
       rr: tv(T.Resp), rrSrc: T.Resp && T.Resp.SrcLabelVal,
       lta: T.LtaStateVal, ibp:[], temp:[] };
+    row.fl = flagsOf({hr:T.Hr, spo2:sp, pi:sp.PI, spco:sp.SpCo, spmet:sp.SpMet, pvi:sp.PVI,
+      sphb:sp.SpHb, spoc:sp.SpOC, nsys:nb.Sys, ndia:nb.Dia, nmap:nb.Map,
+      etco2:T.Etco2, fico2:T.Fico2, rr:T.Resp});
     for(const b of ibps) row.ibp.push({ch:b['@ChanNum'], label:b.SrcLabelVal,
-      sys:tv(b.Sys), dia:tv(b.Dia), map:tv(b.Map)});
+      sys:tv(b.Sys), dia:tv(b.Dia), map:tv(b.Map), fl:flagsOf({sys:b.Sys, dia:b.Dia, map:b.Map})});
     for(const b of temps) row.temp.push({type:b['@Type'], label:b.SrcLabelVal, val:tv(b)});
     M.trends.push(row);
   }
@@ -1840,7 +1922,11 @@ function buildModel(json, xml, fileName){
                               : (sc.scalar ? src[i]/sc.scalar : src[i]);
         arr[i] = (x>=lim[0] && x<=lim[1]) ? x : NaN;
       }
-      traces.push({name:nm, hz, data:arr, kind, isEcg:sc.type===1,
+      /* the same pacer-pulse flag as the continuous ECG (bit 2), kept as sample indices */
+      const ss = wr.SampleStatus, pace = [];
+      if(sc.type===1 && Array.isArray(ss) && ss.length===src.length)
+        for(let i=0;i<ss.length;i++) if(ss[i]&2 && !(i>0 && ss[i-1]&2)) pace.push(i);
+      traces.push({name:nm, hz, data:arr, kind, isEcg:sc.type===1, pace,
         lead: /^12-Lead\s+/.test(nm) ? nm.replace(/^12-Lead\s+/,'') : null,
         units: sc.type===1?'mV':'', color:CH_COLORS[kind]||CH_COLORS.other});
     }
@@ -2287,6 +2373,12 @@ const AXIS_TITLE = {
   pi:'Perfusion / variability index', sat:'Dyshaemoglobins', hb:'Haemoglobin',
   oc:'Oxygen content', bp:'Blood pressure', co2:'Capnography', temp:'Temperature'
 };
+/* first index in a sorted array of numbers whose value is >= x */
+function lowerBound(a, x){
+  let lo=0, hi=a.length;
+  while(lo<hi){ const m=(lo+hi)>>1; if(a[m]<x) lo=m+1; else hi=m; }
+  return lo;
+}
 /* last value at or before t, plus how stale it is */
 function paramAt(p, t){
   const read = arr=>{
@@ -5561,7 +5653,7 @@ function renderPhysPane(){
 /* ---------------- monitor rendering ---------------- */
 const APP = {
   cursor:0, playing:false, speed:1, win:8000, gain:10, showGrid:true,
-  showBeats:false, showVents:false, view:'monitor', calMode:false, caliper:null,
+  showBeats:false, showVents:false, showPace:true, view:'monitor', calMode:false, caliper:null,
   sel:null, hidden:new Set(), lastFrame:0, selEvent:-1
 };
 function visibleChannels(){
@@ -5721,6 +5813,20 @@ function drawMonitor(){
       for(const b of M.beats){ if(b.t<t0||b.t>t1) continue;
         const x=X(b.t); g.fillRect(x-1,yTop+2,2,5); }
     }
+    /* pacer pulses the monitor detected, on every ECG row: a full-height dashed
+       line with a small flag at the top, the way a monitor draws a pace marker */
+    if(APP.showPace && ch.isEcg && M.pace.length){
+      const col = THEME.mode==='light' ? '#c2185b' : '#ff7eb6';
+      g.save(); g.strokeStyle=col; g.fillStyle=col; g.lineWidth=1.25; g.setLineDash([4,3]);
+      g.globalAlpha=.9;
+      let i=lowerBound(M.pace, t0);
+      for(; i<M.pace.length && M.pace[i]<=t1; i++){
+        const x=Math.round(X(M.pace[i]))+0.5;
+        g.beginPath(); g.moveTo(x,yTop+11); g.lineTo(x,yBot-2); g.stroke();
+        g.beginPath(); g.moveTo(x,yTop+2); g.lineTo(x+7,yTop+5.5); g.lineTo(x,yTop+9); g.closePath(); g.fill();
+      }
+      g.restore();
+    }
     if(APP.showVents && ch.kind==='co2'){
       g.strokeStyle='#ffd166aa'; g.lineWidth=1;
       for(const vt of M.vents){ if(vt<t0||vt>t1) continue;
@@ -5781,25 +5887,50 @@ function fmtNum(v){
 
 /* ---------------- parameter selection ---------------- */
 const SEL_KEY = 'zollviewer:params';
-const SEL_DEFAULT = ['hr_dev','spo2','pi','ibp1','nibp','etco2','rr_dev'];
-const SEL = { ids: [] };
+const SEL_DEFAULT = ['hr_dev','spo2','pi','nibp','ibp1','ibp2','ibp3','etco2','rr_dev'];
+/* invasive channels someone has deliberately unticked; every other channel that
+   carries data in the case is shown, whatever the saved selection says */
+const SEL_OFF_KEY = 'zollviewer:params:off';
+const IBP_IDS = ['ibp1','ibp2','ibp3'];
+const SEL = { ids: [], off: [] };
+function selOrder(){
+  SEL.ids.sort((a,b)=>M.params.findIndex(p=>p.id===a)-M.params.findIndex(p=>p.id===b));
+}
+/* params only exist when the case has data for them, so a P1–P3 with no
+   readings never takes up a column */
+function selWithLines(ids){
+  const out = ids.filter(id=>M.paramById[id]);
+  for(const id of IBP_IDS)
+    if(M.paramById[id] && !out.includes(id) && !SEL.off.includes(id)) out.push(id);
+  return out;
+}
 function selLoad(){
   let want = SEL_DEFAULT;
   try{ const s=JSON.parse(localStorage.getItem(SEL_KEY)||'null'); if(Array.isArray(s)&&s.length) want=s; }
   catch(e){}
-  SEL.ids = want.filter(id=>M.paramById[id]);
+  try{ const o=JSON.parse(localStorage.getItem(SEL_OFF_KEY)||'[]'); SEL.off=Array.isArray(o)?o:[]; }
+  catch(e){ SEL.off=[]; }
+  SEL.ids = selWithLines(want);
   if(!SEL.ids.length) SEL.ids = M.params.slice(0,7).map(p=>p.id);
+  selOrder();
 }
 function selSave(){
-  try{ localStorage.setItem(SEL_KEY, JSON.stringify(SEL.ids)); }catch(e){}
+  try{
+    localStorage.setItem(SEL_KEY, JSON.stringify(SEL.ids));
+    localStorage.setItem(SEL_OFF_KEY, JSON.stringify(SEL.off));
+  }catch(e){}
 }
 function selected(){ return SEL.ids.map(id=>M.paramById[id]).filter(Boolean); }
 function selToggle(id, on){
   const i=SEL.ids.indexOf(id);
   if(on && i<0) SEL.ids.push(id);
   if(!on && i>=0) SEL.ids.splice(i,1);
+  if(IBP_IDS.includes(id)){
+    SEL.off = SEL.off.filter(x=>x!==id);
+    if(!on) SEL.off.push(id);
+  }
   /* keep display order stable and predictable */
-  SEL.ids.sort((a,b)=>M.params.findIndex(p=>p.id===a)-M.params.findIndex(p=>p.id===b));
+  selOrder();
   selSave(); refreshParamViews();
 }
 function refreshParamViews(){
@@ -6036,7 +6167,7 @@ function drawNumerics(){
         '<span>'+esc(p.unit||'')+'</span></div>'+
       '<div class="val" style="color:'+traceCol(p.color)+'">'+v.main+'</div>'+
       '<div class="sub">'+esc(sub)+'</div>'+
-      (parameterAlarm(p.id,t)?'<div class="alarm-setting">Alarm: '+esc(parameterAlarm(p.id,t))+'</div>':'')+
+      (parameterAlarm(p.id,t)?'<div class="alarm-setting">Limits: '+esc(parameterAlarm(p.id,t))+'</div>':'')+
     '</div>';
   });
   box.innerHTML = '<button id="numPick" class="numpick">Parameters…</button>' +
@@ -6048,10 +6179,109 @@ function drawNumerics(){
 }
 
 /* ---------------- vitals list ---------------- */
-const VIT = { every:60000, onlyChanges:false, widths:{}, userSized:false };
+const VIT = { every:'device', onlyChanges:false, showZero:true, widths:{}, userSized:false };
+function parseEvery(v){ return v==='trend'||v==='device' ? v : +v; }
+/* text size for the vitals table, in percent, remembered with the other settings */
+const VIT_SIZES = [100,115,130,150,175,200];
+function vitScale(){
+  const v=+CFG.vitalsScale;
+  return VIT_SIZES.includes(v) ? v : CFG_DEFAULT.vitalsScale;
+}
+function vitStep(dir){
+  const i=VIT_SIZES.indexOf(vitScale());
+  const next=VIT_SIZES[Math.max(0, Math.min(VIT_SIZES.length-1, i+dir))];
+  if(next===vitScale()) return;
+  CFG.vitalsScale=next; cfgSave();
+  /* column widths are in pixels, so they have to be refitted at the new size */
+  VIT.widths={}; VIT.userSized=false;
+  renderVitals();
+  const b=$(dir>0?'#vitLarger':'#vitSmaller'); if(b && !b.disabled) b.focus();
+}
+/* The chosen text size is a ceiling. When the table would be wider than the pane,
+   shrink it to fit, but never below VIT_MIN_FIT — past that it scrolls sideways
+   with the time column pinned. Column widths dragged by hand are left alone. */
+const VIT_MIN_FIT = 0.8;
+function vitFitWidth(){
+  const wrap=$('#vitalsBody .vittable'), tbl=wrap && wrap.querySelector('table');
+  const out=$('#vitSize');
+  if(!tbl || !wrap.clientWidth) return;
+  const want=vitScale()/100;
+  let s=want;
+  wrap.style.setProperty('--vs', s);
+  if(!VIT.userSized && tbl._fitAll){
+    VIT.widths={}; tbl._fitAll();
+    const floor=Math.min(want, VIT_MIN_FIT);
+    /* fonts and padding scale together, so the width scales almost linearly;
+       a couple of passes absorb the borders that do not */
+    for(let k=0;k<3;k++){
+      const avail=wrap.clientWidth, w=tbl.getBoundingClientRect().width;
+      if(w<=avail+0.5) break;
+      const ns=Math.max(floor, s*avail/w*0.99);
+      if(ns>=s-0.004) break;
+      s=ns; wrap.style.setProperty('--vs', s);
+      VIT.widths={}; tbl._fitAll();
+    }
+  }
+  VIT.fitScale=s;
+  if(out){
+    const pct=Math.round(s*100), shrunk=pct<vitScale();
+    out.textContent=pct+'%';
+    out.classList.toggle('fitted', shrunk);
+    out.title = shrunk ? 'Set to '+vitScale()+'%, reduced to fit the window' : '';
+  }
+}
+let vitResizeTimer=null, vitLastW=0;
+/* refit after the pane changes width: window resize, rotating a phone, or the
+   event list being shown or hidden beside it */
+function onVitalsResize(){
+  const body=$('#vitalsBody');
+  const w=body ? body.clientWidth : 0;
+  if(!w || w===vitLastW) return;
+  vitLastW=w;
+  clearTimeout(vitResizeTimer);
+  vitResizeTimer=setTimeout(()=>{ if(APP.view==='vitals') vitFitWidth(); }, 120);
+}
+function watchVitalsWidth(){
+  const body=$('#vitalsBody');
+  if(!body) return;
+  if(typeof ResizeObserver!=='undefined') new ResizeObserver(onVitalsResize).observe(body);
+  window.addEventListener('resize', onVitalsResize);
+  window.addEventListener('orientationchange', onVitalsResize);
+}
+/* "every 5 min → 15 min", or null when the case carries no auto interval */
+function nibpAutoText(){
+  const s=M.nibpAuto||[];
+  if(!s.length) return null;
+  return s.map(x=>x.min).join(' → ')+' min';
+}
+/* One row per NIBP auto cycle, following the interval as it was set on the
+   monitor. A cycle's row sits on the cuff reading it produced, so NIBP and the
+   invasive pressures in that row were taken together; a cycle with no reading
+   (aborted, air leak) keeps its scheduled time. Extra manual readings inside a
+   cycle get their own rows. */
+function nibpCycleGrid(){
+  const sch=M.nibpAuto||[];
+  if(!sch.length) return null;
+  const end=M.durMs, ticks=[];
+  for(let i=0;i<sch.length;i++){
+    const step=sch[i].min*60000;
+    const from = i===0 ? 0 : sch[i].t;
+    const to = i+1<sch.length ? sch[i+1].t : end+1;
+    for(let t=Math.ceil(from/step)*step; t<to && t<=end; t+=step) ticks.push(t);
+  }
+  const reads=nibpReadings().map(r=>r.t).sort((a,b)=>a-b);
+  const out=[];
+  for(let i=0;i<ticks.length;i++){
+    const a=ticks[i], b=i+1<ticks.length ? ticks[i+1] : end+1;
+    const inside=reads.filter(t=>t>=a && t<b);
+    if(inside.length) out.push(...inside); else out.push(a);
+  }
+  return [...new Set(out)].sort((a,b)=>a-b);
+}
 function vitalGrid(){
   if(VIT.every==='trend') return M.trends.map(r=>r.t);
-  const out=[]; const step=+VIT.every;
+  if(VIT.every==='device'){ const g=nibpCycleGrid(); if(g) return g; }
+  const out=[]; const step = VIT.every==='device' ? 60000 : +VIT.every;
   const first = firstValidTime();
   for(let t=Math.floor(first/step)*step; t<=M.durMs; t+=step) if(t>=0) out.push(t);
   return out;
@@ -6062,16 +6292,76 @@ function vitalRows(){
   const nibpAt = {};
   for(const r of nibpReadings()) nibpAt[Math.round(r.t/1000)] = r;
   const rows = grid.map(t=>{
+    const tr = trendAt(t);
     const cells = ps.map(p=>{
-      const a = paramAt(p,t);
-      if(p.sub) return {p, txt: a.sys!=null? (a.sys+'/'+(a.dia!=null?a.dia:'--')+(a.map!=null?' ('+a.map+')':'')) : '',
-                        when:a.when};
-      return {p, txt: a.v==null?'':a.v.toFixed(p.dec||0), when:a.when};
+      const a = paramAt(p,t), f = vitalFlags(p, tr);
+      const cell = {p, when:a.when, alarm:!!(f && f.alarm), range:null, raw:null};
+      if(p.sub){
+        /* an off-scale part replaces the last good value rather than hiding behind it */
+        const part=(k,v)=>{ const x=f && f[k] && f[k].range;
+          if(x){ cell.range=cell.range||x; if(cell.raw==null) cell.raw=f[k].raw; return RANGE_TXT[x]; }
+          return v; };
+        const s=part('sys',a.sys), d=part('dia',a.dia), m=part('map',a.map);
+        cell.parts=[s,d,m];
+        cell.txt = s!=null ? (s+'/'+(d!=null?d:'--')+(m!=null?' ('+m+')':'')) : '';
+      } else if(f && f.range){
+        cell.range=f.range; cell.raw=f.raw; cell.txt=RANGE_TXT[f.range];
+      } else cell.txt = a.v==null?'':a.v.toFixed(p.dec||0);
+      return cell;
     });
     return {t, cells};
   });
-  if(!VIT.onlyChanges) return rows;
-  return rows.filter((r,i)=> i===0 || r.cells.some((c,j)=>c.txt!==rows[i-1].cells[j].txt));
+  const kept = !VIT.onlyChanges ? rows :
+    rows.filter((r,i)=> i===0 || r.cells.some((c,j)=>c.txt!==rows[i-1].cells[j].txt));
+  if(!VIT.showZero) return kept;
+  /* one extra row per moment a shown line was zeroed, with the event in that
+     line's own column */
+  const byT = new Map();
+  for(const z of ibpZeroEvents()){
+    if(!ps.some(p=>p.id===z.id)) continue;
+    if(!byT.has(z.t)) byT.set(z.t, {});
+    byT.get(z.t)[z.id] = z.txt;
+  }
+  if(!byT.size) return kept;
+  const zrows = [...byT].map(([t,m])=>({t, zero:true,
+    cells: ps.map(p=>({p, txt: m[p.id]||''}))}));
+  return kept.concat(zrows).sort((a,b)=>a.t-b.t || (a.zero?-1:0)-(b.zero?-1:0));
+}
+/* the monitor's own notation for a reading outside what it can measure */
+const RANGE_TXT = {high:'+++', low:'---'};
+const RANGE_WORD = {high:'above', low:'below'};
+/* trend fields behind each device parameter, for the off-scale and alarm flags */
+const TREND_FLAG_KEY = {hr_dev:'hr', spo2:'spo2', pi:'pi', pvi:'pvi', spco:'spco', spmet:'spmet',
+  sphb:'sphb', spoc:'spoc', etco2:'etco2', fico2:'fico2', rr_dev:'rr'};
+/* {range, alarm} for a plain parameter; {sys, dia, map, alarm} for a pressure.
+   Derived parameters have no device flags. */
+function vitalFlags(p, r){
+  if(!r) return null;
+  if(p.id==='nibp'){
+    const fl=r.fl||{}, o={sys:fl.nsys, dia:fl.ndia, map:fl.nmap};
+    o.alarm=!!((o.sys&&o.sys.alarm)||(o.dia&&o.dia.alarm)||(o.map&&o.map.alarm));
+    return (o.sys||o.dia||o.map) ? o : null;
+  }
+  const m=/^ibp([123])$/.exec(p.id);
+  if(m){
+    const b=(r.ibp||[]).find(x=>+x.ch===+m[1]); const fl=b && b.fl;
+    if(!fl) return null;
+    return {sys:fl.sys, dia:fl.dia, map:fl.map,
+      alarm:!!((fl.sys&&fl.sys.alarm)||(fl.dia&&fl.dia.alarm)||(fl.map&&fl.map.alarm))};
+  }
+  const k=TREND_FLAG_KEY[p.id];
+  return k && r.fl ? (r.fl[k]||null) : null;
+}
+/* "IBP Probe1 Zeroed", and any other zero-related event the monitor logs per
+   probe, kept in the monitor's own wording */
+function ibpZeroEvents(){
+  const out=[];
+  for(const e of M.events||[]){
+    if(e.kind!=='annotation' || e.t<0) continue;
+    const m=/^IBP\s+Probe\s*([123])\s+(.*zero.*)$/i.exec(e.name||'');
+    if(m) out.push({t:e.t, id:'ibp'+m[1], txt:m[2].toLowerCase()});
+  }
+  return out;
 }
 /* column headers have to stay narrow, so trim the qualifier down to the part
    that actually distinguishes one source from another */
@@ -6152,8 +6442,11 @@ function makeResizable(table){
   table._fitAll = fitAll;
   /* widest rendered cell in the column, measured with the clamp lifted */
   function fitWidth(tbl, i){
-    const prev=cols[i].style.width;
+    const prev=cols[i].style.width, prevW=tbl.style.width;
     cols[i].style.width='';
+    /* collapse the table while measuring: a stretched table hands its slack to
+       every column, and fitting to that slack is what left the dead space */
+    tbl.style.width='0';
     tbl.style.tableLayout='auto';
     let w=Math.ceil(tbl.tHead.rows[0].cells[i].getBoundingClientRect().width);
     for(const row of tbl.tBodies[0].rows){
@@ -6163,6 +6456,7 @@ function makeResizable(table){
       w=Math.max(w, Math.ceil(c.scrollWidth)+4);
     }
     tbl.style.tableLayout='fixed';
+    tbl.style.width=prevW;
     cols[i].style.width=prev;
     return w;
   }
@@ -6172,6 +6466,23 @@ function makeResizable(table){
      the natural widths a browser hands back are much wider than the data needs */
   if(!VIT.userSized) fitAll();
 }
+function vitalCellTitle(c){
+  const out=[];
+  if(c.range) out.push(RANGE_WORD[c.range]+' the monitor’s measurable range'+
+    (c.raw!=null ? ' (it stored '+c.raw+(c.p.unit?' '+c.p.unit:'')+')' : ''));
+  if(c.alarm) out.push('in alarm when this trend record was written');
+  return out.join('; ');
+}
+function vitalRowHtml(r, clickable){
+  const cells = r.cells.map(c=>{
+    if(r.zero && c.txt) return '<td class="zc" style="color:'+traceCol(c.p.color)+'">'+esc(c.txt)+'</td>';
+    const cls=[c.alarm&&c.txt?'alm':'', c.range?'oor':''].filter(Boolean).join(' ');
+    const title=vitalCellTitle(c);
+    return '<td'+(cls?' class="'+cls+'"':'')+(title?' title="'+esc(title)+'"':'')+'>'+esc(c.txt)+'</td>';
+  }).join('');
+  return '<tr'+(clickable?' data-t="'+r.t+'"':'')+(r.zero?' class="zero"':'')+'><td>'+
+    fmtClock(M.t0Wall+r.t)+'</td><td>+'+fmtEl(r.t)+'</td>'+cells+'</tr>';
+}
 function renderVitals(){
   const b=$('#vitalsBody');
   const ps = selected();
@@ -6179,31 +6490,53 @@ function renderVitals(){
   const head = '<div class="vitctl">'+
     '<button id="vitPick">Parameters…</button>'+
     '<label>Every <select id="vitEvery">'+
-      [['60000','1 min'],['300000','5 min'],['600000','10 min'],['900000','15 min'],
+      [['device', nibpAutoText() ? 'NIBP cycle ('+nibpAutoText()+')' : 'NIBP cycle (not set, 1 min)'],
+       ['60000','1 min'],['300000','5 min'],['600000','10 min'],['900000','15 min'],
        ['1200000','20 min'],['1800000','30 min'],['3600000','60 min'],['7200000','120 min'],
        ['trend','trend record']]
         .map(o=>'<option value="'+o[0]+'"'+(String(VIT.every)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+
       '</select></label>'+
     '<label><input type="checkbox" id="vitChg"'+(VIT.onlyChanges?' checked':'')+'> only rows that changed</label>'+
+    (ps.some(p=>IBP_IDS.includes(p.id))
+      ? (()=>{ const n=ibpZeroEvents().filter(z=>ps.some(p=>p.id===z.id)).length;
+          return '<label title="'+(n?'Adds a row each time a shown invasive line was zeroed'
+                                     :'No zeroing was recorded for the lines shown')+'">'+
+            '<input type="checkbox" id="vitZero"'+(VIT.showZero?' checked':'')+(n?'':' disabled')+
+            '> show zeroing'+(n?'':' (none recorded)')+'</label>'; })()
+      : '')+
     '<span style="flex:1"></span>'+
-    '<span class="vithint">'+rows.length+' rows · '+ps.length+' parameters · '+
-      'drag a column edge to resize, double-click it to fit</span>'+
+    '<span class="vithint">'+rows.length+' rows · '+ps.length+' parameters'+
+      '<span class="vitdrag"> · drag a column edge to resize, double-click it to fit</span></span>'+
+    (()=>{ const oor=rows.some(r=>r.cells.some(c=>c.range)), alm=rows.some(r=>!r.zero && r.cells.some(c=>c.alarm && c.txt));
+      if(!oor && !alm) return '';
+      return '<span class="vitkey">'+
+        (oor?'<span><b>+++</b> / <b>---</b> above / below what the monitor can measure</span>':'')+
+        (alm?'<span><i></i>in alarm</span>':'')+'</span>'; })()+
+    '<span class="vitsize" role="group" aria-label="Table text size">Text size'+
+      '<button id="vitSmaller" aria-label="Smaller text"'+(vitScale()<=VIT_SIZES[0]?' disabled':'')+'>−</button>'+
+      '<output id="vitSize" aria-live="polite">'+vitScale()+'%</output>'+
+      '<button id="vitLarger" aria-label="Larger text"'+(vitScale()>=VIT_SIZES[VIT_SIZES.length-1]?' disabled':'')+'>+</button>'+
+    '</span>'+
     '<button id="vitFit" title="Shrink every column to its contents">⇔ Fit</button>'+
     '<button id="vitCsv">Export CSV</button>'+
     '<button id="vitPop">Open in a window</button>'+
   '</div>';
-  const table = '<div class="vittable"><table class="grid"><thead><tr><th>Time</th><th>Elapsed</th>'+
+  const table = '<div class="vittable" style="--vs:'+(vitScale()/100)+'"><table class="grid"><thead><tr><th>Time</th><th>Elapsed</th>'+
     vitalsHead(ps,false)+
     '</tr></thead><tbody>'+
-    rows.map(r=>'<tr data-t="'+r.t+'"><td>'+fmtClock(M.t0Wall+r.t)+'</td><td>+'+fmtEl(r.t)+'</td>'+
-      r.cells.map(c=>'<td>'+esc(c.txt)+'</td>').join('')+'</tr>').join('')+
+    rows.map(r=>vitalRowHtml(r,true)).join('')+
     '</tbody></table></div>';
   b.innerHTML = '<h2 class="sec">Vitals list</h2>'+head+table;
   makeResizable($('#vitalsBody table'));
+  vitFitWidth();
   $('#vitPick').onclick = openParamChooser;
-  $('#vitEvery').onchange = e=>{ VIT.every = e.target.value==='trend'?'trend':+e.target.value; renderVitals(); };
+  $('#vitEvery').onchange = e=>{ VIT.every = parseEvery(e.target.value); renderVitals(); };
   $('#vitChg').onchange = e=>{ VIT.onlyChanges = e.target.checked; renderVitals(); };
+  if($('#vitZero')) $('#vitZero').onchange = e=>{
+    VIT.showZero = CFG.vitalsZero = e.target.checked; cfgSave(); renderVitals(); };
   $('#vitFit').onclick = ()=>{ VIT.widths={}; VIT.userSized=false; renderVitals(); };
+  $('#vitSmaller').onclick = ()=>vitStep(-1);
+  $('#vitLarger').onclick = ()=>vitStep(1);
   $('#vitCsv').onclick = exportVitalsCsv;
   $('#vitPop').onclick = popOutVitals;
   $$('#vitalsBody tbody tr').forEach(tr=> tr.onclick=()=>{ seek(+tr.dataset.t); setView('monitor'); });
@@ -6220,11 +6553,15 @@ function vitalsMatrix(){
     const line=[fmtClock(M.t0Wall+r.t), (r.t/1000).toFixed(0)];
     r.cells.forEach((c,i)=>{
       const p=ps[i];
-      if(p.sub){ const a=paramAt(p,r.t); line.push(a.sys,a.dia,a.map); }
+      if(r.zero){ if(p.sub) line.push(c.txt,'',''); else line.push(c.txt); }
+      else if(p.sub){ const s=c.parts||[]; line.push(s[0],s[1],s[2]); }
       else line.push(c.txt);
     });
+    /* which shown values the monitor had in alarm, by column label */
+    line.push(r.zero ? '' : r.cells.filter(c=>c.alarm && c.txt).map(c=>c.p.label).join('; '));
     return line;
   });
+  head.push('in_alarm');
   return [head].concat(body);
 }
 function exportVitalsCsv(){
@@ -6234,24 +6571,27 @@ function popOutVitals(){
   const ps=selected(), rows=vitalRows();
   const w = window.open('', 'casevitals_'+M.caseId, 'width=1100,height=760');
   if(!w){ toast('Pop-up blocked — allow pop-ups for this page'); return; }
-  const style = 'body{margin:0;background:#0d1117;color:#e6edf3;'+
+  const style = 'body{margin:0;background:#111315;color:#e8eaec;'+
     'font:13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}'+
-    'h1{font-size:14px;margin:0;padding:10px 14px;background:#131a22;border-bottom:1px solid #2a3644;'+
+    'h1{font-size:14px;margin:0;padding:10px 14px;background:#181b1e;border-bottom:1px solid #2c3136;'+
     'position:sticky;top:0}'+
-    'table{border-collapse:collapse;width:auto;font:12px ui-monospace,Consolas,monospace}'+
-    'th,td{border:1px solid #2a3644;padding:2px 7px;text-align:right;white-space:nowrap}'+
+    'table{border-collapse:collapse;width:auto;margin:0 auto;'+
+      'font:'+(12*vitScale()/100).toFixed(1)+'px ui-monospace,Consolas,monospace}'+
+    'th,td{border:1px solid #2c3136;padding:2px 7px;text-align:right;white-space:nowrap}'+
     'th span{font-weight:400;opacity:.6}'+
-    'th{background:#131a22;position:sticky;top:37px;color:#8b98a5}'+
+    'th{background:#181b1e;position:sticky;top:37px;color:#8b98a5}'+
     'td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}'+
-    'tbody tr:nth-child(even) td{background:#131a22}'+
-    'tr:hover td{background:#1d2c3c}';
+    'tbody tr:nth-child(even) td{background:#181b1e}'+
+    'tr:hover td{background:#2a2f34}'+
+    'tr.zero td{color:#8b98a5;font-style:italic}tr.zero td.zc{font-weight:600}'+
+    'td.oor{color:#ffb020;font-weight:600}'+
+    'td.alm{color:#ff4d4d;font-weight:700;box-shadow:inset 3px 0 0 #ff4d4d}';
   w.document.write('<!doctype html><meta charset="utf-8"><title>Vitals — '+esc(M.caseId)+
     '</title><style>'+style+'</style>'+
     '<h1>'+esc(M.caseId)+' · '+new Date(M.t0Wall).toLocaleString()+' · '+rows.length+' rows</h1>'+
     '<table><thead><tr><th>Time</th><th>Elapsed</th>'+
     vitalsHead(ps,true)+'</tr></thead><tbody>'+
-    rows.map(r=>'<tr><td>'+fmtClock(M.t0Wall+r.t)+'</td><td>+'+fmtEl(r.t)+'</td>'+
-      r.cells.map(c=>'<td>'+esc(c.txt)+'</td>').join('')+'</tr>').join('')+
+    rows.map(r=>vitalRowHtml(r,false)).join('')+
     '</tbody></table>');
   w.document.close();
 }
@@ -7377,12 +7717,12 @@ function resetTrendsView(){
 }
 function resetMonitorView(){
   APP.win=+CFG_DEFAULT.win; APP.gain=+CFG_DEFAULT.gain; APP.speed=+CFG_DEFAULT.speed;
-  APP.showGrid=true; APP.showBeats=false; APP.showVents=false;
+  APP.showGrid=true; APP.showBeats=false; APP.showVents=false; APP.showPace=true;
   APP.calMode=false; APP.caliper=null; APP.sel=null;
   const set=(id,v)=>{ const e=$(id); if(e) e.value=String(v); };
   set('#winSel',APP.win); set('#gainSel',APP.gain); set('#speed',APP.speed);
   const tog=(id,on)=>{ const e=$(id); if(e) e.classList.toggle('on',on); };
-  tog('#btnGrid',true); tog('#btnBeats',false); tog('#btnVent',false); tog('#btnCal',false);
+  tog('#btnGrid',true); tog('#btnBeats',false); tog('#btnVent',false); tog('#btnPace',true); tog('#btnCal',false);
   const wc=$('#waveCanvas'); if(wc){ wc.style.cursor=''; wc.classList.remove('calarm'); }
   CFG.timelineH=null; applyTimelineH();
   syncWinSel(); drawMonitor(); drawNumerics(); drawTimeline();
@@ -7390,8 +7730,8 @@ function resetMonitorView(){
 }
 function resetAllViews(){
   resetTrendsView();
-  SEL.ids = SEL_DEFAULT.filter(id=>M.paramById[id]); selSave();
-  VIT.widths={}; VIT.every=+CFG_DEFAULT.vitalsEvery; VIT.onlyChanges=false;
+  SEL.off = []; SEL.ids = selWithLines(SEL_DEFAULT); selOrder(); selSave();
+  VIT.widths={}; VIT.userSized=false; VIT.every=parseEvery(CFG_DEFAULT.vitalsEvery); VIT.onlyChanges=false;
   EV.filter=''; EV.groups.clear(); EV.showLog=false;
   const q=$('#evSearch'); if(q) q.value='';
   resetMonitorView();
@@ -7684,6 +8024,19 @@ function paperDraw(cv, traces, opts){
       if(!pen){ g.moveTo(x,y); pen=true; } else g.lineTo(x,y);
     }
     g.stroke();
+    /* pacer pulses the monitor flagged in this recording, as on a printed strip */
+    if(!p.notEcg && APP.showPace && tr.pace && tr.pace.length){
+      const yT=padT+p.row*rowH, yB=yT+rowH;
+      g.save(); g.strokeStyle='#c2185b'; g.fillStyle='#c2185b'; g.lineWidth=1;
+      g.setLineDash([3,2]);
+      for(const i of tr.pace){
+        if(i<i0 || i>=i1) continue;
+        const x=Math.round(x0+(i-i0)/tr.hz*pxPerSec)+0.5;
+        g.beginPath(); g.moveTo(x,yT+18); g.lineTo(x,yB-4); g.stroke();
+        g.beginPath(); g.moveTo(x,yT+10); g.lineTo(x+6,yT+13); g.lineTo(x,yT+16); g.closePath(); g.fill();
+      }
+      g.restore();
+    }
     if(!p.notEcg){
       g.strokeStyle='#111'; g.beginPath();
       const cx=x0-Math.round(5*mmPx);
@@ -7917,7 +8270,13 @@ function renderEcgPane(){
       const n=Math.round(secs*ch.hz);
       const arr=new Float32Array(n);
       for(let i=0;i<n;i++) arr[i]=sampleAt(ch, t0+i*1000/ch.hz);
-      return {name:ch.name, lead:ch.lead, hz:ch.hz, data:arr, isEcg:ch.isEcg, kind:ch.kind};
+      /* pacer pulses from the continuous ECG's own flags; leads rebuilt from a
+         12-lead acquisition have no flags and an inferred time base, so skip them */
+      const pace=[];
+      if(ch.isEcg && !ch.captureOnly)
+        for(let k=lowerBound(M.pace,t0); k<M.pace.length && M.pace[k]<t0+secs*1000; k++)
+          pace.push(Math.round((M.pace[k]-t0)*ch.hz/1000));
+      return {name:ch.name, lead:ch.lead, hz:ch.hz, data:arr, isEcg:ch.isEcg, kind:ch.kind, pace};
     }).filter(t=>t.data.some(v=>v===v));
     if(!traces.length){ if(!quiet) toast('No waveform data at the cursor'); return; }
     PAPER.cal=null;
@@ -8118,11 +8477,11 @@ function capnoBreaths(ch){
 const CFG_KEY = 'zollviewer:cfg';
 const CFG_DEFAULT = {
   uiScale:100, theme:'auto',
-  win:8000, gain:10, speed:1, showGrid:true, showBeats:false, showVents:false,
+  win:8000, gain:10, speed:1, showGrid:true, showBeats:false, showVents:false, showPace:true,
   hrWin:10000, rrWin:30000, staleMs:30000, timelineH:null, hemoScope:60000, fio2:null,
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
-  vitalsEvery:60000, vitalsChanges:false,
+  vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
   showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true
 };
 const CFG = Object.assign({}, CFG_DEFAULT);
@@ -8174,6 +8533,10 @@ function cfgLoad(){
   try{
     const o=JSON.parse(localStorage.getItem(CFG_KEY)||'{}');
     for(const k in CFG_DEFAULT) if(!CASE_INPUT_KEYS.includes(k) && k!=='bsaFormula' && o[k]!=null) CFG[k]=o[k];
+    /* settings saved before the NIBP-cycle option existed stored the old 1-min
+       default; move those onto the new default rather than a choice nobody made */
+    if(!(o.cfgRev>=2) && +o.vitalsEvery===60000) CFG.vitalsEvery='device';
+    CFG.cfgRev=CFG_DEFAULT.cfgRev;
   }catch(e){}
 }
 function cfgSave(){
@@ -8215,8 +8578,10 @@ function applyCfgToSession(){
   if(CFG.hemoScope!=null) HV.scope=CFG.hemoScope;
   APP.win=+CFG.win; APP.gain=+CFG.gain; APP.speed=+CFG.speed;
   APP.showGrid=!!CFG.showGrid; APP.showBeats=!!CFG.showBeats; APP.showVents=!!CFG.showVents;
+  APP.showPace=CFG.showPace!==false;
   applyTimelineH();
-  VIT.every = CFG.vitalsEvery==='trend' ? 'trend' : +CFG.vitalsEvery;
+  VIT.every = parseEvery(CFG.vitalsEvery);
+  VIT.showZero = CFG.vitalsZero!==false;
   VIT.onlyChanges = !!CFG.vitalsChanges;
   TRD.mean=!!CFG.meanLines; TRD.trend=!!CFG.trendLines;
   EV.showLog=!!CFG.showDeviceLog;
@@ -8224,6 +8589,7 @@ function applyCfgToSession(){
   set('#winSel',APP.win); set('#gainSel',APP.gain); set('#speed',APP.speed);
   const tog=(id,on)=>{ const e=$(id); if(e) e.classList.toggle('on',on); };
   tog('#btnGrid',APP.showGrid); tog('#btnBeats',APP.showBeats); tog('#btnVent',APP.showVents);
+  tog('#btnPace',APP.showPace);
 }
 function renderSettings(){
   const b=$('#settingsBody');
@@ -8276,9 +8642,10 @@ function renderSettings(){
     '</div>'+
 
     '<h2 class="sec">Lists</h2><div class="setgrid">'+
-      row('Vitals interval', sel('cfgVitEvery',[[60000,'1 min'],[300000,'5 min'],[600000,'10 min'],
+      row('Vitals interval', sel('cfgVitEvery',[['device','NIBP cycle (1 min when none)'],[60000,'1 min'],[300000,'5 min'],[600000,'10 min'],
         [900000,'15 min'],[1200000,'20 min'],[1800000,'30 min'],[3600000,'60 min'],
-        [7200000,'120 min'],['trend','trend record']],CFG.vitalsEvery))+
+        [7200000,'120 min'],['trend','trend record']],CFG.vitalsEvery),
+        'A case that records an NIBP auto interval always opens on that cycle; this applies to cases that do not.')+
       row('Vitals: only rows that changed', chk('cfgVitChg',CFG.vitalsChanges))+
       row('Show device log by default', chk('cfgLog',CFG.showDeviceLog),
         'Same-day self-tests and the monitor’s continuous background rhythm analysis.')+
@@ -8328,7 +8695,7 @@ function renderSettings(){
     detectBeats(); buildParams(); refreshParamViews();
     toast('ECG rescaled to '+M.ecgCountsPerMv+' counts/mV');
   });
-  on('#cfgVitEvery','change',e=>put('vitalsEvery', e.target.value==='trend'?'trend':+e.target.value,
+  on('#cfgVitEvery','change',e=>put('vitalsEvery', parseEvery(e.target.value),
     ()=>{ if(APP.view==='vitals') renderVitals(); }));
   on('#cfgVitChg','change',e=>put('vitalsChanges',e.target.checked,
     ()=>{ if(APP.view==='vitals') renderVitals(); }));
@@ -8422,6 +8789,7 @@ function deferRender(sel, fn, label){
   requestAnimationFrame(()=>requestAnimationFrame(run));
   setTimeout(run, 60);
 }
+const NO_TRANSPORT_VIEWS = new Set(['vitals','cpr','analysis','settings']);
 function setView(v){
   APP.view = v;
   $$('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
@@ -8430,6 +8798,11 @@ function setView(v){
     vitals:'#vitalsPane', annot:'#annotPane', cpr:'#cprPane', hemo:'#hemoPane',
     analysis:'#analysisPane', settings:'#settingsPane'};
   $(map[v]).classList.add('on');
+  /* the playback bar and timeline only earn their space on tabs that follow the
+     cursor; elsewhere the page gets the room back */
+  const hadTransport = !document.body.classList.contains('no-transport');
+  document.body.classList.toggle('no-transport', NO_TRANSPORT_VIEWS.has(v));
+  if(!hadTransport && !NO_TRANSPORT_VIEWS.has(v)) requestAnimationFrame(()=>drawTimeline());
   if(v==='monitor'){ renderMonitorChoices(); drawMonitor(); drawNumerics(); }
   if(v==='trends') renderTrends();
   if(v==='ecg') renderEcgPane();
@@ -8489,6 +8862,9 @@ function wire(){
   $('#btnGrid').onclick = e=>{ APP.showGrid=!APP.showGrid; e.target.classList.toggle('on',APP.showGrid); drawMonitor(); };
   $('#btnBeats').onclick = e=>{ APP.showBeats=!APP.showBeats; e.target.classList.toggle('on',APP.showBeats); drawMonitor(); };
   $('#btnVent').onclick = e=>{ APP.showVents=!APP.showVents; e.target.classList.toggle('on',APP.showVents); drawMonitor(); };
+  $('#btnPace').onclick = e=>{ APP.showPace=!APP.showPace; e.target.classList.toggle('on',APP.showPace);
+    CFG.showPace=APP.showPace; cfgSave(); drawMonitor();
+    const pc=$('#paper'); if(APP.view==='ecg' && pc && pc._redraw) pc._redraw(); };
   $('#btnResetView').onclick = resetMonitorView;
   $('#btnZoomIn').onclick = ()=> zoomStep(0.6);
   $('#btnZoomOut').onclick = ()=> zoomStep(1/0.6);
@@ -8647,6 +9023,9 @@ async function loadFile(file){
     detectBeats();
     prog(0.95,'Building views…'); await nextFrame();
     buildParams(); loadSites(); buildHemoParams(); selLoad(); annLoad(); applyCfgToSession();
+    /* the vitals list opens on the monitor's own NIBP cycle whenever the case
+       records one; the saved interval only covers cases that do not */
+    if(M.nibpAuto && M.nibpAuto.length){ VIT.every='device'; VIT.userSized=false; }
     startApp();
     prog(1,'Done');
     recentAdd({id:M.caseId||(from&&from.path)||M.fileName, name:M.fileName,
@@ -8686,6 +9065,12 @@ function startApp(){
   $('#app').classList.add('live');
   renderChips(); renderEvents();
   APP.hidden=new Set(M.monitorExtra.map(c=>c.name));
+  { const bp=$('#btnPace');
+    const inSnaps = M.snapshots.some(s=>s.traces.some(t=>t.pace && t.pace.length));
+    if(bp){ bp.hidden=!M.pace.length && !inSnaps;
+      bp.title='Mark pacer pulses the monitor detected'+
+        (M.pace.length ? ' ('+M.pace.length.toLocaleString()+' in the continuous ECG)' : '')+
+        (inSnaps ? ', on the monitor and in waveform snapshots' : ''); } }
   APP.cursor = 0; APP.sel=null;
   seek(firstValidTime());
   drawTimeline();
@@ -8701,6 +9086,7 @@ function startApp(){
   applyAppIdentity();
   cfgLoad();
   wire();
+  watchVitalsWidth();
   applyUiScale();
   initTheme();
   const dz = $('#drop');
