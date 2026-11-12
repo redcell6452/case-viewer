@@ -857,3 +857,15 @@ test('march-out calipers repeat the exact interval both ways, and presses pick r
   assert.equal(a.run(`calHit(150, 100, 200, 6)`), 'move');
   assert.equal(a.run(`calHit(250, 100, 200, 6)`), null);
 });
+
+test('the formula index lists every entry, abbreviations too, in A–Z order with symbols last', () => {
+  const a = app();
+  const ix = JSON.parse(a.run('JSON.stringify(formulaIndex())'));
+  const keys = JSON.parse(a.run('JSON.stringify(GLOSSARY.map(g=>g.key))'));
+  assert.deepEqual([...new Set(ix.map(e=>e.key))].sort(), [...keys].sort());
+  const L = ix.map(e=>e.letter);
+  assert.deepEqual(L, [...L].sort((x,y)=>(x==='#')-(y==='#') || x.localeCompare(y)));
+  assert.ok(ix.some(e=>e.label==='MAP' && e.see && e.letter==='M'));
+  assert.equal(a.run(`fmLetter('τ')`), '#');
+  assert.equal(a.run(`fmLetter('Écart')`), 'E');
+});

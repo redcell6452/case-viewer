@@ -294,7 +294,24 @@ button.linkish{background:none;border:0;padding:0;min-height:0;color:var(--fg);t
 /* Formulas tab */
 .fm-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
 .fm-search input{flex:1 1 280px;max-width:520px;padding:7px 10px;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;color:var(--fg)}
-.fm-group h3{font-size:13px;color:var(--dim);margin:20px 0 6px;font-weight:600}
+.fm-group h3{font-size:13px;color:var(--dim);margin:20px 0 6px;font-weight:600;display:flex;align-items:baseline;gap:12px;max-width:90ch}
+.fm-group h3 .fm-up{margin-left:auto;font-size:11px;font-weight:500;padding:2px 8px;min-height:0;color:var(--dim)}
+.fm-index{margin:0 0 10px;padding:8px 12px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)}
+.fm-index summary{cursor:pointer;font-weight:600;font-size:13px;padding:2px 0}
+.fm-letters{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0 6px;position:sticky;top:0;background:var(--bg2);padding:4px 0;z-index:1}
+.fm-letters a,.fm-letters span{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:5px;font:600 12px var(--mono)}
+.fm-letters a{color:var(--fg);text-decoration:none;border:1px solid var(--line2);background:var(--bg3)}
+.fm-letters a:hover,.fm-letters a:focus-visible{background:var(--hover);border-color:var(--accent)}
+.fm-letters span{color:var(--dim);opacity:.4}
+.fm-ix{columns:15rem auto;column-gap:28px}
+.fm-ix-l{break-inside:avoid;margin:0 0 8px}
+.fm-ix-l h4{margin:6px 0 2px;font:600 13px var(--mono);color:var(--fg);scroll-margin-top:44px;border-bottom:1px solid var(--line);padding-bottom:2px}
+.fm-ix ul{list-style:none;margin:0;padding:0}
+.fm-ix li{font-size:12.5px;line-height:1.5}
+.fm-ix a{color:var(--fg);text-decoration:none}
+.fm-ix a:hover,.fm-ix a:focus-visible{text-decoration:underline}
+.fm-ix b{font-weight:600}
+.fm-ix .fm-see{color:var(--dim)}
 .fm-item{max-width:90ch;padding:10px 0;border-bottom:1px solid var(--line)}
 .fm-item h4{margin:0 0 4px;font-size:13px}
 .fm-item.fm-hit{background:var(--sel);transition:background .6s}
@@ -3242,6 +3259,32 @@ function wireGlossary(){
 
 /* ---------------- Formulas tab ---------------- */
 const FORM = {q:''};
+/* A–Z index of the Formulas page: every entry under its full name, plus a second
+   line under its abbreviation when that starts differently (so MAP is found under
+   M as well as under "Mean arterial pressure"). Names that start with a symbol or a
+   Greek letter (ΔT, τ) file under #. */
+function fmLetter(text){
+  const c=String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().charAt(0).toUpperCase();
+  return c>='A' && c<='Z' ? c : '#';
+}
+function formulaIndex(){
+  const out=[];
+  for(const g of GLOSSARY){
+    out.push({key:g.key, label:g.title, see:null});
+    const ab=(g.abbr||'').trim();
+    if(ab && ab.toLowerCase()!==g.title.toLowerCase() && !g.title.toLowerCase().startsWith(ab.toLowerCase()+' '))
+      out.push({key:g.key, label:ab, see:g.title});
+  }
+  for(const e of out) e.letter=fmLetter(e.label);
+  const coll=new Intl.Collator(undefined,{sensitivity:'base', numeric:true});
+  out.sort((a,b)=> (a.letter==='#')-(b.letter==='#') || coll.compare(a.label,b.label) || coll.compare(a.see||'',b.see||''));
+  return out;
+}
+function fmJump(key){
+  const a=document.getElementById('f-'+key); if(!a) return;
+  a.scrollIntoView({block:'center'}); a.classList.add('fm-hit');
+  setTimeout(()=>a.classList.remove('fm-hit'), 1600);
+}
 function renderFormulas(){
   const b=$('#formulasBody'); if(!b) return;
   const groups=[]; for(const g of GLOSSARY) if(!groups.includes(g.group)) groups.push(g.group);
@@ -3252,8 +3295,10 @@ function renderFormulas(){
     '<div class="fm-search"><input type="search" id="fmQ" placeholder="Search, e.g. shock index, QTc, MAP" '+
       'aria-label="Search formulas" value="'+esc(FORM.q)+'"><span id="fmCount" class="vithint" aria-live="polite"></span></div>'+
     '<p id="fmNone" class="srcintro" hidden></p>'+
+    fmIndexHtml()+
     '<div id="fmList">'+groups.map(gp=>
-      '<section class="fm-group" data-group="'+esc(gp)+'"><h3>'+esc(gp)+'</h3>'+
+      '<section class="fm-group" data-group="'+esc(gp)+'"><h3><span>'+esc(gp)+'</span>'+
+        '<button type="button" class="fm-up" data-fmtop>A–Z index</button></h3>'+
       GLOSSARY.filter(g=>g.group===gp).map(g=>
         '<article class="fm-item" id="f-'+esc(g.key)+'" data-text="'+esc(
           [g.title,g.abbr,g.formula,g.what,g.use,(g.ids||[]).join(' ')].join(' ').toLowerCase())+'">'+
@@ -3266,17 +3311,37 @@ function renderFormulas(){
       a.hidden=!hit; if(hit) n++; });
     $$('#fmList .fm-group').forEach(s=>{ s.hidden=![...s.querySelectorAll('.fm-item')].some(a=>!a.hidden); });
     $('#fmCount').textContent = q ? n+' of '+GLOSSARY.length+' shown' : GLOSSARY.length+' entries';
+    if($('#fmIndex')) $('#fmIndex').hidden = !!q;
     $('#fmNone').hidden = n>0;
     if(!n) $('#fmNone').textContent = 'Nothing matches “'+FORM.q.trim()+'”. Try a name, an abbreviation or part of a formula, such as HR ÷ SBP.';
   };
   $('#fmQ').oninput=e=>{ FORM.q=e.target.value; apply(); };
+  b.onclick=e=>{
+    const k=e.target.closest('[data-fm]'), L=e.target.closest('[data-fmletter]'), up=e.target.closest('[data-fmtop]');
+    if(k){ e.preventDefault(); fmJump(k.dataset.fm); }
+    else if(L){ e.preventDefault(); const h=document.getElementById('fmL-'+L.dataset.fmletter); if(h) h.scrollIntoView({block:'start'}); }
+    else if(up){ const ix=$('#fmIndex'); if(ix){ ix.open=true; ix.scrollIntoView({block:'start'}); } }
+  };
   apply();
+}
+function fmIndexHtml(){
+  const ix=formulaIndex(), letters=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ','#'];
+  const have=new Set(ix.map(e=>e.letter));
+  return '<details class="fm-index" id="fmIndex" open><summary>A–Z index</summary>'+
+    '<nav class="fm-letters" aria-label="Jump to letter">'+letters.map(L=>
+      have.has(L) ? '<a href="#" data-fmletter="'+L+'">'+L+'</a>'
+                  : '<span aria-hidden="true">'+L+'</span>').join('')+'</nav>'+
+    '<div class="fm-ix">'+letters.filter(L=>have.has(L)).map(L=>
+      '<div class="fm-ix-l"><h4 id="fmL-'+L+'">'+L+'</h4><ul>'+
+      ix.filter(e=>e.letter===L).map(e=>'<li><a href="#" data-fm="'+esc(e.key)+'">'+
+        (e.see ? '<b>'+esc(e.label)+'</b> <span class="fm-see">'+esc(e.see)+'</span>' : esc(e.label))+
+      '</a></li>').join('')+'</ul></div>').join('')+
+    '</div></details>';
 }
 function openFormula(key){
   FORM.q='';
   setView('formulas');
-  const a=document.getElementById('f-'+key);
-  if(a){ a.scrollIntoView({block:'center'}); a.classList.add('fm-hit'); setTimeout(()=>a.classList.remove('fm-hit'), 1600); }
+  fmJump(key);
 }
 
 /* first index in a sorted array of numbers whose value is >= x */
@@ -9332,14 +9397,25 @@ function drawPaperCaliper(g, geo){
   g.save();
   g.strokeStyle='#0a58c2'; g.fillStyle='#0a58c2'; g.lineWidth=1.3;
   if(CFG.calMarch && Math.abs(x1-x0)>=3){
-    g.save(); g.globalAlpha=0.55; g.lineWidth=1; g.beginPath();
-    for(const t of marchTimes(c.s0, c.s1, p.t0, p.t0+(p.x1-p.x0)/geo.pxPerSec)){
-      const x=p.x0+(t-p.t0)*geo.pxPerSec; g.moveTo(x,p.yTop+2); g.lineTo(x,p.yBot-2);
+    /* the red ECG grid swallows a thin blue line, so each marched upright gets a
+       white halo, full strength, and a small notch at the top and bottom */
+    const xs=marchTimes(c.s0, c.s1, p.t0, p.t0+(p.x1-p.x0)/geo.pxPerSec)
+      .map(t=>p.x0+(t-p.t0)*geo.pxPerSec);
+    const path=()=>{ g.beginPath(); for(const x of xs){ g.moveTo(x,p.yTop+2); g.lineTo(x,p.yBot-2); } };
+    g.save();
+    path(); g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=4; g.stroke();
+    path(); g.strokeStyle='#0a58c2'; g.lineWidth=1.6; g.stroke();
+    g.fillStyle='#0a58c2';
+    for(const x of xs){
+      g.beginPath(); g.moveTo(x-4,p.yTop+2); g.lineTo(x+4,p.yTop+2); g.lineTo(x,p.yTop+8); g.fill();
+      g.beginPath(); g.moveTo(x-4,p.yBot-2); g.lineTo(x+4,p.yBot-2); g.lineTo(x,p.yBot-8); g.fill();
     }
-    g.stroke(); g.restore();
+    g.restore();
   }
-  g.beginPath(); g.moveTo(x0,p.yTop+2); g.lineTo(x0,p.yBot-2);
-  g.moveTo(x1,p.yTop+2); g.lineTo(x1,p.yBot-2); g.stroke();
+  const ups=()=>{ g.beginPath(); g.moveTo(x0,p.yTop+2); g.lineTo(x0,p.yBot-2);
+    g.moveTo(x1,p.yTop+2); g.lineTo(x1,p.yBot-2); };
+  g.save(); ups(); g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=4; g.stroke(); g.restore();
+  g.save(); ups(); g.lineWidth=1.8; g.stroke(); g.restore();
   const ym=(y0+y1)/2;
   g.beginPath(); g.moveTo(x0,ym); g.lineTo(x1,ym); g.stroke();
   g.setLineDash([3,3]);

@@ -73,7 +73,7 @@ annotations live in that browser's local storage.
 | **CPR** | Resuscitation quality: the combined rate/depth quality graph, case metrics, and the stacked performance strips. |
 | **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. |
 | **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. |
-| **Formulas** | Every measure the viewer calculates or explains, searchable: what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
+| **Formulas** | Every measure the viewer calculates or explains, searchable and with an A–Z index (abbreviations included): what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
 
 On Physiology, waveform filters, analysis window and sweep controls stay with the
 floating traces. Extra traces scroll within that area so results remain accessible.
