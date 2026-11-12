@@ -880,3 +880,16 @@ test('case details list everything in full and leave out what was not recorded',
   assert.ok(!html.includes('>Unit<'));
   assert.ok(!html.includes('Pacer pulses'));
 });
+
+test('sticky notes keep their trace and height through save and import, and bad placement is dropped', () => {
+  const a = app();
+  const out = JSON.parse(a.run(`(()=>{ M.durMs=60000; return JSON.stringify(normalizeAnnotations([
+    {id:'n1', t0:5000, t1:5000, ch:'II', yf:0.4, text:'ST change', color:'#ffb020'},
+    {id:'n2', t0:6000, t1:6000, ch:{bad:1}, yf:7, text:'x'},
+    {id:'r1', t0:1000, t1:9000, text:'range'}])); })()`));
+  const n1 = out.find(x=>x.id==='n1'), n2 = out.find(x=>x.id==='n2'), r1 = out.find(x=>x.id==='r1');
+  assert.equal(n1.ch, 'II'); assert.equal(n1.yf, 0.4);
+  assert.ok(!('ch' in n2) && !('yf' in n2));
+  assert.equal(a.run(`annIsNote(${JSON.stringify(n1)})`), true);
+  assert.equal(a.run(`annIsNote(${JSON.stringify(r1)})`), false);
+});

@@ -248,6 +248,12 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .lbl > span:first-child{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 3px}
 .num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
 .numpick{width:100%;font-size:11px;padding:4px}
+.numat{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;
+  font:11px var(--mono);color:var(--dim);border:1px dashed var(--line2);border-radius:6px;padding:4px 6px}
+.numat b{color:var(--fg)}
+.numat.pinned{border-style:solid;border-color:var(--accent)}
+.numat .numhint{opacity:.7}
+.numat button{font-size:11px;padding:2px 6px;min-height:0}
 .vitctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .vitctl label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px}
 .vittable{max-height:calc(100vh - 300px);overflow:auto;border-radius:8px;
@@ -538,7 +544,8 @@ canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius
 @media (max-width:900px){ #paperWrap{max-height:none} }
 /* canvases only swallow touch while their caliper is armed */
 #waveCanvas,#paper{touch-action:pan-x pan-y}
-#waveCanvas.calarm,#paper.calarm{touch-action:none}
+#waveCanvas{touch-action:pan-y}
+#waveCanvas.calarm,#waveCanvas.placing,#paper.calarm{touch-action:none}
 #timeline{touch-action:none}
 #paperWrap canvas{display:block}
 
@@ -816,7 +823,7 @@ dialog input[type=text]{width:100%}
             <button id="btnPace" class="on" hidden>Pacer</button>
           </div>
           <span style="flex:1"></span>
-          <button id="btnMark" title="Annotate selection, or ±5 s around cursor (A)">＋ Annotate</button>
+          <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range.">＋ Annotate</button>
           <button id="btnPrintMonitor" title="Print current monitor strip">Print</button>
           <button id="btnPng" title="Save current strip as PNG">PNG</button>
         </div>
@@ -879,7 +886,7 @@ dialog input[type=text]{width:100%}
         </datalist>
       </div>
       <div><label>Colour</label><div class="swatches" id="annSwatch"></div></div>
-      <div><label for="annText">Note</label><textarea id="annText" placeholder="What happened here?"></textarea></div>
+      <div><label for="annText">Note</label><textarea id="annText" autofocus placeholder="What happened here?"></textarea></div>
     </div>
     <div class="df">
       <button value="delete" id="annDelete" style="margin-right:auto;border-color:#63343a;color:#ff9a9a">Delete</button>
@@ -6896,6 +6903,7 @@ function drawMonitor(){
 
   /* annotation bands */
   for(const a of ANN.list){
+    if(annIsNote(a)) continue;
     if(a.t1<t0 || a.t0>t1) continue;
     g.fillStyle = traceCol(a.color)+'26';
     const x0=Math.max(LEFT,X(a.t0)), x1=Math.min(w-8,X(a.t1));
@@ -7021,6 +7029,16 @@ function drawMonitor(){
   g.strokeStyle=T0.cursor; g.lineWidth=1;
   g.beginPath(); g.moveTo(cx,0); g.lineTo(cx,plotH); g.stroke();
 
+  if(APP.inspect && APP.inspect.t>=t0 && APP.inspect.t<=t1){
+    const ix=Math.round(X(APP.inspect.t))+0.5;
+    g.save(); g.strokeStyle=T0.cursor; g.globalAlpha=APP.inspect.pinned?.85:.55;
+    g.setLineDash(APP.inspect.pinned?[6,3]:[3,4]); g.lineWidth=1;
+    g.beginPath(); g.moveTo(ix,0); g.lineTo(ix,plotH); g.stroke();
+    if(APP.inspect.pinned){ g.setLineDash([]); g.globalAlpha=1; g.fillStyle=T0.cursor;
+      g.beginPath(); g.arc(ix,5,3.5,0,Math.PI*2); g.fill(); }
+    g.restore();
+  }
+  geo.notes = drawStickyNotes(g, geo, X, w);
   cv._mon = geo;
   drawCaliper(g, geo);
 
@@ -7033,11 +7051,70 @@ function drawMonitor(){
   const minX = LEFT + (showRange ? 92 : 4);
   for(let t=Math.ceil(t0/step)*step; t<=t1; t+=step){
     const x=X(t); if(x<minX) continue;
+    if(Math.abs(x-cx)<62) continue;   /* the playhead's own label sits here */
     g.fillText(fmtClock(M.t0Wall+t), x, plotH+14);
   }
   g.textAlign='left';
   g.fillStyle=T0.dim;
   if(showRange) g.fillText('+'+fmtEl(t0)+'  →  +'+fmtEl(t1), 5, plotH+14);
+  drawPlayheadTag(g, cx, plotH, T0);
+}
+/* The playhead is the moment everything else on the page is read at, so it is
+   labelled as such: a notch at the top of the strip, and a tag on the time axis
+   carrying the case time it stands at. */
+function drawPlayheadTag(g, cx, plotH, T0){
+  const txt='▶ '+fmtClock(M.t0Wall+APP.cursor);
+  g.save();
+  g.fillStyle=T0.cursor;
+  g.beginPath(); g.moveTo(cx-5,0); g.lineTo(cx+5,0); g.lineTo(cx,7); g.closePath(); g.fill();
+  g.font='600 10px ui-monospace,monospace';
+  const w=Math.ceil(g.measureText(txt).width)+12, hgt=15;
+  const x=Math.round(cx-w/2), y=plotH+3;
+  g.beginPath(); g.moveTo(cx-4,y); g.lineTo(cx,y-3); g.lineTo(cx+4,y); g.closePath(); g.fill();
+  g.fillRect(x, y, w, hgt);
+  g.fillStyle=T0.bg; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(txt, cx, y+hgt/2+0.5);
+  g.restore();
+}
+/* Sticky notes: a pin on the trace at the moment noted, a guide line through
+   every row at that time, and a small paper note beside the pin carrying the first
+   words. Returns the notes' boxes so a click or drag can find them. */
+function drawStickyNotes(g, geo, X, w){
+  const out=[];
+  for(const a of ANN.list){
+    if(!annIsNote(a) || a.t0<geo.t0 || a.t0>geo.t1) continue;
+    const row = geo.rows.find(r=>r.name===a.ch) || geo.rows[0];
+    if(!row) continue;
+    const x=Math.round(X(a.t0))+0.5;
+    const y=row.yTop + (Number.isFinite(a.yf)?a.yf:0.25)*row.rowH;
+    const col=a.color||ANN_COLORS[0];
+    g.save();
+    g.strokeStyle=col; g.globalAlpha=.45; g.setLineDash([2,3]); g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x,geo.plotH); g.stroke();
+    g.restore();
+    const label=(a.text||a.cat||'Note').split('\n')[0];
+    g.save();
+    g.font='600 11px system-ui,-apple-system,"Segoe UI",sans-serif';
+    let txt=label; const maxW=170;
+    if(g.measureText(txt).width>maxW){ while(txt.length>1 && g.measureText(txt+'…').width>maxW) txt=txt.slice(0,-1); txt+='…'; }
+    const bw=Math.ceil(g.measureText(txt).width)+14, bh=20;
+    let bx=x+7; if(bx+bw>w-8) bx=x-7-bw;
+    const by=clamp(y-bh-3, 1, geo.plotH-bh-1);
+    /* the note: paper in the note's colour with a folded corner */
+    g.shadowColor='rgba(0,0,0,.35)'; g.shadowBlur=4; g.shadowOffsetY=1;
+    g.fillStyle=col;
+    g.beginPath(); g.moveTo(bx,by); g.lineTo(bx+bw,by); g.lineTo(bx+bw,by+bh-6); g.lineTo(bx+bw-6,by+bh); g.lineTo(bx,by+bh); g.closePath(); g.fill();
+    g.shadowColor='transparent';
+    g.fillStyle='rgba(0,0,0,.25)';
+    g.beginPath(); g.moveTo(bx+bw,by+bh-6); g.lineTo(bx+bw-6,by+bh-6); g.lineTo(bx+bw-6,by+bh); g.closePath(); g.fill();
+    g.fillStyle='#111'; g.textBaseline='middle'; g.fillText(txt, bx+7, by+bh/2+0.5);
+    /* the pin */
+    g.fillStyle=col; g.strokeStyle='#111'; g.lineWidth=1.2;
+    g.beginPath(); g.arc(x, y, 4, 0, Math.PI*2); g.fill(); g.stroke();
+    g.restore();
+    out.push({id:a.id, x:bx, y:by, w:bw, h:bh, px:x, py:y});
+  }
+  return out;
 }
 /* smallest tick from a human-friendly ladder that keeps labels at least minPx apart */
 const STEP_LADDER=[1,2,5,10,15,30,60,120,300,600,900,1800,3600,7200].map(x=>x*1000);
@@ -7234,8 +7311,39 @@ function wireStripTools(){
     const X=t=>g.LEFT+(t-g.t0)/(g.t1-g.t0)*g.plotW;
     return calHit(p.x, X(c.t0), X(c.t1), 6);
   };
+  let pan=null;    /* dragging the strip through time */
+  let noteDrag=null;
+  const noteAt=ev=>{
+    const g=monGeom(); if(!g || !g.notes) return null;
+    const r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
+    const x=(ev.clientX-r.left)/z, y=(ev.clientY-r.top)/z;
+    for(let i=g.notes.length-1;i>=0;i--){ const n=g.notes[i];
+      if((x>=n.x && x<=n.x+n.w && y>=n.y && y<=n.y+n.h) || Math.hypot(x-n.px,y-n.py)<=7) return n; }
+    return null;
+  };
   cv.addEventListener('pointerdown', ev=>{
-    if(!APP.calMode) return;
+    if(ev.button>0) return;
+    if(APP.placing){
+      const p=monPoint(ev); if(!p || !p.row) return;
+      ev.preventDefault();
+      annPlaceAt(p.t, p.row.name, (p.y-p.row.yTop)/p.row.rowH);
+      return;
+    }
+    if(!APP.calMode){
+      const n=noteAt(ev);
+      ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
+      if(n){
+        /* keep the grab point: the pin follows the pointer at the same offset */
+        const r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
+        noteDrag={id:n.id, x0:ev.clientX, y0:ev.clientY, moved:false,
+          ox:ev.clientX-(r.left+n.px*z), oy:ev.clientY-(r.top+n.py*z)};
+        return;
+      }
+      pan={x0:ev.clientX, c0:APP.cursor, moved:false, wasPlaying:APP.playing};
+      if(APP.playing) setPlaying(false);
+      cv.style.cursor='grabbing';
+      return;
+    }
     const p=monPoint(ev); if(!p || !p.row) return;
     ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
     dragging=true;
@@ -7245,8 +7353,29 @@ function wireStripTools(){
     drawMonitor();
   });
   cv.addEventListener('pointermove', ev=>{
+    if(pan){
+      const g=monGeom(), z=(CFG.uiScale||100)/100, dx=(ev.clientX-pan.x0)/z;
+      if(Math.abs(dx)>3) pan.moved=true;
+      if(pan.moved && g) seek(pan.c0 - dx/g.plotW*(g.t1-g.t0), true);
+      return;
+    }
+    if(noteDrag){
+      if(Math.hypot(ev.clientX-noteDrag.x0, ev.clientY-noteDrag.y0)>4) noteDrag.moved=true;
+      if(!noteDrag.moved) return;
+      const p=monPoint({clientX:ev.clientX-noteDrag.ox, clientY:ev.clientY-noteDrag.oy}),
+        a=ANN.list.find(x=>x.id===noteDrag.id);
+      if(!p || !p.row || !a) return;
+      a.t0=a.t1=clamp(p.t,0,M.durMs); a.ch=p.row.name; a.yf=clamp((p.y-p.row.yTop)/p.row.rowH,0.05,0.95);
+      cv.style.cursor='grabbing';
+      drawMonitor();
+      return;
+    }
     if(!dragging){
-      if(!APP.calMode) return;
+      if(APP.placing){ cv.style.cursor='crosshair'; return; }
+      if(!APP.playing && ev.pointerType!=='touch' && !(APP.inspect && APP.inspect.pinned)){
+        const p=monPoint(ev); if(p && p.t>=0 && p.t<=M.durMs) hoverAt(p.t);
+      }
+      if(!APP.calMode){ cv.style.cursor = noteAt(ev) ? 'pointer' : 'grab'; return; }
       const p=monPoint(ev), h=p && hitAt(p);
       cv.style.cursor = h==='move' ? 'grab' : 'ew-resize';
       return;
@@ -7262,10 +7391,29 @@ function wireStripTools(){
     else { c.t1=p.t; if(p.v!=null) c.v1=p.v; }
     drawMonitor();
   });
-  const stop=()=>{ dragging=false; grab=null; from=null; };
+  const stop=ev=>{
+    dragging=false; grab=null; from=null;
+    if(pan){
+      const pn=pan; pan=null; cv.style.cursor = APP.calMode ? 'ew-resize' : 'grab';
+      /* a click that didn't drag pins the parameter panel at that moment */
+      if(!pn.moved && ev && ev.type==='pointerup'){ const p=monPoint(ev); if(p) setInspect(p.t, true); }
+    }
+    if(noteDrag){
+      const nd=noteDrag; noteDrag=null;
+      const a=ANN.list.find(x=>x.id===nd.id);
+      if(a && nd.moved){ ANN.list.sort((x,y)=>x.t0-y.t0); annSave(); }
+      else if(a && ev && ev.type==='pointerup') annOpen(a,false);
+    }
+  };
   cv.addEventListener('pointerup', stop);
   cv.addEventListener('pointercancel', stop);
   cv.addEventListener('dblclick', ()=>{ APP.caliper=null; drawMonitor(); });
+  /* pointer previews are throttled to one repaint per frame */
+  let hoverT=null, hoverRaf=0;
+  const hoverAt=t=>{ hoverT=t; if(!hoverRaf) hoverRaf=requestAnimationFrame(()=>{ hoverRaf=0;
+    if(hoverT!=null && !APP.playing && !(APP.inspect && APP.inspect.pinned)) setInspect(hoverT,false); }); };
+  cv.addEventListener('pointerleave', ()=>{ hoverT=null;
+    if(APP.inspect && !APP.inspect.pinned) setInspect(null); });
 
   /* Wheel or trackpad movement travels through the recording. */
   cv.addEventListener('wheel', ev=>{
@@ -7375,9 +7523,19 @@ function parameterAlarm(id,t){
   if(/^rr_/.test(id)) return alarmSetting('rr',t);
   return alarmSetting(id,t);
 }
+/* Reading the strip like the Trends page: while paused, the parameter panel follows
+   the pointer over the waveforms; a click pins it there. Playing, seeking or Esc
+   hands the panel back to the playhead. */
+function inspectTime(){ return APP.inspect ? APP.inspect.t : APP.cursor; }
+function setInspect(t, pinned){
+  const was=APP.inspect;
+  APP.inspect = t==null ? null : {t:clamp(t,0,M.durMs), pinned:!!pinned};
+  if(!was && !APP.inspect) return;
+  if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
+}
 function drawNumerics(){
   const box = $('#numerics'); if(!box) return;
-  const t = APP.cursor, staleMs = +CFG.staleMs||30000;
+  const t = inspectTime(), staleMs = +CFG.staleMs||30000;
   const cells = selected().map(p=>{
     const v = paramText(p,t);
     /* an intermittent measurement stands until the next one replaces it, so it is
@@ -7399,12 +7557,18 @@ function drawNumerics(){
       (parameterAlarm(p.id,t)?'<div class="alarm-setting">Limits: '+esc(parameterAlarm(p.id,t))+'</div>':'')+
     '</div>';
   });
+  const ins = APP.inspect;
   box.innerHTML = '<button id="numPick" class="numpick">Parameters…</button>' +
+    (ins ? '<div class="numat'+(ins.pinned?' pinned':'')+'" role="status">'+
+      '<span>'+(ins.pinned?'Pinned at ':'Pointer at ')+'<b>'+fmtClock(M.t0Wall+ins.t)+'</b></span>'+
+      (ins.pinned ? '<button type="button" id="numBack" title="Show values at the playhead again (Esc)">Back to playhead</button>'
+                  : '<span class="numhint">click to pin</span>')+'</div>' : '') +
     (cells.length ? cells.join('') : '<div class="emptynote">No parameters selected.</div>')+
     (M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id))
       ? '<div class="note-inline">Respiratory rate unavailable: this export has no valid device RR; its ventilation timestamps are not individual breaths.</div>'
       : '');
   $('#numPick').onclick = openParamChooser;
+  if($('#numBack')) $('#numBack').onclick = ()=> setInspect(null);
 }
 
 /* ---------------- vitals list ---------------- */
@@ -8882,10 +9046,14 @@ function normalizeAnnotations(list){
       ? a.id : 'a'+Date.now()+Math.random().toString(36).slice(2);
     if(seen.has(id)) continue;
     seen.add(id);
-    out.push({id,t0:a.t0,t1:a.t1,
+    const n={id,t0:a.t0,t1:a.t1,
       color:typeof a.color==='string' && /^#[0-9a-f]{6}$/i.test(a.color)?a.color:ANN_COLORS[0],
       text:typeof a.text==='string'?a.text.slice(0,100000):'',
-      cat:typeof a.cat==='string'?a.cat.slice(0,1000):''});
+      cat:typeof a.cat==='string'?a.cat.slice(0,1000):''};
+    /* a sticky note remembers which trace it was stuck to and how far down it sits */
+    if(typeof a.ch==='string' && a.ch.length<=200) n.ch=a.ch;
+    if(Number.isFinite(a.yf) && a.yf>=0 && a.yf<=1) n.yf=a.yf;
+    out.push(n);
   }
   return out.sort((a,b)=>a.t0-b.t0);
 }
@@ -8912,9 +9080,12 @@ function annSave(){
 }
 function annOpen(a, isNew){
   ANN.editing = a; ANN.color = a.color || ANN_COLORS[0];
-  $('#annDlgTitle').textContent = isNew ? 'Annotate segment' : 'Edit annotation';
-  $('#annRange').textContent = fmtClock(M.t0Wall+a.t0)+' → '+fmtClock(M.t0Wall+a.t1)+
-    '   (+'+fmtEl(a.t0)+' → +'+fmtEl(a.t1)+', '+((a.t1-a.t0)/1000).toFixed(1)+' s)';
+  const note = annIsNote(a);
+  $('#annDlgTitle').textContent = note ? (isNew ? 'Add note' : 'Edit note') : (isNew ? 'Annotate segment' : 'Edit annotation');
+  $('#annRange').textContent = note
+    ? fmtClock(M.t0Wall+a.t0)+'   (+'+fmtEl(a.t0)+(a.ch?', on '+shortName(a.ch):'')+')'
+    : fmtClock(M.t0Wall+a.t0)+' → '+fmtClock(M.t0Wall+a.t1)+
+      '   (+'+fmtEl(a.t0)+' → +'+fmtEl(a.t1)+', '+((a.t1-a.t0)/1000).toFixed(1)+' s)';
   $('#annCat').value = a.cat||'';
   $('#annText').value = a.text||'';
   $('#annDelete').style.display = isNew ? 'none' : '';
@@ -8938,6 +9109,26 @@ function annCommit(action){
   ANN.list.sort((x,y)=>x.t0-y.t0);
   annSave(); toast('Annotation saved');
 }
+function annIsNote(a){ return !!a && a.t0===a.t1; }
+/* Annotate on the Monitor: arm it, then click the trace where the note belongs and
+   a sticky note is dropped there. A range picked on the timeline still annotates
+   that range, and on other views the old ±5 s segment is kept. */
+function annSetPlacing(on){
+  APP.placing=!!on;
+  const b=$('#btnMark'); if(b){ b.classList.toggle('on', APP.placing); b.setAttribute('aria-pressed', APP.placing); }
+  const cv=$('#waveCanvas'); if(cv) cv.classList.toggle('placing', APP.placing);
+  if(APP.placing) toast('Click the waveform where the note goes. Enter drops it at the playhead, Esc cancels.');
+}
+function annPlaceAt(t, row, yf){
+  annSetPlacing(false);
+  if(APP.playing) setPlaying(false);
+  annOpen({t0:clamp(t,0,M.durMs), t1:clamp(t,0,M.durMs), ch:row||undefined,
+    yf:Number.isFinite(yf)?clamp(yf,0.05,0.95):undefined, color:ANN.color, cat:'', text:''}, true);
+}
+function annAnnotate(){
+  if(APP.sel || APP.view!=='monitor'){ annAddHere(); return; }
+  annSetPlacing(!APP.placing);
+}
 function annAddHere(){
   let t0,t1;
   if(APP.sel){ t0=APP.sel[0]; t1=APP.sel[1]; }
@@ -8948,7 +9139,8 @@ function renderAnnot(){
   const b = $('#annotBody');
   const head = '<h2 class="sec">Annotations — '+ANN.list.length+'</h2>'+
     '<div class="note-inline">Stored in this browser under case id <b>'+esc(M.caseId)+'</b>. '+
-    'Select a range on the timeline (drag) then press <b>A</b>, or click <b>＋ Annotate</b> for ±5 s around the cursor. '+
+    'On the Monitor, click <b>＋ Annotate</b> (or press <b>A</b>) and then click the waveform to stick a note there; drag a note to move it, click it to edit. '+
+    'To annotate a stretch instead, drag a range on the timeline and press <b>A</b>. '+
     'Export to keep them alongside the case file.</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:12px">'+
       '<button id="annExpJson">Export JSON</button>'+
@@ -8960,8 +9152,10 @@ function renderAnnot(){
   const rows = ANN.list.length ? ANN.list.map(a=>
     '<div class="annrow" data-id="'+esc(a.id)+'">'+
       '<div class="sw" style="background:'+esc(a.color)+'"></div>'+
-      '<div class="rng" data-t="'+a.t0+'">'+fmtClock(M.t0Wall+a.t0)+' → '+fmtClock(M.t0Wall+a.t1)+
-        '<br><span style="color:#4d5a67">+'+fmtEl(a.t0)+'  ('+((a.t1-a.t0)/1000).toFixed(1)+' s)</span></div>'+
+      '<div class="rng" data-t="'+a.t0+'">'+(annIsNote(a)
+        ? fmtClock(M.t0Wall+a.t0)+'<br><span style="color:#4d5a67">+'+fmtEl(a.t0)+'  note'+(a.ch?' on '+esc(shortName(a.ch)):'')+'</span>'
+        : fmtClock(M.t0Wall+a.t0)+' → '+fmtClock(M.t0Wall+a.t1)+
+          '<br><span style="color:#4d5a67">+'+fmtEl(a.t0)+'  ('+((a.t1-a.t0)/1000).toFixed(1)+' s)</span>')+'</div>'+
       '<div><div class="txt">'+esc(a.text||'(no text)')+'</div>'+
         (a.cat?'<div class="cat">'+esc(a.cat)+'</div>':'')+'</div>'+
       '<div><button class="annEdit" data-id="'+esc(a.id)+'">Edit</button></div>'+
@@ -9038,7 +9232,7 @@ function resetTrendsView(){
 function resetMonitorView(){
   APP.win=+CFG_DEFAULT.win; APP.gain=+CFG_DEFAULT.gain; APP.speed=+CFG_DEFAULT.speed;
   APP.showGrid=true; APP.showBeats=false; APP.showVents=false; APP.showPace=true;
-  APP.calMode=false; APP.caliper=null; APP.sel=null;
+  APP.calMode=false; APP.caliper=null; APP.sel=null; if(APP.placing) annSetPlacing(false);
   const set=(id,v)=>{ const e=$(id); if(e) e.value=String(v); };
   set('#winSel',APP.win); set('#gainSel',APP.gain); set('#speed',APP.speed);
   const tog=(id,on)=>{ const e=$(id); if(e) e.classList.toggle('on',on); };
@@ -10204,6 +10398,7 @@ async function importSettings(file){
 
 /* ---------------- transport ---------------- */
 function seek(t, quiet){
+  APP.inspect = null;
   APP.cursor = clamp(t, 0, M.durMs);
   $('#clock').textContent = fmtClock(M.t0Wall+APP.cursor);
   $('#elapsed').textContent = '+'+fmtElMs(APP.cursor);
@@ -10222,6 +10417,7 @@ function seek(t, quiet){
 function renderTrendsCursor(){ if(APP.view==='trends') renderTrends(); }
 function setPlaying(on){
   APP.playing = on;
+  if(on && APP.inspect) setInspect(null);
   $('#btnPlay').textContent = on ? '❚❚' : '▶';
   $('#btnPlay').classList.toggle('on', on);
   if(on){ APP.lastFrame = performance.now(); requestAnimationFrame(tick); }
@@ -10360,7 +10556,7 @@ function wire(){
     else toast(CFG.calMarch ? 'March calipers on — drag across one interval; it repeats along the trace'
       : 'Calipers on — drag across a trace to measure, double-click to clear');
   };
-  $('#btnMark').onclick = annAddHere;
+  $('#btnMark').onclick = annAnnotate;
   $('#btnTheme').onclick = ()=>{
     setTheme(THEME.mode==='light'?'dark':'light', true);
     if(APP.view==='settings') renderSettings();
@@ -10472,7 +10668,9 @@ function wire(){
       case 'End': seek(M.durMs); break;
       case ',': case '<': stepEvent(-1); break;
       case '.': case '>': stepEvent(1); break;
-      case 'a': case 'A': annAddHere(); break;
+      case 'a': case 'A': annAnnotate(); break;
+      case 'Enter': if(APP.placing){ ev.preventDefault(); annPlaceAt(APP.cursor); } break;
+      case 'Escape': if(APP.placing) annSetPlacing(false); else if(APP.inspect) setInspect(null); break;
       case 'e': case 'E': $('#btnSide').click(); break;
       case 't': case 'T': $('#btnTheme').click(); break;
       case 'c': case 'C': $('#btnCal').click(); break;

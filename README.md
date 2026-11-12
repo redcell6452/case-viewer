@@ -117,7 +117,12 @@ shared across all three views. Averaging windows for the derived rates are in Se
 - **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **T** theme
 - **E** event list · **+ −** zoom · **1**–**7** switch tabs
 - Speed 0.25×–20×; sweep window 1–60 s; ECG gain 5–40 mm/mV
-- **Mouse wheel over the strip** zooms about the pointer
+- **Drag the strip** left or right to move through the recording, like pulling paper
+  (dragging right goes back in time); the **mouse wheel** over the strip does the same
+- **Point at the strip** (while paused) and the parameter panel shows the values at
+  that moment, the way the Trends page does; **click** to pin them there (a dashed line
+  marks the spot). Playing, moving the playhead, **Back to playhead** or **Esc** returns
+  the panel to the playhead. Clicking while playing pauses and pins.
 - **Timeline**: click or drag to scrub. **Shift-drag** selects a range; double-click
   clears it. Event markers are shaped by severity — triangle for alarms, diamond for
   warnings, square for snapshots, dot for notes — and annotations fly a flag.
@@ -361,9 +366,14 @@ rate sources to say which signal is probably wrong rather than believing all of 
 
 ## Annotating
 
-Select a range on the timeline, press **A**, then give it a category, colour and note.
-Without a selection, **A** annotates ±5 s around the cursor. Bands appear on the
-timeline, the waveform view and the trend charts.
+On the Monitor, click **＋ Annotate** (or press **A**), then click the waveform where the
+note belongs: a sticky note is pinned to that trace at that moment, and you give it a
+category, colour and text. Drag a note to move it; click it to edit or delete it. While
+placing, **Enter** drops the note at the playhead and **Esc** cancels.
+
+To annotate a stretch of time instead, **Shift-drag** a range on the timeline and press
+**A**; on the other views **A** annotates ±5 s around the cursor. Ranges show as bands on
+the timeline, the waveform view and the trend charts; notes show as flags on the timeline.
 
 Notes are keyed to the case id and stored in the browser, so they survive reloads but
 are per-browser. **Export JSON** keeps them beside the case file; **Import JSON** brings
