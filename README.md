@@ -443,11 +443,11 @@ rate and a patient-triggered one look very different.
 - **Timebase.** `DevDateTime` (1 s resolution) is the anchor; `MsecTime` adds sub-second
   precision but belongs to a per-subsystem counter, so it is only trusted when the two
   agree. `ElapsedTime` is left at 0 on some record types and is the last resort.
-- **Scaling.** Pressure, CO₂ and SpO₂ channels use the `DataChannels` scalars from the
-  file. The ECG family uses a different convention, so **100 counts = 1 mV** is assumed —
-  that puts this amplifier's ±2500-count range at ±25 mV and gives clinically sensible
-  lead II amplitudes. It is adjustable in Settings, and changing it rescales the loaded
-  case exactly. Perfusion index is stored in tenths of a percent; temperatures are
+- **Scaling.** Every channel uses the `DataChannels` scalars from the file. For the ECG
+  family the scalar is nanovolts per count (2500 nV = 400 counts per mV), which the
+  12-lead record confirms with its own amplitude field. An assumed value is used only
+  when a file states no scale. It is adjustable in Settings, and changing it rescales the
+  loaded case exactly; 12-lead acquisitions carry their own scale and are not affected. Perfusion index is stored in tenths of a percent; temperatures are
   assumed to be in tenths of a degree.
 - **Drawing.** Zoomed out, each pixel column shows the min/max of the samples under it so
   peaks survive. Zoomed in past one sample per pixel, the samples themselves are plotted —

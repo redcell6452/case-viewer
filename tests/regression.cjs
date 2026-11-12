@@ -213,7 +213,7 @@ test('capnogram analysis reports I/E and applies the declared angle convention',
   assert.ok(a.run('r.alpha.value>90 && r.alpha.value<120'));
   assert.ok(a.run('r.beta.value>70 && r.beta.value<110'));
   assert.equal(a.run('capnoBreathSet(ch,{t0:0,t1:2000}).length'),0);
-  assert.ok(a.run('sigTable(r,["Pulmonary"],{showAll:true}).includes("inspiratory ÷ expiratory")'));
+  assert.ok(a.run('sigTable(r,["Pulmonary"],{showAll:true}).includes("time with CO₂ below threshold")'));
 });
 test('trailing trend averages cannot see future completed cycles', () => {
   const a=app(); a.run('M.durMs=60000; var s=smoothSeries([{t:10000,v:1},{t:20000,v:2},{t:30000,v:3}]);');
@@ -677,4 +677,108 @@ test('off-scale readings and alarm flags are kept, and shown instead of a stale 
     M.params = Object.values(M.paramById); SEL.ids = ['hr_dev','ibp1']; VIT.every = 'trend'; VIT.showZero = false;`);
   const last = JSON.parse(a.run('JSON.stringify(vitalRows()[1].cells.map(c=>[c.txt,c.alarm,c.range]))'));
   assert.deepEqual(last, [['---', true, 'low'], ['+++/60 (80)', true, 'high']]);
+});
+
+test('ECG scale comes from the file, and recalibrating leaves 12-lead traces alone', () => {
+  const a = app();
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:60}},
+    {DataChannels:{DataChannel:[{ChanType:3,Scalar:2500,ScalarType:1}]}},
+    {ContinWaveRec:{StdHdr:{ElapsedTime:0}, Waveform:{WaveRec:{WaveType:3, WaveTypeVar:'12-Lead II',
+      SampleTime:4000, UnpackedSamples:[0,400,0,-400]}}}}
+  ]}]}}),null,'synthetic.json')`);
+  assert.equal(a.run('M.ecgCountsPerMv'), 400);
+  assert.equal(a.run('M.ecgCalSource'), 'file');
+  assert.equal(a.run('M.channels["12-Lead II"].segs[0].data[1]'), 1);
+  a.run(`M.snapshots=[{kind:'Ecg12LeadRec', traces:[{isEcg:true, data:Float32Array.from([1])}]}]; applyEcgCal(200)`);
+  assert.equal(a.run('M.channels["12-Lead II"].segs[0].data[1]'), 2);
+  assert.equal(a.run('M.snapshots[0].traces[0].data[0]'), 1);
+});
+
+test('QRS axis prefers the device value and ignores its not-measured sentinel', () => {
+  const a = app();
+  assert.equal(a.run(`ecgAxis({interpretation:{QrsAxis:55}, traces:[]}).degrees`), 55);
+  assert.equal(a.run(`ecgAxis({interpretation:{QrsAxis:-2147483648}, traces:[]})`), null);
+});
+
+test('an R-R interval across a recording gap is not reported as a pause', () => {
+  const a = app();
+  // 60 bpm beats in two segments separated by a 30 s gap
+  a.run(`(()=>{ const hz=250, mk=(t0,s)=>{ const n=s*hz, d=new Float32Array(n);
+      for(let i=0;i<n;i++){ const ph=(i%hz); d[i]= ph<6 ? (ph<3?ph:6-ph)*0.4 : 0; } return {t0, n, data:d}; };
+    globalThis.CH={hz, isEcg:true, segs:[mk(0,20), mk(50000,20)]}; })()`);
+  const pauses = a.run('JSON.stringify(ecgRhythm(ecgBeats(CH)).pauses)');
+  assert.equal(pauses, '[]');
+});
+
+test('a pressure shows one reading, never parts of two', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`JSON.stringify(paramAt({sub:{
+    sys:[{t:0,v:73},{t:60000,v:141}], dia:[{t:0,v:48},{t:60000,v:null}], map:[{t:0,v:56},{t:60000,v:null}]}}, 60000))`));
+  assert.deepEqual([r.sys, r.dia, r.map], [141, null, null]);
+});
+
+test('vitals leave a cell empty once its value is stale, and still show a mean-only pressure', () => {
+  const a = app();
+  a.run(`M.durMs=600000; M.trends=[]; M.nibpAuto=[]; M._nibp=[];
+    M.paramById={spo2:{id:'spo2', label:'SpO2', pts:[{t:0,v:95}]},
+      ibp2:{id:'ibp2', label:'CVP', sub:{sys:[{t:0,v:null}], dia:[{t:0,v:null}], map:[{t:0,v:9}]}}};
+    M.params=Object.values(M.paramById); SEL.ids=['spo2','ibp2']; VIT.every=60000; VIT.showZero=false; VIT.onlyChanges=false;
+    firstValidTime=()=>0;`);
+  const rows = JSON.parse(a.run('JSON.stringify(vitalRows().map(r=>[r.t, r.cells.map(c=>c.txt)]))'));
+  assert.deepEqual(rows[0], [0, ['95', '--/-- (9)']]);
+  assert.deepEqual(rows[2], [120000, ['', '']]);
+});
+
+test('flush-test damping matches a known second-order response', () => {
+  const a = app();
+  a.run(`(()=>{ const hz=1000, zeta=0.10, fn=15, wn=2*Math.PI*fn, wd=wn*Math.sqrt(1-zeta*zeta);
+    const d=[]; for(let i=0;i<500;i++) d.push(100); for(let i=0;i<300;i++) d.push(300);
+    for(let i=0;i<1500;i++){ const t=i/hz; d.push(100+150*Math.exp(-zeta*wn*t)*Math.cos(wd*t)); }
+    M.events=[]; globalThis.FT=flushTests({hz, segs:[{t0:0, n:d.length, data:Float32Array.from(d)}]}); })()`);
+  const r = JSON.parse(a.run('JSON.stringify(FT[0])'));
+  assert.ok(Math.abs(r.zeta-0.10) < 0.02, 'zeta '+r.zeta);
+  assert.ok(Math.abs(r.fn-15) < 1.5, 'fn '+r.fn);
+});
+
+test('device times are read as wall clock, not local time, and odd records do not stop loading', () => {
+  const a = app();
+  assert.equal(a.run(`devTime('2026-11-01T01:30:00')`), Date.UTC(2026,10,1,1,30,0));
+  assert.equal(a.run(`fmtClock(devTime('2026-11-01T01:30:05'))`), '01:30:05');
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    null, {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:60}},
+    {ContinWaveRec:{StdHdr:{ElapsedTime:0}, Waveform:[null]}},
+    {DisplayInfo:{StdHdr:{DevDateTime:'2020-01-01T00:20:00'}, ParmNibpAutoModeInterval:15}},
+    {DisplayInfo:{StdHdr:{DevDateTime:'2020-01-01T00:00:00'}, ParmNibpAutoModeInterval:5}},
+    {DisplayInfo:{StdHdr:{DevDateTime:'2020-01-01T00:05:00'}, ParmNibpAutoModeInterval:15}}
+  ]}]}}),null,'synthetic.json')`);
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(M.nibpAuto.map(x=>[x.t,x.min]))')), [[0,5],[300000,15]]);
+});
+
+test('CPR periods: empty containers mean none, and compression fraction uses time in arrest', () => {
+  const a = app();
+  const xml = '<CaseReview><CprPeriodsMode>1</CprPeriodsMode><UserCprPeriods />' +
+    '<CprPausePeriods><CprPausePeriod Start="720" End="760"/></CprPausePeriods>' +
+    '<RoscPeriods><RoscPeriod Start="900" End="2100"/></RoscPeriods></CaseReview>';
+  a.run(`globalThis.X=${JSON.stringify(xml)};`);
+  assert.equal(a.run(`parsePeriods(X,'UserCprPeriods').length`), 0);
+  assert.equal(a.run(`parsePeriods(X,'CprPeriods').length`), 0);
+  assert.equal(a.run(`JSON.stringify(parsePeriods(X,'RoscPeriods'))`), JSON.stringify([{t0:900000,t1:2100000}]));
+  // 10 min of CPR (600-1200 s) with one 40 s pause, then ROSC from 1200 s
+  a.run(`M.durMs=3000000; M.cpr={periods:[{t0:600000,t1:1200000}], pauses:[{t0:720000,t1:760000}],
+    rosc:[{t0:1200000,t1:2400000}], autopulse:[], resq:[], comps:[], shocks:[]};`);
+  assert.equal(+a.run('cprMetrics().ccf.toFixed(1)'), 93.3);
+  a.run(`M.cpr.pauses=[];`);
+  assert.equal(+a.run('cprMetrics().ccf.toFixed(1)'), 100);
+});
+
+test('ventilation marks come from one source, never two merged', () => {
+  const a = app();
+  const v = (s0, n) => Array.from({length:n}, (_, i) => `<Ventilation second="${s0+i*5}" ms="0"/>`).join('');
+  const xml = `<CaseReview><EtCO2Ventilations>${v(10,20)}</EtCO2Ventilations>` +
+    `<ImpedanceVentilations>${v(11,20)}</ImpedanceVentilations></CaseReview>`;
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:200}}]}]}}), ${JSON.stringify(xml)}, 'synthetic.json')`);
+  assert.equal(a.run('M.vents.length'), 20);
+  assert.equal(a.run('M.ventSource'), 'EtCO2Ventilations');
 });

@@ -241,6 +241,8 @@ main{flex:1;display:flex;min-height:0}
 /* off the monitor's measurable scale, and in alarm: colour plus a shape, so neither
    depends on colour alone */
 .vittable td.oor{color:var(--warn);font-weight:600}
+.vittable td.sus{font-style:italic}
+.vittable td .vsrc{font:11px var(--sans);color:var(--dim)}
 .vittable td.alm{color:var(--crit);font-weight:700;box-shadow:inset 3px 0 0 var(--crit)}
 .vitkey{display:inline-flex;gap:12px;align-items:center;font-size:11px;color:var(--dim)}
 .vitkey b{font:600 11px var(--mono);color:var(--warn)}
@@ -791,7 +793,21 @@ function applyAppIdentity(caseId){
 }
 const pad = (n,w)=> String(n).padStart(w||2,'0');
 const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
-const fmtClock = ms => { const d=new Date(ms); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); };
+/* Device clock times. The monitor writes local wall-clock time with no time zone
+   ("2026-11-11T15:12:00"). Read it as if it were UTC and show it in UTC: the numbers
+   then come back exactly as the monitor recorded them, and no daylight-saving rule of
+   the reviewer's computer can shift an hour of the case or open a fake gap. Only times
+   that belong to this computer (file dates, "opened today") use local time. */
+const devTime = s => {
+  if(s==null || s==='') return NaN;
+  const x=String(s).trim().replace(' ','T');
+  return Date.parse(/[zZ]$|[+-]\d\d:?\d\d$/.test(x) ? x : x+'Z');
+};
+const fmtClock = ms => { const d=new Date(ms); return pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())+':'+pad(d.getUTCSeconds()); };
+const fmtDevDateTime = ms => new Date(ms).toLocaleString(undefined, {timeZone:'UTC'});
+const fmtDevTime = ms => new Date(ms).toLocaleTimeString(undefined, {timeZone:'UTC'});
+/* a real instant (now, a file date) expressed the same way: its local wall clock as UTC */
+const localAsDev = ms => { const d=new Date(ms); return ms - d.getTimezoneOffset()*60000; };
 const fmtEl = ms => { const s=Math.max(0,Math.round(ms/1000)); const h=Math.floor(s/3600);
   return (h?h+':':'')+pad(Math.floor(s/60)%60)+':'+pad(s%60); };
 const fmtElMs = ms => fmtEl(ms)+'.'+pad(Math.floor(Math.abs(ms)%1000/100),1);
@@ -942,7 +958,7 @@ async function idbGet(k){
 function parseCaseName(name){
   const m=/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})[_-]?([A-Za-z0-9]+)?/.exec(name);
   if(!m) return {caseTime:null, serial:null};
-  const t=new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  const t=Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
   return {caseTime: isFinite(t)?t:null, serial:(m[7]||'').replace(/\.(zol|zip)$/i,'')||null};
 }
 async function fsPerm(h, request){
@@ -1040,18 +1056,19 @@ function libRows(){
   const q=LIB.q.toLowerCase();
   if(q) rows=rows.filter(r=>r.path.toLowerCase().includes(q) ||
     (r.serial||'').toLowerCase().includes(q));
-  const now=new Date();
-  const startOfDay=d=>{ const x=new Date(d); x.setHours(0,0,0,0); return x.getTime(); };
+  /* case times are device wall clock (see devTime), so compare in that frame */
+  const now=localAsDev(Date.now());
+  const startOfDay=ms=>{ const x=new Date(ms); x.setUTCHours(0,0,0,0); return x.getTime(); };
   let lo=null, hi=null;
   if(LIB.filter==='today'){ lo=startOfDay(now); hi=lo+86400000; }
   else if(LIB.filter==='7'){ lo=startOfDay(now)-6*86400000; hi=startOfDay(now)+86400000; }
   else if(LIB.filter==='30'){ lo=startOfDay(now)-29*86400000; hi=startOfDay(now)+86400000; }
   else if(LIB.filter==='range'){
-    if(LIB.from) lo=startOfDay(new Date(LIB.from+'T00:00:00'));
-    if(LIB.to)   hi=startOfDay(new Date(LIB.to+'T00:00:00'))+86400000;
+    if(LIB.from) lo=devTime(LIB.from+'T00:00:00');
+    if(LIB.to)   hi=devTime(LIB.to+'T00:00:00')+86400000;
   }
   if(lo!=null||hi!=null) rows=rows.filter(r=>{
-    const t=r.caseTime!=null?r.caseTime:r.modified;
+    const t=r.caseTime!=null?r.caseTime:(r.modified!=null?localAsDev(r.modified):null);
     return (lo==null||t>=lo) && (hi==null||t<hi);
   });
   const k=LIB.sort.key, d=LIB.sort.dir;
@@ -1127,7 +1144,7 @@ function renderLibrary(){
       rows.map((r,i)=>'<tr data-i="'+LIB.files.indexOf(r)+'"'+
         (PREVIEW.selected===r?' class="sel"':'')+'>'+
         '<td>'+esc(r.path)+'</td>'+
-        '<td>'+(r.caseTime!=null?new Date(r.caseTime).toLocaleString():'<span class="libdim">—</span>')+'</td>'+
+        '<td>'+(r.caseTime!=null?fmtDevDateTime(r.caseTime):'<span class="libdim">—</span>')+'</td>'+
         '<td>'+esc(r.serial||'')+'</td>'+
         '<td style="text-align:right">'+fmtSize(r.size)+'</td>'+
         '<td>'+fmtWhen(r.modified)+'</td>'+
@@ -1141,7 +1158,7 @@ function renderLibrary(){
   const rec = recent.length
     ? recent.map(r=>'<div class="librec" data-rec="'+esc(r.path||r.name)+'">'+
         '<div class="librec-n">'+esc(r.label||r.name)+'</div>'+
-        '<div class="librec-s">'+(r.caseTime?new Date(r.caseTime).toLocaleString():'')+
+        '<div class="librec-s">'+(r.caseTime?fmtDevDateTime(r.caseTime):'')+
         (r.openedAt?(' · opened '+fmtWhen(r.openedAt)):'')+'</div></div>').join('')
     : '<div class="libdim" style="padding:8px 2px">Nothing opened yet.</div>';
 
@@ -1317,8 +1334,7 @@ async function previewCase(entry){
   out.treatments = pvNum(summaryText,'TreatmentSummEvtCnt');
 
   /* start and stop, as wall clock */
-  const parse=t=>{ if(!t) return null; const d=new Date(String(t).replace(' ','T'));
-    return isFinite(d.getTime())?d.getTime():null; };
+  const parse=t=>{ if(!t) return null; const v=devTime(t); return isFinite(v)?v:null; };
   out.startMs = parse(out.start) || entry.caseTime;
   out.stopMs  = (out.startMs!=null && out.lengthS) ? out.startMs + out.lengthS*1000 : null;
   PREVIEW.cache[key]=out;
@@ -1345,7 +1361,7 @@ function renderPreview(){
   }
   const row=(k,v)=> v==null||v==='' ? '' :
     '<div class="pvrow"><div class="pvk">'+esc(k)+'</div><div class="pvv">'+v+'</div></div>';
-  const when=t=>t==null?null:new Date(t).toLocaleString();
+  const when=t=>t==null?null:fmtDevDateTime(t);
   const dur=s=>s==null?null:fmtEl(s*1000);
   const person=[p.patientName, p.patientId].filter(Boolean).join(' · ') || null;
   const demo=[p.age!=null?p.age+' y':'', p.sex||'', p.mode||''].filter(Boolean).join(' · ')||null;
@@ -1357,7 +1373,7 @@ function renderPreview(){
     row('Start', when(p.startMs))+
     row('Stop', when(p.stopMs) || '<span class="libdim">not recorded</span>')+
     row('Length', dur(p.lengthS))+
-    row('Last treatment', p.lastTreatment ? new Date(p.lastTreatment.replace(' ','T')).toLocaleTimeString() : null)+
+    row('Last treatment', p.lastTreatment ? fmtDevTime(devTime(p.lastTreatment)) : null)+
     '<div class="pvsec">Device</div>'+
     row('Monitor', esc(p.serial||''))+
     row('Software', esc(p.sw||''))+
@@ -1455,7 +1471,9 @@ async function unzipFirstMatch(buf, re){
     entries.push({name, method, cSize, uSize, lho, flags, crc});
     off += 46 + nLen + eLen + cLen;
   }
-  const hit = entries.find(e=>!e.name.endsWith('/') && re.test(e.name));
+  /* skip folders and macOS metadata (__MACOSX/, ._name) so the real case is chosen */
+  const isMeta = n => /(^|\/)__MACOSX\//.test(n) || /(^|\/)\._/.test(n);
+  const hit = entries.find(e=>!e.name.endsWith('/') && !isMeta(e.name) && re.test(e.name));
   if(!hit) throw new Error('ZIP contains no case file.');
   if(hit.flags&1) throw new Error('Encrypted ZIPs are not supported.');
   if(hit.uSize>MAX_CASE_BYTES) throw new Error('Expanded case exceeds the 256 MiB safety limit.');
@@ -1565,10 +1583,14 @@ function buildModel(json, xml, fileName){
     const z = root.ZOLL || root;
     const fd = z.FullDisclosure || [];
     for(const blk of (Array.isArray(fd)?fd:[fd])){
+      if(!blk || typeof blk!=='object') continue;
       const rr = blk.FullDisclosureRecord || [];
       recs = recs.concat(Array.isArray(rr)?rr:[rr]);
     }
   }
+  /* a null or non-object record would otherwise throw deep in the parser and leave
+     the viewer blank: drop it here */
+  recs = recs.filter(r=>r && typeof r==='object' && !Array.isArray(r) && Object.keys(r).length);
   if(!recs.length && !xml) throw new Error('No full-disclosure records found in this file.');
 
   M.fileName = fileName; M.caseId=''; M.channels={}; M.monitorExtra=[]; M.displayHistory=[];
@@ -1586,6 +1608,16 @@ function buildModel(json, xml, fileName){
     let dcs = dcRec.DataChannel || [];
     if(!Array.isArray(dcs)) dcs=[dcs];
     for(const d of dcs) scalars[d.ChanType] = {scalar:+d.Scalar||1, type:+d.ScalarType||2};
+  }
+  /* ECG scale. ScalarType 1 channels give Scalar in nanovolts per count (2500 in the
+     X Series exports = 400 counts/mV). The 12-lead record states the same 2500 nV in its
+     own Amplitude field, and its beats then match the continuous lead II's size. Only
+     when no file value exists does the old assumed constant apply. */
+  {
+    const ecgSc = Object.values(scalars).filter(s=>s.type===1).map(s=>s.scalar).filter(s=>s>0);
+    const nv = ecgSc.length ? ecgSc.sort((a,b)=>a-b)[ecgSc.length>>1] : null;
+    M.ecgCountsPerMv = nv ? 1e6/nv : (+CFG.ecgCountsPerMv || 100);
+    M.ecgCalSource = nv ? 'file' : 'assumed';
   }
 
   /* --- metadata --- */
@@ -1621,7 +1653,7 @@ function buildModel(json, xml, fileName){
   const msecBase = offs.length ? offs[Math.floor(offs.length/2)] : 0;
 
   const startISO = sum.StartTime || (first('NewCase') && first('NewCase').StdHdr.DevDateTime) || null;
-  const parseISO = s => s ? new Date(s.replace(' ','T')).getTime() : NaN;
+  const parseISO = devTime;
   let t0 = parseISO(startISO);
   if(!isFinite(t0)){
     const ds = recs.map(r=>{const v=r[Object.keys(r)[0]]; return v&&v.StdHdr&&v.StdHdr.DevDateTime;}).filter(Boolean).sort();
@@ -1634,15 +1666,52 @@ function buildModel(json, xml, fileName){
   const wLo = t0 - 300000, wHi = t0 + spanGuess + 300000;
 
   /* DevDateTime is the reliable anchor (1 s resolution). MsecTime adds sub-second
-     precision but belongs to a per-subsystem counter, so only trust it when the two
-     agree. ElapsedTime is left at 0 on some record types, so it comes last. */
+     precision but belongs to a per-subsystem counter. Waveform frames' counter agrees
+     with DevDateTime exactly; other records' counter can drift against it (about
+     -0.1 s/min in one export), which used to put events, alarms and trends up to 2 s
+     off the waveforms and then jump. So for non-waveform records, model that drift as
+     the median (MsecTime - DevDateTime) in 2-minute bins, interpolated, and remove it.
+     ElapsedTime is left at 0 on some record types, so it comes last. */
+  const waveHdr = new WeakSet();
+  for(const r of recs){ const v=r && r.ContinWaveRec; if(v && v.StdHdr) waveHdr.add(v.StdHdr); }
+  const DRIFT_BIN = 120000;
+  const driftAt = (()=>{
+    const bins=new Map();
+    for(const r of recs){
+      if(!r) continue;
+      const k=Object.keys(r)[0], v=r[k], h=v && v.StdHdr;
+      if(!h || k==='ContinWaveRec' || h.MsecTime==null || !h.DevDateTime) continue;
+      const w=parseISO(h.DevDateTime)-t0, a=h.MsecTime-msecBase;
+      if(!isFinite(w) || Math.abs(a-w)>10000) continue;
+      const bi=Math.floor(w/DRIFT_BIN);
+      (bins.get(bi) || bins.set(bi,[]).get(bi)).push(a-w);
+    }
+    const pts=[...bins].filter(([,l])=>l.length>=3).map(([bi,l])=>{
+      l.sort((x,y)=>x-y); return {t:(bi+0.5)*DRIFT_BIN, d:l[l.length>>1]}; }).sort((x,y)=>x.t-y.t);
+    /* Each difference carries up to 1 s of DevDateTime rounding, so the offset itself
+       is noise; only the SLOPE is real drift. Theil-Sen slope through the bin medians,
+       removed relative to case start: with no drift it is ~0 and changes nothing. */
+    if(pts.length<3) return ()=>0;
+    const sl=[];
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++) sl.push((pts[j].d-pts[i].d)/(pts[j].t-pts[i].t));
+    sl.sort((x,y)=>x-y);
+    const beta=sl[sl.length>>1];
+    /* Rounding alone yields a fitted slope of a few ms/min (3.5 in a case with no
+       drift); real drift was -104 ms/min. Below 10 ms/min (0.6 s an hour) leave it. */
+    if(Math.abs(beta*60000) < 10) return ()=>0;
+    M.clockDriftMsPerMin = beta*60000;
+    return w=>beta*w;
+  })();
   function elapsedOf(h){
     if(!h) return 0;
     const a = h.MsecTime!=null ? h.MsecTime - msecBase : null;
     const w = h.DevDateTime ? (parseISO(h.DevDateTime) - t0) : null;
     const b = h.ElapsedTime!=null ? h.ElapsedTime*1000 : null;
     if(w!=null && isFinite(w)){
-      if(a!=null && Math.abs(a-w) < 2000) return a;
+      if(a!=null){
+        const c = waveHdr.has(h) ? a : a - driftAt(w);
+        if(Math.abs(c-w) < 2000) return c;
+      }
       return w;
     }
     if(a!=null && b!=null && Math.abs(a-b) < 2500) return a;
@@ -1665,7 +1734,7 @@ function buildModel(json, xml, fileName){
     const t = elapsedOf(cw.StdHdr);
     let ws = cw.Waveform || []; if(!Array.isArray(ws)) ws=[ws];
     for(const w of ws){
-      const wr = w.WaveRec; if(!wr) continue;
+      const wr = w && w.WaveRec; if(!wr) continue;
       const s = wr.UnpackedSamples;
       if(!s || !s.length) continue;
       const name = wr.WaveTypeVar || ('Wave '+wr.WaveType);
@@ -1747,16 +1816,17 @@ function buildModel(json, xml, fileName){
      mid-case (5 → 15 min in one export). Auto cycles fire on multiples of the
      interval counted from case start, which the cuff readings in both reference
      exports bear out. */
+  /* records are not in time order across the file: sort first, then keep only the
+     changes (de-duplicating in file order could drop a real change) */
   M.nibpAuto = [];
-  for(const d of by('DisplayInfo')){
-    const min = +d.ParmNibpAutoModeInterval;
-    if(!(min>0)) continue;
-    const t = Math.max(0, elapsedOf(d.StdHdr));
+  const nibpSettings = by('DisplayInfo').map(d=>({t:Math.max(0, elapsedOf(d.StdHdr)),
+      min:+d.ParmNibpAutoModeInterval, mode: d.parmNibpMode!=null ? +d.parmNibpMode : null}))
+    .filter(x=>x.min>0).sort((a,b)=>a.t-b.t);
+  for(const x of nibpSettings){
     const last = M.nibpAuto[M.nibpAuto.length-1];
-    if(last && last.min===min) continue;
-    M.nibpAuto.push({t, min, mode: d.parmNibpMode!=null ? +d.parmNibpMode : null});
+    if(last && last.min===x.min) continue;
+    M.nibpAuto.push(x);
   }
-  M.nibpAuto.sort((a,b)=>a.t-b.t);
 
   /* --- trends --- */
   const tv = n => { if(!n||typeof n!=='object') return null;
@@ -1791,6 +1861,7 @@ function buildModel(json, xml, fileName){
       sphb: tv(sp.SpHb), spoc: tv(sp.SpOC),
       nsys: tv(nb.Sys), ndia: tv(nb.Dia), nmap: tv(nb.Map),
       nibpTime: nb.Time, nibpNew: nb.IsNew==='true' || nb.IsNew===true,
+      nibpSuspect: nb.IsSuspect==='true' || nb.IsSuspect===true,
       etco2: tv(T.Etco2), fico2: tv(T.Fico2),
       rr: tv(T.Resp), rrSrc: T.Resp && T.Resp.SrcLabelVal,
       lta: T.LtaStateVal, ibp:[], temp:[] };
@@ -1820,7 +1891,11 @@ function buildModel(json, xml, fileName){
 
   function alarmName(a){
     const src = a.DataSrc && a.DataSrc.RawDataSrc;
-    const u = a.AlarmLimits && a.AlarmLimits.UnitsVal;
+    let u = a.AlarmLimits && a.AlarmLimits.UnitsVal;
+    /* some alarms say "Unknown" but carry the usual units code in the low 16 bits
+       of Units (196610 = 0x30002 -> 2, mmHg); every labelled alarm agrees with it */
+    if((!u || u==='Unknown') && a.AlarmLimits && Number.isFinite(+a.AlarmLimits.Units))
+      u = {2:'mmHg', 5:'Percent (%)', 10:'Beats per minute'}[(+a.AlarmLimits.Units) & 0xffff] || u;
     const m = a.DevEvtCode===141 ? 'high limit' : a.DevEvtCode===142 ? 'low limit' : null;
     const p = u==='mmHg' ? (src===7?'invasive pressure':'pressure')
             : u==='Percent (%)' ? 'SpO2'
@@ -1913,7 +1988,7 @@ function buildModel(json, xml, fileName){
     let ws = v.Waveform; if(!Array.isArray(ws)) ws=[ws];
     const traces=[];
     for(const w of ws){
-      const wr = w.WaveRec;
+      const wr = w && w.WaveRec;
       if(!wr || !wr.UnpackedSamples || !wr.UnpackedSamples.length) continue;
       const nm = wr.WaveTypeVar || ('Wave '+wr.WaveType);
       const sc = scalars[wr.WaveType] || {scalar:1,type:2};
@@ -1968,15 +2043,26 @@ function buildModel(json, xml, fileName){
 
   /* --- CaseReview XML: ventilations, CPR, ROSC --- */
   if(xml){
-    const vre = /<Ventilation\s+second="(\d+)"\s+ms="(\d+)"/g;
-    const ventTimes=[];
-    let mv; while((mv=vre.exec(xml))) ventTimes.push(+mv[1]*1000 + +mv[2]);
-    ventTimes.sort((a,b)=>a-b);
-    const close=ventTimes.slice(1).filter((t,i)=>t-ventTimes[i]<500).length;
-    /* Some exports contain many ventilation samples within each breath. They are
-       not individual breaths and would produce rates in the thousands per minute. */
-    M.ventSamplesIgnored=ventTimes.length>20 && close>ventTimes.length*0.2;
-    M.vents=M.ventSamplesIgnored?[]:ventTimes;
+    /* Ventilation marks come in per-source containers (EtCO2Ventilations,
+       ImpedanceVentilations, ...). Read each on its own and use ONE: merging two
+       sources that saw the same breaths doubles the rate. Some sources hold many
+       samples within each breath rather than one mark per breath; such a source is
+       skipped on its own instead of discarding every source. */
+    const timesIn = txt=>{ const out=[], vre=/<Ventilation\s+second="(\d+)"\s+ms="(\d+)"/g;
+      let mv; while((mv=vre.exec(txt))) out.push(+mv[1]*1000 + +mv[2]);
+      return out.sort((a,b)=>a-b); };
+    const samplesNotBreaths = v=>{
+      const close=v.slice(1).filter((t,i)=>t-v[i]<500).length;
+      return v.length>20 && close>v.length*0.2; };
+    const sources=[];
+    const cre=/<(\w*Ventilations)\b[^>]*>([\s\S]*?)<\/\1>/g;
+    let mc; while((mc=cre.exec(xml))) sources.push({name:mc[1], times:timesIn(mc[2])});
+    if(!sources.length) sources.push({name:'Ventilations', times:timesIn(xml)});
+    const usable=sources.filter(x=>x.times.length>=2 && !samplesNotBreaths(x.times));
+    const pick=usable.find(x=>/etco2|co2/i.test(x.name)) || usable[0] || null;
+    M.ventSamplesIgnored = !pick && sources.some(x=>x.times.length>20);
+    M.ventSource = pick ? pick.name : null;
+    M.vents = pick ? pick.times : [];
     const idm = /<Case\s+id="([^"]+)"/.exec(xml);
     if(idm) M.caseId = idm[1];
     const per = (tag,label,sev)=>{
@@ -1998,7 +2084,7 @@ function buildModel(json, xml, fileName){
      that the device was serviceable when it was picked up. */
   const npEvt = M.events.find(e=>/new patient/i.test(e.name));
   const npT = npEvt ? npEvt.t : 0;
-  const dayStart = new Date(t0); dayStart.setHours(0,0,0,0);
+  const dayStart = new Date(t0); dayStart.setUTCHours(0,0,0,0);
   const dayLo = dayStart.getTime(), dayHi = dayLo + 86400000;
   const keepRec = e => {
     if(e.t >= npT - 500) return true;                 /* at or after New Patient */
@@ -2025,15 +2111,42 @@ function buildModel(json, xml, fileName){
   M.snapshots.sort((a,b)=>a.t-b.t);
   M.snapshots.forEach((s,i)=>{ s.idx=i; });
   const captureLeads={};
+  /* Where a 12-lead acquisition sits in time. The record's timestamp is neither its
+     start nor its end: in the reference export its samples ran from about 1 s before
+     to 9 s after it. So place it by matching its lead II beats against the continuous
+     lead II; fall back to that observed offset only when they can't be matched. */
+  const contII = Object.values(M.channels).find(c=>c.lead==='II' && c.isEcg && c.nValid>0);
+  const contIIBeats = contII ? beatsFromEcg(contII).map(b=>b.t) : [];
+  const TWELVE_START_FALLBACK_MS = -1060;
+  const twelveStart = s=>{
+    const II = s.traces.find(t=>t.lead==='II');
+    if(II && contIIBeats.length){
+      const own = beatsFromEcg({hz:II.hz, segs:[{t0:0, n:II.data.length, data:II.data}]}).map(b=>b.t);
+      if(own.length>=4){
+        let best=null, bestN=0;
+        for(let L=s.t-20000; L<=s.t+20000; L+=4){
+          let n=0;
+          for(const b of own){
+            const t=L+b, k=lowerBound(contIIBeats, t-30);
+            if(k<contIIBeats.length && contIIBeats[k]<=t+30) n++;
+          }
+          if(n>bestN){ bestN=n; best=L; }
+        }
+        if(best!=null && bestN>=Math.max(4, Math.ceil(own.length*0.7))) return {t0:best, matched:true};
+      }
+    }
+    return {t0:s.t+TWELVE_START_FALLBACK_MS, matched:false};
+  };
   for(const s of M.snapshots.filter(x=>x.kind==='Ecg12LeadRec')){
+    const place = twelveStart(s);
+    s.start = place.t0; s.startMatched = place.matched;
     for(const tr of s.traces){
-      if(tr.lead==='II' && Object.values(M.channels).some(c=>c.lead==='II' && c.nValid>0)) continue;
+      if(tr.lead==='II' && contII) continue;
       const name='12-Lead '+tr.lead;
       const ch=captureLeads[name] || (captureLeads[name]={name,kind:'ecg',isEcg:true,
         lead:tr.lead,hz:tr.hz,segs:[],units:'mV',color:CH_COLORS.ecg,nValid:0,
         captureOnly:true});
-      /* The record marks completion of this acquisition; its samples precede it. */
-      const t0=s.t-tr.data.length*1000/tr.hz;
+      const t0=place.t0;
       ch.segs.push({t0,n:tr.data.length,data:tr.data});
       ch.nValid+=tr.data.length;
     }
@@ -2115,7 +2228,7 @@ function detectBeats(){
     if(/^ibp/.test(c.kind) && c.nValid>500)
       M.beatsByChan[nm] = (c===M.chArt) ? M.beatsArt : pulseDetect(c);
   }
-  M.beatsPleth = M.chPleth ? peaksOf(M.chPleth, {refractory:280,  smooth:24,  frac:0.50, look:4000})  : [];
+  M.beatsPleth = M.chPleth ? peaksOf(M.chPleth, {refractory:240,  smooth:24,  frac:0.50, look:4000})  : [];
   M.beatsEcg   = M.chEcg   ? beatsFromEcg(M.chEcg) : [];
   M.breathsCo2 = M.chCo2   ? capnoBreaths(M.chCo2) : [];
   M.breathsImp = M.chImp   ? peaksOf(M.chImp,   {refractory:1100, smooth:400, frac:0.45, look:20000}) : [];
@@ -2141,7 +2254,11 @@ function peaksOf(ch, o){
       }
       d=f;
     }
-    let last=-1e9, minSince=Infinity, amp=null;
+    /* anchor = when the current beat was first accepted. A taller peak inside the
+       refractory window replaces the stored beat but does NOT restart the window;
+       restarting it let peaks keep replacing each other at fast rates, so 220/min
+       collapsed to 60. */
+    let anchor=-1e9, minSince=Infinity, amp=null;
     for(let i=1;i<s.n-1;i++){
       const v=d[i]; if(!(v===v)) continue;
       if(v<minSince) minSince=v;
@@ -2156,12 +2273,13 @@ function peaksOf(ch, o){
       const ref = amp!=null ? amp : (hi-lo);
       if(minSince<Infinity && (v-minSince) < 0.35*ref) continue;
       const t = s.t0 + i*dt;
-      if(t-last >= o.refractory){
-        out.push({t, v}); last=t;
+      const stored = out.length ? out[out.length-1].t : -1e9;
+      if(t-anchor >= o.refractory && t-stored >= o.refractory*0.5){
+        out.push({t, v}); anchor=t;
         amp = amp==null ? (v-minSince) : amp*0.7 + (v-minSince)*0.3;
         minSince=Infinity;
-      } else if(out.length && v>out[out.length-1].v){
-        out[out.length-1]={t,v}; last=t; minSince=Infinity;
+      } else if(out.length && t-anchor < o.refractory && v>out[out.length-1].v){
+        out[out.length-1]={t,v}; minSince=Infinity;
       }
     }
   }
@@ -2172,7 +2290,7 @@ function peaksOf(ch, o){
    slow rate lets the dicrotic notch pass as a beat. So estimate the rate first, then
    size the window from it. */
 function pulseDetect(ch){
-  const first = peaksOf(ch, {refractory:280, smooth:0, frac:0.5, look:4000});
+  const first = peaksOf(ch, {refractory:240, smooth:0, frac:0.5, look:4000});
   let look = 1800;
   if(first.length > 8){
     const rr=[];
@@ -2182,7 +2300,7 @@ function pulseDetect(ch){
       look = clamp(rr[Math.floor(rr.length/2)]*2.2, 1200, 6000);
     }
   }
-  return peaksOf(ch, {refractory:280, smooth:0, frac:0.45, look});
+  return peaksOf(ch, {refractory:240, smooth:0, frac:0.45, look});
 }
 function beatsFromEcg(ch){
   const out=[]; const dt=1000/ch.hz;
@@ -2192,15 +2310,37 @@ function beatsFromEcg(ch){
     const e = new Float32Array(n);
     for(let i=1;i<n;i++){ const a=d[i], b=d[i-1];
       e[i] = (a===a && b===b) ? (a-b)*(a-b) : 0; }
+    /* the monitor holds the trace flat for ~24 ms after a pacer pulse and then lets
+       it jump back; that step is not a QRS, so drop its slope energy */
+    if(M.pace && M.pace.length){
+      const segEnd=s.t0+n*dt;
+      for(let k=lowerBound(M.pace, s.t0); k<M.pace.length && M.pace[k]<segEnd; k++){
+        const i0=Math.max(0, Math.floor((M.pace[k]-s.t0)/dt)), i1=Math.min(n, i0+Math.ceil(40/dt)+1);
+        for(let i=i0;i<i1;i++) e[i]=0;
+      }
+    }
     const g = new Float32Array(n);
     let acc=0;
     for(let i=0;i<n;i++){ acc+=e[i]; if(i>=W) acc-=e[i-W]; g[i]=acc; }
     const BW = Math.round(ch.hz*3);
+    /* Every local peak of the slope envelope is a candidate. The threshold is set
+       from the THIRD-largest candidate within ±3 s rather than the largest, so one or
+       two artefacts (movement, a blanked pacing spike) can't lift it above the real
+       QRS complexes and wipe out every beat for six seconds around them. */
+    const cand=[];
+    for(let i=1;i<n-1;i++) if(g[i]>=g[i-1] && g[i]>g[i+1] && g[i]>0) cand.push(i);
+    const refOf=new Float32Array(cand.length);
+    for(let c=0, lo=0, hiC=0; c<cand.length; c++){
+      while(cand[lo] < cand[c]-BW) lo++;
+      while(hiC+1<cand.length && cand[hiC+1] <= cand[c]+BW) hiC++;
+      let a1=0,a2=0,a3=0;
+      for(let k=lo;k<=hiC;k++){ const v=g[cand[k]];
+        if(v>a1){ a3=a2; a2=a1; a1=v; } else if(v>a2){ a3=a2; a2=v; } else if(v>a3) a3=v; }
+      refOf[c] = a3>0 ? a3 : (a2>0 ? a2 : a1);
+    }
     let last=-1e9;
-    for(let i=1;i<n-1;i++){
-      if(!(g[i]>=g[i-1] && g[i]>g[i+1])) continue;
-      let hi=0;
-      for(let j=Math.max(0,i-BW); j<Math.min(n,i+BW); j+=5) if(g[j]>hi) hi=g[j];
+    for(let c=0;c<cand.length;c++){
+      const i=cand[c], hi=refOf[c];
       if(g[i] < 0.35*hi || hi<=0) continue;
       /* the slope-envelope peak lags the R wave by about half the integration window,
          so snap to the actual extremum nearby — otherwise every pulse arrival time
@@ -2220,7 +2360,7 @@ function beatsFromEcg(ch){
         }
       }
       const t = s.t0 + bi*dt;
-      if(t-last>=250){ out.push({t, v:d[bi]}); last=t; }
+      if(t-last>=220){ out.push({t, v:d[bi]}); last=t; }   /* up to ~270/min */
     }
   }
   return out;
@@ -2269,7 +2409,7 @@ function buildParams(){
   const ibpOf = (ch,f)=> M.trends.map(r=>{
     const b=(r.ibp||[]).find(x=>x.ch===ch); return {t:r.t, v:b?b[f]:null}; });
   const tempOf = (type)=> M.trends.map(r=>{
-    const b=(r.temp||[]).find(x=>x.type===type); return {t:r.t, v:b&&b.val?b.val/10:null}; });
+    const b=(r.temp||[]).find(x=>x.type===type); return {t:r.t, v:b&&b.val!=null?b.val/10:null}; });
   const any = a => a && a.some(p=>p.v!=null);
 
   const P=[];
@@ -2392,9 +2532,18 @@ function paramAt(p, t){
     return {v, when};
   };
   if(p.sub){
-    const s=read(p.sub.sys), d=read(p.sub.dia), m=read(p.sub.map);
-    const when = Math.max(s.when==null?-1:s.when, d.when==null?-1:d.when, m.when==null?-1:m.when);
-    return {sys:s.v, dia:d.v, map:m.v, when: when<0?null:when};
+    /* systolic, diastolic and mean must come from the same reading. Taking each
+       part's own last valid value built pressures that never existed (a new systolic
+       with the previous reading's diastolic when the device marked those invalid).
+       The three arrays are aligned row for row. */
+    const S=p.sub.sys, D=p.sub.dia, A=p.sub.map;
+    let k=-1;
+    for(let i=0;i<S.length;i++){
+      if(S[i].t>t+500) break;
+      if(S[i].v!=null || (D[i]&&D[i].v!=null) || (A[i]&&A[i].v!=null)) k=i;
+    }
+    if(k<0) return {sys:null, dia:null, map:null, when:null};
+    return {sys:S[k].v, dia:D[k]?D[k].v:null, map:A[k]?A[k].v:null, when:S[k].t, idx:k};
   }
   return read(p.pts);
 }
@@ -2423,12 +2572,13 @@ function artBeats(ch, beats){
     if(t2-t1<250 || t2-t1>2000) continue;
     const sys=beats[i].v;
     if(!(sys>30 && sys<300)) continue;
-    let dia=Infinity, dpdt=0, prev=null;
+    let dia=Infinity, dpdt=0;
+    const hold=sampleHold(ch);
     for(let t=t1-160; t<t2; t+=dt){
       const v=sampleAt(ch,t); if(!(v===v)) continue;
       if(t>=t1 && v<dia) dia=v;
-      if(prev!=null){ const d=(v-prev)/(dt/1000); if(d>dpdt) dpdt=d; }
-      prev=v;
+      const u=sampleAt(ch,t-hold*dt);
+      if(u===u){ const d=(v-u)/(hold*dt/1000); if(d>dpdt) dpdt=d; }
     }
     if(!isFinite(dia) || dia<-10 || dia>200) continue;
     out.push({t:t1, sys, dia, pp:sys-dia, dpdt});
@@ -2464,6 +2614,15 @@ function flushTests(ch){
       if(!(d[i]>220)){ i++; continue; }              /* flush drives the line to the rail */
       let j=i; while(j<n && d[j]>200) j++;           /* release point */
       const start=j;
+      /* Zeroing or opening the line to air also drives it high and then drops it to
+         ~0 mmHg, which is not a fast-flush square wave: skip anything that sits near
+         zero afterwards, or that falls within 15 s of a logged zeroing event. */
+      const tRel = sg.t0+start*dt;
+      let low=0;
+      for(let k=start;k<Math.min(n,start+Math.round(ch.hz));k++) if(d[k]===d[k] && d[k]<10) low++;
+      const nearZero = low*dt >= 150 ||
+        (typeof ibpZeroEvents==='function' && ibpZeroEvents().some(z=>Math.abs(z.t-tRel)<15000));
+      if(nearZero){ i=Math.max(j+1, i+Math.round(ch.hz)); continue; }
       const end=Math.min(n, start+Math.round(ch.hz*1.2));
       /* peaks and troughs of the ringing that follows */
       const ext=[];
@@ -2480,9 +2639,13 @@ function flushTests(ch){
             const a1=Math.abs(peaks[0].v-troughs[0].v);
             const a2=Math.abs(peaks[1].v-troughs[1].v);
             if(a1>2 && a2>0.5 && a2<a1){
-              const lr=Math.log(a2/a1);
-              const zeta=-lr/Math.sqrt(Math.PI*Math.PI+lr*lr);
-              const fn=1/T;
+              /* a1 and a2 are peak-to-trough amplitudes one FULL oscillation apart, so the
+                 logarithmic decrement spans 2π: ζ = δ/√(4π²+δ²). (The π² form is for
+                 successive half-cycle overshoots and reads about twice too damped here.)
+                 T is the damped period; the natural frequency is fd/√(1−ζ²). */
+              const delta=Math.log(a1/a2);
+              const zeta=delta/Math.sqrt(4*Math.PI*Math.PI+delta*delta);
+              const fn=(1/T)/Math.sqrt(Math.max(1e-6, 1-zeta*zeta));
               /* fewer than ~5 samples per oscillation and the frequency is an
                  artefact of the sample rate, not a property of the tubing */
               out.push({t:sg.t0+start*dt, fn, zeta, resolved: fn <= ch.hz/5});
@@ -2577,14 +2740,30 @@ function inferSite(ch, srcLabel){
   const up=String(srcLabel||'').toUpperCase().replace(/[^A-Z]/g,'');
   for(const s of IBP_SITES) if(s.id!=='OTHER' && up.includes(s.id)) return s.id;
   if(/^(ABP|ART)/.test(up)) return 'ART';
-  /* nothing usable in the label — judge it from the trace */
+  if(/^PA\d*$/.test(up)) return 'PAP';
+  /* nothing usable in the label — judge it from the raw pressure in 2-s windows, not
+     from detected beats (the beat detector drops anything with a systolic of 30 or
+     less, so a CVP could never be recognised). Only clear cases get a site: a mean of
+     50+ with real pulsatility is arterial, a low flat mean is venous; a pulmonary
+     artery trace (e.g. 65/30, mean ~42) sits in between and is left unclassified
+     rather than being taken for an arterial line. */
   if(!ch || !ch.nValid) return 'OTHER';
-  const bts = artBeats(ch, (M.beatsByChan && M.beatsByChan[ch.name]) || []);
-  if(bts.length>20){
+  const means=[], pps=[];
+  for(const sg of ch.segs){
+    const w=Math.round(ch.hz*2);
+    for(let i=0;i+w<=sg.n && means.length<2000;i+=w){
+      const v=[]; for(let k=i;k<i+w;k++){ const x=sg.data[k]; if(x===x) v.push(x); }
+      if(v.length<w*0.8) continue;
+      v.sort((a,b)=>a-b);
+      means.push(v.reduce((a,b)=>a+b,0)/v.length);
+      pps.push(v[Math.floor(v.length*0.95)]-v[Math.floor(v.length*0.05)]);
+    }
+  }
+  if(means.length>=10){
     const med=a=>{const s=a.slice().sort((x,y)=>x-y); return s[Math.floor(s.length/2)];};
-    const sys=med(bts.map(b=>b.sys)), pp=med(bts.map(b=>b.pp));
-    if(sys>60 && pp>15) return 'ART';
-    if(sys<30 && pp<12) return 'CVP';
+    const m=med(means), pp=med(pps);
+    if(m>=50 && pp>=15) return 'ART';
+    if(m<25 && pp<12) return 'CVP';
   }
   return 'OTHER';
 }
@@ -2600,6 +2779,14 @@ function loadSites(){
     M.ibpSite[num] = saved[num] || inferSite(c, lbl);
     M.ibpSite['_auto'+num] = !saved[num];
   }
+}
+/* the arterial beat source follows the line identified as arterial; until sites are
+   known it is simply the first pressure channel */
+function retargetArterial(){
+  const L = hemoLines().art;
+  const want = L ? L.ch : (M.chArt && siteKind((ibpChannels().find(x=>x.ch===M.chArt)||{}).site)==='other' ? M.chArt : null);
+  if(want!==M.chArt){ M.chArt=want; M.beatsArt = want ? pulseDetect(want) : []; return true; }
+  return false;
 }
 function saveSites(){
   const o={};
@@ -2676,7 +2863,9 @@ function hemoLines(){
   for(const L of ibpChannels()){
     const k=siteKind(L.site);
     if(k==='art' && !out.art) out.art=L;
-    if(k==='ven' && !out.cvp) out.cvp=L;
+    /* only right-sided venous pressures stand in for CVP (SVR subtracts it);
+       left-atrial or umbilical-venous pressure is a different quantity */
+    if((L.site==='CVP' || L.site==='RAP') && !out.cvp) out.cvp=L;
     if(k==='icp' && !out.icp) out.icp=L;
     if(k==='pap' && !out.pap) out.pap=L;
   }
@@ -3019,10 +3208,26 @@ function sigRowAvailable(r){
 }
 
 /* ---------------- beat-level extraction ---------------- */
+/* How many times each sample is repeated. The X Series IBP channel is labelled
+   125 Hz but most samples come in identical pairs (effectively 62.5 Hz), so a slope
+   taken between neighbouring samples doubles the true rate of rise. */
+function sampleHold(ch){
+  if(ch._hold) return ch._hold;
+  let eq=0, n=0;
+  for(const sg of ch.segs){
+    for(let i=1;i<sg.n && n<200000;i++){ const a=sg.data[i], b=sg.data[i-1];
+      if(a===a && b===b){ n++; if(a===b) eq++; } }
+    if(n>=200000) break;
+  }
+  ch._hold = n>1000 && eq/n>0.4 ? 2 : 1;
+  return ch._hold;
+}
+/* the top of the monitor's invasive-pressure range: only a plateau up here is clipping */
+const IBP_CLIP_MMHG = 290;
 function extractBeats(ch, peaks){
   const out=[];
   if(!ch || !peaks || peaks.length<3) return out;
-  const dt=1000/ch.hz;
+  const dt=1000/ch.hz, hold=sampleHold(ch);
   const at=t=>sampleAt(ch,t);
   for(let i=0;i<peaks.length-1;i++){
     const tPk=peaks[i].t, tNext=peaks[i+1].t;
@@ -3046,13 +3251,21 @@ function extractBeats(ch, peaks){
       const a=at(t), b=at(t+dt);
       if(a===a && b===b && Math.abs(a-b)<0.02 && a>=peaks[i].v-0.05) flat++;
     }
-    const clip = flat>=3;
+    /* Rounding to 1 mmHg plus held sample pairs give a rounded peak a flat top of up
+       to ~48 ms, so equal neighbours alone aren't clipping. Clipping is a long run of
+       identical values at the peak (60 ms+), or any flat top at the top of the range. */
+    let run=0, longest=0;
+    for(let t=tPk-160;t<=tPk+160;t+=dt){
+      const a=at(t);
+      if(a===a && Math.abs(a-peaks[i].v)<0.05){ run++; if(run>longest) longest=run; } else run=0;
+    }
+    const clip = longest*dt >= 60 || (flat>=3 && peaks[i].v>=IBP_CLIP_MMHG);
     if(n<6) continue;
     const map=sum/n;
     /* dP/dt max and upstroke */
-    let dpdt=0, prev=null;
-    for(let t=foot;t<=tPk;t+=dt){ const v=at(t); if(v!==v){ prev=null; continue; }
-      if(prev!=null){ const g=(v-prev)/(dt/1000); if(g>dpdt) dpdt=g; } prev=v; }
+    let dpdt=0;
+    for(let t=foot+hold*dt;t<=tPk;t+=dt){ const v=at(t), u=at(t-hold*dt);
+      if(v===v && u===u){ const g=(v-u)/(hold*dt/1000); if(g>dpdt) dpdt=g; } }
     /* dicrotic notch: first local minimum after the peak within the downstroke */
     let notchT=null, notchV=null;
     const searchEnd=Math.min(stop, tPk+rr*0.6);
@@ -3146,9 +3359,15 @@ function signalQuality(ch, beats, win){
   let damping=null;
   if(ft.length){
     const f=ft[ft.length-1];
-    damping={fn:f.fn, zeta:f.zeta, resolved:f.resolved, verdict:dampingVerdict(f.fn,f.zeta)};
-    if(f.zeta<0.15) flags.push('underdamped');
-    else if(f.zeta>0.7) flags.push('overdamped');
+    /* an unresolved test (ringing faster than the sample rate can follow) can't say
+       anything about damping, so it gets no verdict and sets no flag */
+    damping={fn:f.fn, zeta:f.zeta, resolved:f.resolved,
+      verdict: f.resolved ? dampingVerdict(f.fn,f.zeta)
+                          : 'not assessable — the ringing is faster than this channel samples'};
+    if(f.resolved){
+      if(f.zeta<0.15) flags.push('underdamped');
+      else if(f.zeta>0.7) flags.push('overdamped');
+    }
   }
   /* morphology hint when no flush is available */
   const noNotch = beats.filter(b=>b.notchT==null).length/n;
@@ -4228,12 +4447,15 @@ function spo2Analysis(win){
     }
   }
   if(cur){ cur.end=s[s.length-1].t; cur.durS=(cur.end-cur.start)/1000; events.push(cur); }
-  /* rate of change, %/min, over a rolling minute */
+  /* Rate of change, %/min, measured against the reading about a minute earlier (at
+     least 30 s back). Between neighbouring readings a single 1% step under a second
+     apart reads as -60 %/min; a real desaturation shows over tens of seconds. */
   let maxFall=0, maxRise=0;
-  for(let i=1;i<s.length;i++){
-    const dtm=(s[i].t-s[i-1].t)/60000;
-    if(dtm<=0||dtm>2) continue;
-    const g=(s[i].v-s[i-1].v)/dtm;
+  for(let i=1, j=0;i<s.length;i++){
+    while(j<i && s[i].t-s[j+1].t>=60000) j++;
+    const dtMs=s[i].t-s[j].t;
+    if(dtMs<30000 || dtMs>120000) continue;
+    const g=(s[i].v-s[j].v)/(dtMs/60000);
     if(g<maxFall) maxFall=g;
     if(g>maxRise) maxRise=g;
   }
@@ -4327,10 +4549,18 @@ function ecgBeats(ch, win){
   const out=[];
   if(!ch) return out;
   const peaks=beatsFromEcg(ch);
+  /* an interval that spans missing ECG is not an R-R interval: without this, a gap
+     in the recording shows up as a long "pause" */
+  const gapBetween=(t1,t2)=>{
+    if(segAt(ch,t1)!==segAt(ch,t2)) return true;
+    let miss=0, n=0;
+    for(let t=t1+40;t<t2;t+=40){ n++; const v=sampleAt(ch,t); if(!(v===v)) miss++; }
+    return n>0 && miss/n>0.2;
+  };
   for(let i=0;i<peaks.length;i++){
     const tR=peaks[i].t;
     if(win && (tR<win.t0||tR>win.t1)) continue;
-    const rr = i>0 ? tR-peaks[i-1].t : null;
+    const rr = i>0 && !gapBetween(peaks[i-1].t, tR) ? tR-peaks[i-1].t : null;
     const b={t:tR, rr, amp:peaks[i].v};
     const q=qrsBounds(ch,tR);
     if(q){ b.qrsOn=q.on; b.qrsOff=q.off; b.qrs=q.dur; }
@@ -4427,18 +4657,39 @@ function hrvAnalysis(beats){
     adjacentPairs:d.length, limitations};
 }
 /* QRS axis, only from limb leads of a real 12-lead */
-function ecgAxis(traces){
+/* Frontal QRS axis for one 12-lead acquisition. The device's own measured axis is
+   used when the record carries one (INT_MIN marks "not measured"). Otherwise: the
+   net QRS deflection in leads I and aVF, summed over ±60 ms around each R wave and
+   taken from a baseline just before the QRS. Averaging the whole trace instead gives
+   noise, because the filtered trace has no mean to speak of. */
+function ecgAxis(snapOrTraces){
+  const snap = Array.isArray(snapOrTraces) ? {traces:snapOrTraces} : snapOrTraces;
+  const dev = snap.interpretation && +snap.interpretation.QrsAxis;
+  if(Number.isFinite(dev) && dev>-360 && dev<=360)
+    return {degrees: dev>180 ? dev-360 : dev, leadsUsed:['device'], source:'device'};
   const byLead={};
-  for(const t of traces) if(t.lead) byLead[t.lead]=t;
+  for(const t of snap.traces||[]) if(t.lead) byLead[t.lead]=t;
   if(!byLead.I || !byLead.aVF) return null;
+  const ref = byLead.II || byLead.I;
+  const beats = beatsFromEcg({hz:ref.hz, segs:[{t0:0, n:ref.data.length, data:ref.data}]});
+  if(beats.length<2) return null;
   const net=tr=>{
-    let s=0;
-    for(let i=0;i<tr.data.length;i++){ const v=tr.data[i]; if(v===v) s+=v; }
-    return s/tr.data.length;
+    const per=1000/tr.hz, w=Math.round(60/per), b0=Math.round(200/per), b1=Math.round(120/per);
+    let tot=0, nb=0;
+    for(const b of beats){
+      const c=Math.round(b.t/per);
+      if(c-b0<0 || c+w>=tr.data.length) continue;
+      const base=[]; for(let i=c-b0;i<=c-b1;i++){ const v=tr.data[i]; if(v===v) base.push(v); }
+      if(!base.length) continue;
+      base.sort((x,y)=>x-y); const bl=base[base.length>>1];
+      let s=0; for(let i=c-w;i<=c+w;i++){ const v=tr.data[i]; if(v===v) s+=v-bl; }
+      tot+=s; nb++;
+    }
+    return nb ? tot/nb : null;
   };
   const I=net(byLead.I), aVF=net(byLead.aVF);
-  const deg=Math.atan2(aVF, I)*180/Math.PI;
-  return {degrees:deg, leadsUsed:['I','aVF']};
+  if(I==null || aVF==null || (I===0 && aVF===0)) return null;
+  return {degrees:Math.atan2(aVF, I)*180/Math.PI, leadsUsed:['I','aVF'], source:'computed'};
 }
 
 /* ================= cross-signal =================
@@ -4472,12 +4723,20 @@ function pulseArrival(ecgBeatsList, pulseList, maxMs){
 function pulseDeficit(ecgBeatsList, artPulses, plethPulses, win){
   const res={electrical:0, arterial:0, pleth:0, missedArt:[], missedPleth:[]};
   if(!ecgBeatsList.length) return res;
-  const near=(list, t)=> list.some(p=>{
-    const d=(p.tFoot!=null?p.tFoot:p.t)-t;
-    return d>=20 && d<=600;
-  });
+  /* one pulse answers one QRS: once matched it can't vouch for the next beat too */
+  const used=new Set();
+  const near=(list, t)=>{
+    for(let k=0;k<list.length;k++){
+      if(used.has(list[k])) continue;
+      const d=(list[k].tFoot!=null?list[k].tFoot:list[k].t)-t;
+      if(d>=20 && d<=600){ used.add(list[k]); return true; }
+    }
+    return false;
+  };
   for(const b of ecgBeatsList){
-    if(win && (b.t<win.t0||b.t>win.t1)) continue;
+    /* a QRS in the window's last 600 ms may have its pulse just outside it: don't
+       count it as unmatched */
+    if(win && (b.t<win.t0||b.t>win.t1-600)) continue;
     res.electrical++;
     if(artPulses.length){
       if(near(artPulses,b.t)) res.arterial++; else res.missedArt.push(b.t);
@@ -4525,17 +4784,26 @@ function rrConsensus(win){
       if(r && r>4 && r<60) src.RR_ART=r;
     }
   }
-  const vals=Object.keys(src).map(k=>src[k]).filter(v=>v!=null && isFinite(v));
-  if(!vals.length) return {sources:src, consensus:null, confidence:0, disagreement:null};
-  vals.sort((a,b)=>a-b);
+  /* Direct breath sources (capnogram, impedance, ventilation marks) set the rate.
+     Rates read from beat-to-beat pulse size (pleth, arterial) are an estimate: random
+     amplitude scatter alone produces a plausible-looking number, and two of them agree
+     with each other because they're the same method on the same heartbeat. So they
+     only stand in when no direct source exists, and then with low confidence. */
+  const ok=v=>v!=null && isFinite(v);
+  const direct=['RR_CO2','RR_IMP','RR_VENT'].filter(k=>ok(src[k]));
+  const fromPulse=['RR_PPG','RR_ART'].filter(k=>ok(src[k]));
+  const keys = direct.length ? direct : fromPulse;
+  if(!keys.length) return {sources:src, consensus:null, confidence:0, disagreement:null};
+  const vals=keys.map(k=>src[k]).sort((a,b)=>a-b);
   const consensus=vals[Math.floor(vals.length/2)];
   const spread=vals[vals.length-1]-vals[0];
+  const agree=clamp(1 - spread/Math.max(consensus,1), 0, 1);
   /* capnography is the preferred source when a reliable exhaled CO2 waveform exists */
   const selected = src.RR_CO2!=null ? 'RR_CO2'
-    : (src.RR_VENT!=null ? 'RR_VENT' : Object.keys(src)[0]);
-  return {sources:src, consensus, selected,
-    disagreement:spread,
-    confidence: clamp(1 - spread/Math.max(consensus,1), 0, 1)};
+    : (src.RR_VENT!=null ? 'RR_VENT' : keys[0]);
+  return {sources:src, consensus, selected, disagreement:spread,
+    estimateOnly: !direct.length,
+    confidence: !direct.length ? Math.min(0.3, agree) : direct.length===1 ? 0.7 : agree};
 }
 /* cross-validate the rate sources and say which signal is probably wrong */
 function artifactAdjudication(rates, spo2, quality){
@@ -4551,6 +4819,13 @@ function artifactAdjudication(rates, spo2, quality){
         detail:'ECG '+hrE.toFixed(0)+' with a perfusing rate of '+hrA.toFixed(0)+
                ' — alternate beats may not be generating a pulse'});
   }
+  /* every pulse needs an electrical beat, so an ECG rate clearly below the pulse
+     rate means the ECG detector is missing beats, not that the heart is slower */
+  const pulse = hrA!=null ? hrA : hrP;
+  if(hrE!=null && pulse!=null && hrE < pulse*0.93 && pulse-hrE >= 5)
+    out.push({flag:'ecg_undercounting_possible',
+      detail:'ECG rate '+hrE.toFixed(0)+' is below the pulse rate of '+pulse.toFixed(0)+
+             '; the ECG detector is probably missing beats in this window'});
   if(hrE!=null && hrA==null && quality.art && quality.art.flags.indexOf('no_beats_in_window')>=0)
     out.push({flag:'arterial_signal_failure_possible',
         detail:'ECG continues without detected arterial pulses; signal failure and absent mechanical perfusion cannot be distinguished here'});
@@ -4577,7 +4852,9 @@ function rsaAnalysis(beats){
   if(ok.length<3) return null;
   const amp=Math.max.apply(null,ok)-Math.min.apply(null,ok);
   return {quartileMeanRR:means, modulationMs:amp,
-    inspiratoryHr: means[2]?60000/means[2]:null,
+    /* cycles start at the CO2 upstroke (start of exhalation), so inspiration falls in
+       the last quarter of each cycle */
+    inspiratoryHr: means[3]?60000/means[3]:null,
     expiratoryHr: means[0]?60000/means[0]:null};
 }
 
@@ -4639,8 +4916,11 @@ const SIG_DEFS=[
  {id:'ttet', group:'Pulmonary', name:'Time to end-tidal', abbr:'t→ET', units:'ms',
   source:['CO₂ waveform'], method:'waveform', formula:'start of expiration to the end-tidal point',
   physiologic:[100,6000], normal:null, trendOnly:true, ref:REF.capnoPhases},
- {id:'ie', group:'Pulmonary', name:'I:E ratio', abbr:'I:E', units:'',
-  source:['CO₂ waveform'], method:'math', formula:'inspiratory ÷ expiratory duration (waveform timing estimate)',
+ {id:'ie', group:'Pulmonary', name:'Capnographic I:E (CO₂-free : CO₂ phase)', abbr:'cI:E', units:'',
+  source:['CO₂ waveform'], method:'math',
+  formula:'time with CO₂ below threshold ÷ time with CO₂ above it. Not a true I:E: the CO₂-free '+
+    'part also contains the start of exhalation (dead-space gas), so it reads higher than the '+
+    'ventilator I:E, increasingly so at fast rates',
   physiologic:[0.2,10], normal:null, trendOnly:true},
  {id:'etco2cv', group:'Pulmonary', name:'ETCO₂ variability', abbr:'ETCO₂ CV', units:'%',
   source:['CO₂ waveform'], method:'math', formula:'breath-to-breath coefficient of variation',
@@ -4958,8 +5238,13 @@ function sigCompute(winArg){
   /* axis only from a real 12-lead */
   const twelve=(M.snapshots||[]).filter(s=>s.is12);
   if(twelve.length){
-    const ax=ecgAxis(twelve[twelve.length-1].traces);
-    put('qrs_axis', ax?ax.degrees:null, {confidence:ax?0.8:0, n:twelve.length});
+    /* the acquisition that applies to this window: the latest one taken by its end,
+       otherwise the first one after it */
+    const before=twelve.filter(s=>s.t<=win.t1);
+    const snap=before.length ? before[before.length-1] : twelve[0];
+    const ax=ecgAxis(snap);
+    put('qrs_axis', ax?ax.degrees:null, {confidence:ax?(ax.source==='device'?0.95:0.7):0,
+      n:twelve.length, limitations: ax && ax.source!=='device' ? ['axis_from_net_qrs_deflection'] : []});
     extra.twelveLead={count:twelve.length, axis:ax};
   } else {
     put('qrs_axis', null, {invalid:true, limitations:['no_12_lead_acquisition_in_this_case']});
@@ -4986,7 +5271,8 @@ function sigCompute(winArg){
   const rc=rrConsensus(win);
   extra.rr=rc;
   put('rr_consensus', rc.consensus, {confidence:rc.confidence,
-    n:Object.keys(rc.sources).length});
+    n:Object.keys(rc.sources).length,
+    limitations: rc.estimateOnly ? ['estimated_from_pulse_amplitude_only'] : []});
   const rsa=rsaAnalysis(eB);
   extra.rsa=rsa;
   put('rsa', rsa?rsa.modulationMs:null, {confidence:rsa?0.6:0});
@@ -4999,6 +5285,21 @@ function sigCompute(winArg){
     sp,
     {art: artCh ? signalQuality(artCh, artB, win) : null,
      pleth: extra.pleth?extra.pleth.quality:null});
+  /* When the ECG detector is missing beats, everything built on its R-R intervals
+     (rhythm class, AF pattern, pauses, ectopy, HRV) describes the gaps it left, not
+     the heart. Withhold those; keep the ECG rate itself but say how weak it is. */
+  if(extra.artifacts.some(a=>a.flag==='ecg_undercounting_possible')){
+    for(const id of ['rr_cv','af_prob','sdnn','rmssd','pnn50','lfhf'])
+      if(R[id]) R[id]=sigResult(id, null, {invalid:true, limitations:['ecg_beats_missed_in_window']});
+    for(const id of ['hr_ecg','rr_int']) if(R[id] && R[id].valid){
+      R[id].confidence=Math.min(R[id].confidence, 0.3);
+      R[id].limitations.push('ecg_beats_missed_in_window');
+    }
+    if(extra.ecg && extra.ecg.rhythm){
+      extra.ecg.rhythm.valid=false;
+      extra.ecg.rhythm.withheld='ECG beats are being missed in this window';
+    }
+  }
   return {results:R, extra, win};
 }
 
@@ -5375,7 +5676,9 @@ function anGlance(){
   const bits=[];
   const g=id=>R[id]&&R[id].valid?R[id].value:null;
   const f=(v,d,u)=>v==null?null:(v.toFixed(d)+(u?' '+u:''));
-  const hr=g('hr_ecg'), spo2=g('spo2'), et=g('etco2'), rr=g('rr_consensus');
+  const hr=g('hr_ecg'), spo2=g('spo2'), et=g('etco2');
+  /* the summary only quotes a breathing rate that a direct breath source supports */
+  const rr = R.rr_consensus && R.rr_consensus.valid && R.rr_consensus.confidence>=0.5 ? R.rr_consensus.value : null;
   const art=hemoLines().art ? hemoCompute(W) : null;
   bits.push('Monitored for <b>'+fmtEl(M.durMs)+'</b> from '+fmtClock(M.t0Wall)+'.');
   const mods=Object.values(M.channels).filter(c=>c.nValid>0).map(c=>shortName(c.name));
@@ -5649,7 +5952,7 @@ function renderPhysPane(){
   $$('#hemoBody .ibpSite').forEach(sl=> sl.onchange=()=>{
     M.ibpSite[+sl.dataset.num]=sl.value;
     M.ibpSite['_auto'+sl.dataset.num]=false;
-    saveSites(); M._lineBeats={}; M._wholeSig=null; buildParams(); buildHemoParams();
+    saveSites(); retargetArterial(); M._lineBeats={}; M._wholeSig=null; buildParams(); buildHemoParams();
     SEL.ids=SEL.ids.filter(id=>M.paramById[id]);
     renderPhysPane(); refreshParamViews();
   });
@@ -6296,11 +6599,25 @@ function vitalRows(){
   const grid = vitalGrid();
   const nibpAt = {};
   for(const r of nibpReadings()) nibpAt[Math.round(r.t/1000)] = r;
+  const readings = nibpReadings();
   const rows = grid.map(t=>{
-    const tr = trendAt(t);
+    let tr = trendAt(t);
+    /* flags describe the trend record at this moment; once records stop (monitoring
+       ended) an old record's flags don't apply */
+    if(tr && t-tr.t > VIT_FRESH_MS) tr=null;
     const cells = ps.map(p=>{
-      const a = paramAt(p,t), f = vitalFlags(p, tr);
+      let a = paramAt(p,t);
+      /* a value older than its freshness limit is not the current reading: leave the
+         cell empty instead of repeating it (it used to carry on for the rest of the case) */
+      const age = a.when==null ? null : t-a.when;
+      if(age!=null && age > vitalMaxAge(p,t)) a = p.sub ? {sys:null,dia:null,map:null,when:null} : {v:null,when:null};
+      const f = vitalFlags(p, tr);
       const cell = {p, when:a.when, alarm:!!(f && f.alarm), range:null, raw:null};
+      if(p.id==='nibp' && a.idx!=null && readings[a.idx] && readings[a.idx].suspect) cell.suspect=true;
+      if(p.id==='hr_dev' && a.when!=null){
+        const src = trendSourceAt(a.when, 'hrSrc');
+        if(src && p.sub2 && src.toLowerCase()!==String(p.sub2).toLowerCase()) cell.src=src;
+      }
       if(p.sub){
         /* an off-scale part replaces the last good value rather than hiding behind it */
         const part=(k,v)=>{ const x=f && f[k] && f[k].range;
@@ -6308,7 +6625,9 @@ function vitalRows(){
           return v; };
         const s=part('sys',a.sys), d=part('dia',a.dia), m=part('map',a.map);
         cell.parts=[s,d,m];
-        cell.txt = s!=null ? (s+'/'+(d!=null?d:'--')+(m!=null?' ('+m+')':'')) : '';
+        /* a mean-only reading (CVP, ICP, or a cuff mean without systolic) still shows */
+        cell.txt = s!=null ? (s+'/'+(d!=null?d:'--')+(m!=null?' ('+m+')':''))
+                 : m!=null ? ('--/'+(d!=null?d:'--')+' ('+m+')') : '';
       } else if(f && f.range){
         cell.range=f.range; cell.raw=f.raw; cell.txt=RANGE_TXT[f.range];
       } else cell.txt = a.v==null?'':a.v.toFixed(p.dec||0);
@@ -6331,6 +6650,31 @@ function vitalRows(){
   const zrows = [...byT].map(([t,m])=>({t, zero:true,
     cells: ps.map(p=>({p, txt: m[p.id]||''}))}));
   return kept.concat(zrows).sort((a,b)=>a.t-b.t || (a.zero?-1:0)-(b.zero?-1:0));
+}
+/* How long a value stays current in the vitals list. Trend records come every ~30 s,
+   so 90 s allows for one missing record. NIBP is intermittent: on the NIBP-cycle grid a
+   row shows only its own cycle's reading; elsewhere a reading stands for 1.5 cuff
+   intervals (20 min when the case records no interval). */
+const VIT_FRESH_MS = 90000;
+function nibpIntervalAt(t){
+  let min=null;
+  for(const x of M.nibpAuto||[]){ if(x.t<=t+500) min=x.min; else break; }
+  return min;
+}
+function vitalMaxAge(p, t){
+  if(p.id==='nibp'){
+    if(VIT.every==='device' && (M.nibpAuto||[]).length) return 1500;
+    const iv=nibpIntervalAt(t);
+    return iv ? iv*60000*1.5 : 20*60000;
+  }
+  return VIT_FRESH_MS;
+}
+/* a per-record text field (e.g. the HR source) of the trend record at time t */
+function trendSourceAt(t, key){
+  const T=M.trends; let lo=0, hi=T.length;
+  while(lo<hi){ const m=(lo+hi)>>1; if(T[m].t<t) lo=m+1; else hi=m; }
+  for(const i of [lo, lo-1]) if(T[i] && Math.abs(T[i].t-t)<=500) return T[i][key]||null;
+  return null;
 }
 /* the monitor's own notation for a reading outside what it can measure */
 const RANGE_TXT = {high:'+++', low:'---'};
@@ -6476,14 +6820,18 @@ function vitalCellTitle(c){
   if(c.range) out.push(RANGE_WORD[c.range]+' the monitor’s measurable range'+
     (c.raw!=null ? ' (it stored '+c.raw+(c.p.unit?' '+c.p.unit:'')+')' : ''));
   if(c.alarm) out.push('in alarm when this trend record was written');
+  if(c.suspect) out.push('the monitor marked this cuff reading as suspect');
+  if(c.src) out.push('this reading came from '+c.src+', not '+(c.p.sub2||'the usual source'));
   return out.join('; ');
 }
 function vitalRowHtml(r, clickable){
   const cells = r.cells.map(c=>{
     if(r.zero && c.txt) return '<td class="zc" style="color:'+traceCol(c.p.color)+'">'+esc(c.txt)+'</td>';
-    const cls=[c.alarm&&c.txt?'alm':'', c.range?'oor':''].filter(Boolean).join(' ');
+    const cls=[c.alarm&&c.txt?'alm':'', c.range?'oor':'', c.suspect&&c.txt?'sus':''].filter(Boolean).join(' ');
     const title=vitalCellTitle(c);
-    return '<td'+(cls?' class="'+cls+'"':'')+(title?' title="'+esc(title)+'"':'')+'>'+esc(c.txt)+'</td>';
+    const note = c.txt && c.src ? ' <small class="vsrc">'+esc(c.src)+'</small>'
+               : c.txt && c.suspect ? ' <small class="vsrc">suspect</small>' : '';
+    return '<td'+(cls?' class="'+cls+'"':'')+(title?' title="'+esc(title)+'"':'')+'>'+esc(c.txt)+note+'</td>';
   }).join('');
   return '<tr'+(clickable?' data-t="'+r.t+'"':'')+(r.zero?' class="zero"':'')+'><td>'+
     fmtClock(M.t0Wall+r.t)+'</td><td>+'+fmtEl(r.t)+'</td>'+cells+'</tr>';
@@ -6549,10 +6897,15 @@ function renderVitals(){
 function vitalsMatrix(){
   const ps=selected(), rows=vitalRows();
   const head=['clock','elapsed_s'];
+  /* column names: letters, digits and single underscores only, and never two alike
+     (two lines both labelled ART would otherwise share a header) */
+  const clean=x=>String(x||'').replace(/[^a-z0-9]+/gi,'_').replace(/^_+|_+$/g,'');
+  const seen={};
+  const col=parts=>{ let n=parts.map(clean).filter(Boolean).join('_');
+    if(seen[n]){ seen[n]++; n+='_'+seen[n]; } else seen[n]=1; return n; };
   for(const p of ps){
-    if(p.sub){ head.push(p.label+'_sys', p.label+'_dia', p.label+'_map'); }
-    else head.push(p.label.replace(/\s+/g,'')+(p.sub2?('_'+p.sub2.replace(/[^a-z0-9]+/gi,'')):'')+
-      (p.unit?('_'+p.unit.replace(/[^a-z0-9]+/gi,'')):''));
+    if(p.sub){ const b=col([p.label]); head.push(b+'_sys', b+'_dia', b+'_map'); }
+    else head.push(col([p.label, p.sub2, p.unit]));
   }
   const body = rows.map(r=>{
     const line=[fmtClock(M.t0Wall+r.t), (r.t/1000).toFixed(0)];
@@ -6564,9 +6917,11 @@ function vitalsMatrix(){
     });
     /* which shown values the monitor had in alarm, by column label */
     line.push(r.zero ? '' : r.cells.filter(c=>c.alarm && c.txt).map(c=>c.p.label).join('; '));
+    line.push(r.zero ? '' : r.cells.filter(c=>c.txt && (c.src||c.suspect)).map(c=>
+      c.p.label+(c.src?' from '+c.src:'')+(c.suspect?' suspect':'')).join('; '));
     return line;
   });
-  head.push('in_alarm');
+  head.push('in_alarm','notes');
   return [head].concat(body);
 }
 function exportVitalsCsv(){
@@ -6593,7 +6948,7 @@ function popOutVitals(){
     'td.alm{color:#ff4d4d;font-weight:700;box-shadow:inset 3px 0 0 #ff4d4d}';
   w.document.write('<!doctype html><meta charset="utf-8"><title>Vitals — '+esc(M.caseId)+
     '</title><style>'+style+'</style>'+
-    '<h1>'+esc(M.caseId)+' · '+new Date(M.t0Wall).toLocaleString()+' · '+rows.length+' rows</h1>'+
+    '<h1>'+esc(M.caseId)+' · '+fmtDevDateTime(M.t0Wall)+' · '+rows.length+' rows</h1>'+
     '<table><thead><tr><th>Time</th><th>Elapsed</th>'+
     vitalsHead(ps,true)+'</tr></thead><tbody>'+
     rows.map(r=>vitalRowHtml(r,false)).join('')+
@@ -6607,12 +6962,14 @@ function findExtrema(pts, maxN){
   if(v.length<8) return [];
   const W=clamp(Math.round(v.length/45), 2, 30);
   const cand=[];
-  for(let i=W;i<v.length-W;i++){
+  /* ties count: a plateau or a repeated extreme is labelled once, at its first
+     sample (strictly greater before, greater-or-equal after) */
+  for(let i=0;i<v.length;i++){
     let isMax=true, isMin=true;
-    for(let j=i-W;j<=i+W;j++){
+    for(let j=Math.max(0,i-W);j<=Math.min(v.length-1,i+W);j++){
       if(j===i) continue;
-      if(v[j].v>=v[i].v) isMax=false;
-      if(v[j].v<=v[i].v) isMin=false;
+      if(j<i ? v[j].v>=v[i].v : v[j].v>v[i].v) isMax=false;
+      if(j<i ? v[j].v<=v[i].v : v[j].v<v[i].v) isMin=false;
       if(!isMax && !isMin) break;
     }
     if(!isMax && !isMin) continue;
@@ -6736,8 +7093,22 @@ function parsePeriods(xml, tag){
      across CaseReview versions, so accept either */
   const out=[];
   if(!xml) return out;
-  const block = new RegExp('<'+tag+'[^>]*>([\\s\\S]*?)<\\/'+tag+'>','i').exec(xml);
-  const scope = block ? block[1] : xml;
+  /* Exact tag only (so <CprPeriods> doesn't match <CprPeriodsMode>). An empty,
+     self-closing container (<RoscPeriods />) means none. Without a container, look
+     only for that container's own element type (<UserCprPeriod> for UserCprPeriods);
+     never every Period in the file, which used to turn pauses and ROSC into CPR. */
+  const open = new RegExp('<'+tag+'(?=[\\s/>])([^>]*)>','i').exec(xml);
+  let scope;
+  if(open){
+    if(/\/\s*$/.test(open[1])) return out;
+    const close = xml.toLowerCase().indexOf('</'+tag.toLowerCase()+'>', open.index);
+    if(close<0) return out;
+    scope = xml.slice(open.index+open[0].length, close);
+  } else {
+    const el = tag.replace(/s$/,'');
+    const re = new RegExp('<'+el+'(?=[\\s/>])[^>]*\\/>|<'+el+'(?=[\\s>])[\\s\\S]*?<\\/'+el+'>','gi');
+    scope = (xml.match(re)||[]).join('');
+  }
   const attr = /<\w*Period\b[^>]*\bStart="?(\d+(?:\.\d+)?)"?[^>]*\bEnd="?(\d+(?:\.\d+)?)"?[^>]*>/gi;
   let m; while((m=attr.exec(scope))) out.push({t0:+m[1]*1000, t1:+m[2]*1000});
   if(!out.length){
@@ -6841,7 +7212,7 @@ function buildCpr(recs, xml){
     for(const r of recs){
       const d=r.DefibTrace; if(!d) continue;
       if(!(d.CurrEnergy>0)) continue;
-      const t=(new Date((d.StdHdr.DevDateTime||'').replace(' ','T')).getTime())-M.t0Wall;
+      const t=devTime(d.StdHdr.DevDateTime||'')-M.t0Wall;
       if(!isFinite(t) || t<0 || t>M.durMs) continue;
       if(t-last<2000) continue;
       C.shocks.push({t, label:'Defib discharge '+d.CurrEnergy+' J'});
@@ -6880,7 +7251,7 @@ function buildCpr(recs, xml){
 function elapsedOfHdr(h){
   if(!h) return 0;
   if(h.DevDateTime){
-    const t=new Date(h.DevDateTime.replace(' ','T')).getTime()-M.t0Wall;
+    const t=devTime(h.DevDateTime)-M.t0Wall;
     if(isFinite(t)) return t;
   }
   return (h.ElapsedTime||0)*1000;
@@ -6900,19 +7271,33 @@ function cprMetrics(){
   const mean = a=> a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
   const pct  = (a,f)=> a.length ? 100*a.filter(f).length/a.length : null;
 
-  /* chest compression fraction over the resuscitation window */
-  let compMs = 0;
+  /* Chest compression fraction = compression time / time in arrest. Time in arrest is
+     the CPR and pause periods together (or first to last compression when there is no
+     period list), minus any ROSC. The padded drawing span is not arrest time: using it
+     scored 10 min of uninterrupted CPR at 92.6%, and 30.9% if ROSC followed. */
+  const merge=list=>{ const a=list.filter(p=>p.t1>p.t0).map(p=>({t0:p.t0,t1:p.t1})).sort((x,y)=>x.t0-y.t0);
+    const out=[]; for(const p of a){ const l=out[out.length-1];
+      if(l && p.t0<=l.t1) l.t1=Math.max(l.t1,p.t1); else out.push(p); } return out; };
+  const len=list=>list.reduce((s,p)=>s+(p.t1-p.t0),0);
+  const minus=(A,B)=>{ let out=A.map(p=>({...p}));
+    for(const b of B){ const next=[]; for(const a of out){
+      if(b.t1<=a.t0 || b.t0>=a.t1){ next.push(a); continue; }
+      if(b.t0>a.t0) next.push({t0:a.t0, t1:b.t0});
+      if(b.t1<a.t1) next.push({t0:b.t1, t1:a.t1}); } out=next; }
+    return out; };
+  const rosc=merge(C.rosc||[]);
+  let compMs=0, total=0;
   if(C.periods.length){
-    for(const p of C.periods) compMs += Math.max(0, Math.min(p.t1,span.t1)-Math.max(p.t0,span.t0));
-    for(const p of C.pauses)  compMs -= Math.max(0, Math.min(p.t1,span.t1)-Math.max(p.t0,span.t0));
+    const arrest=minus(merge(C.periods.concat(C.pauses)), rosc);
+    total=len(arrest);
+    compMs=len(minus(minus(merge(C.periods), merge(C.pauses)), rosc));
   } else if(cs.length>1){
+    total=len(minus([{t0:cs[0].t, t1:cs[cs.length-1].t}], rosc));
     /* no period list: count time covered by compressions no more than 5 s apart */
-    for(let i=0;i<cs.length-1;i++){
-      const gap=cs[i+1].t-cs[i].t;
-      if(gap<=5000) compMs += gap;
-    }
+    const covered=[];
+    for(let i=0;i<cs.length-1;i++) if(cs[i+1].t-cs[i].t<=5000) covered.push({t0:cs[i].t, t1:cs[i+1].t});
+    compMs=len(minus(merge(covered), rosc));
   }
-  const total = span.t1-span.t0;
   return {
     n: cs.length,
     ccf: total>0 ? 100*clamp(compMs,0,total)/total : null,
@@ -7660,7 +8045,7 @@ function renderAnnot(){
     '</div>').join('') : '<div class="emptynote">No annotations yet.</div>';
   b.innerHTML = head + rows;
   $('#annExpJson').onclick = ()=> download(M.caseId+'-annotations.json',
-    new Blob([JSON.stringify({caseId:M.caseId, caseStart:new Date(M.t0Wall).toISOString(),
+    new Blob([JSON.stringify({caseId:M.caseId, caseStart:new Date(M.t0Wall).toISOString().slice(0,19),
       annotations:ANN.list},null,2)],{type:'application/json'}));
   $('#annExpCsv').onclick = ()=>{
     const rows=[['start_clock','end_clock','start_elapsed_s','end_elapsed_s','duration_s','category','note']];
@@ -7691,21 +8076,28 @@ function nibpReadings(){
   /* never hold on to an empty result — this used to be computed once before the trends
      were populated and then cached for the life of the case */
   if(M._nibp && M._nibp.length) return M._nibp;
-  const out=[], seen=new Set();
+  const out=[], seen=new Map();
   for(const r of M.trends){
     if(r.nsys==null && r.nmap==null) continue;
     const key = r.nibpTime || (r.nsys+'/'+r.ndia+'/'+r.nmap);
-    if(seen.has(key)) continue;
-    seen.add(key);
+    /* the monitor sets IsSuspect on some of a reading's repeated rows and not others:
+       a reading is suspect if any of its rows says so */
+    if(seen.has(key)){ const prev=seen.get(key); if(prev && r.nibpSuspect) prev.suspect=true; continue; }
+    seen.set(key, null);
     let t = r.t;
     if(r.nibpTime){
-      const p = new Date(r.nibpTime.replace(' ','T')).getTime() - M.t0Wall;
-      if(isFinite(p) && p>=0 && p<=M.durMs) t = p;
+      const p = devTime(r.nibpTime) - M.t0Wall;
+      /* a reading stamped before the case started (or after it ended) was not taken
+         during this case: drop it rather than move it to the trend row's time */
+      if(isFinite(p) && (p < -1000 || p > M.durMs+1000)) continue;
+      if(isFinite(p)) t = Math.max(0, p);
     }
     const a = r.ibp && r.ibp[0];
-    out.push({t, sys:r.nsys, dia:r.ndia, map:r.nmap,
-      artSys:a?a.sys:null, artDia:a?a.dia:null, artMap:a?a.map:null});
+    const reading={t, sys:r.nsys, dia:r.ndia, map:r.nmap, suspect:!!r.nibpSuspect,
+      artSys:a?a.sys:null, artDia:a?a.dia:null, artMap:a?a.map:null};
+    out.push(reading); seen.set(key, reading);
   }
+  out.sort((x,y)=>x.t-y.t);
   M._nibp = out;
   return out;
 }
@@ -7927,8 +8319,13 @@ function robustRange(arrs, ax){
   return {lo,hi};
 }
 
+/* every trend record, whatever interval the vitals list happens to be set to */
 function exportTrendsCsv(){
-  download(M.caseId+'-trends.csv', new Blob([toCSV(vitalsMatrix())],{type:'text/csv'}));
+  const keep={every:VIT.every, onlyChanges:VIT.onlyChanges, showZero:VIT.showZero};
+  let m;
+  try{ VIT.every='trend'; VIT.onlyChanges=false; VIT.showZero=false; m=vitalsMatrix(); }
+  finally{ Object.assign(VIT, keep); }
+  download(M.caseId+'-trends.csv', new Blob([toCSV(m)],{type:'text/csv'}));
 }
 /* ---------------- ECG paper (12-lead / rhythm strip) ---------------- */
 const PAPER = {mmPx:5, mmS:25, mmMv:10, layout:'3x4', perRow:'auto', calOn:null,
@@ -8466,7 +8863,7 @@ function capnoBreaths(ch){
   for(const s of ch.segs){
     const d=s.data, n=s.n; let up=[];
     for(let i=1;i<n;i++){ if(d[i-1]<10 && d[i]>=10){ const t=s.t0+i*dt;
-      if(!up.length || t-up[up.length-1].t>1200) up.push({t,i}); } }
+      if(!up.length || t-up[up.length-1].t>900) up.push({t,i}); } }
     for(let k=0;k<up.length-1;k++){
       const a=up[k].i, bIdx=up[k+1].i;
       let et=-Infinity, fi=Infinity;
@@ -8564,16 +8961,21 @@ function applyEcgCal(v){
   if(!isFinite(v) || v<=0 || !M.channels) return;
   const f = M.ecgCountsPerMv / v;
   if(f===1) return;
+  /* 12-lead acquisitions carry their own amplitude scale and are already in mV, and
+     the monitor leads rebuilt from them share those arrays: leave both alone */
   for(const name in M.channels){
-    const c=M.channels[name]; if(!c.isEcg) continue;
+    const c=M.channels[name]; if(!c.isEcg || c.captureOnly) continue;
     for(const sg of c.segs) for(let i=0;i<sg.n;i++) sg.data[i]*=f;
     c.vmin*=f; c.vmax*=f;
   }
-  for(const sn of M.snapshots) for(const tr of sn.traces){
-    if(!tr.isEcg) continue;
-    for(let i=0;i<tr.data.length;i++) tr.data[i]*=f;
+  for(const sn of M.snapshots){
+    if(sn.kind==='Ecg12LeadRec') continue;
+    for(const tr of sn.traces){
+      if(!tr.isEcg) continue;
+      for(let i=0;i<tr.data.length;i++) tr.data[i]*=f;
+    }
   }
-  M.ecgCountsPerMv = v;
+  M.ecgCountsPerMv = v; M.ecgCalSource = 'setting';
 }
 function applyCfgToSession(){
   syncEventPanel();
@@ -8640,10 +9042,13 @@ function renderSettings(){
       row('ECG counts per millivolt',
         '<input type="number" id="cfgEcgCal" min="1" max="10000" step="1" value="'+
         (M.ecgCountsPerMv||CFG.ecgCountsPerMv)+'" style="width:110px">',
-        'Pressure, CO2 and SpO2 channels carry their own scalars in the file. The ECG family '+
-        'uses a different convention, so this constant is assumed. 100 counts/mV puts this '+
-        'amplifier’s ±2500-count range at ±25 mV and gives clinically sensible '+
-        'lead II amplitudes. Change it if a case is obviously mis-scaled.')+
+        (M.ecgCalSource==='file'
+          ? 'Read from this file: its ECG channels state '+Math.round(1e6/M.ecgCountsPerMv)+
+            ' nanovolts per count. '
+          : M.ecgCalSource==='setting' ? 'Set by you for this session. '
+          : 'This file states no ECG scale, so an assumed value is in use. ')+
+        'Change it only if a case is obviously mis-scaled; 12-lead acquisitions carry '+
+        'their own scale and are not affected.')+
     '</div>'+
 
     '<h2 class="sec">Lists</h2><div class="setgrid">'+
@@ -9027,7 +9432,8 @@ async function loadFile(file){
     prog(0.85,'Detecting beats…'); await nextFrame();
     detectBeats();
     prog(0.95,'Building views…'); await nextFrame();
-    buildParams(); loadSites(); buildHemoParams(); selLoad(); annLoad(); applyCfgToSession();
+    buildParams(); loadSites(); if(retargetArterial()) buildParams();
+    buildHemoParams(); selLoad(); annLoad(); applyCfgToSession();
     /* the vitals list opens on the monitor's own NIBP cycle whenever the case
        records one; the saved interval only covers cases that do not */
     if(M.nibpAuto && M.nibpAuto.length){ VIT.every='device'; VIT.userSized=false; }
@@ -9060,7 +9466,7 @@ function startApp(){
   const p=M.patient||{};
   $('#caseMeta').innerHTML = [
     '<span><b>'+esc(M.caseId)+'</b></span>',
-    '<span>'+new Date(M.t0Wall).toLocaleString()+' · <b>'+fmtEl(M.durMs)+'</b></span>',
+    '<span>'+fmtDevDateTime(M.t0Wall)+' · <b>'+fmtEl(M.durMs)+'</b></span>',
     '<span>'+esc(M.device.dept||'')+(M.device.serial?(' · SN '+esc(M.device.serial)):'')+'</span>',
     '<span>'+esc(p.PatientId||'no patient id')+(p.Age?(' · '+esc(p.Age)+' y'):'')+(p.sex?(' · '+esc(p.sex)):'')+'</span>',
     '<span>'+Object.keys(M.channels).filter(k=>M.channels[k].nValid).length+' wave ch · '+

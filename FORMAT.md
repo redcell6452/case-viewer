@@ -63,8 +63,9 @@ payloads. Whole-case calculations therefore still require caution about boundari
 and split segments when the next frame is discontinuous.
 
 Channel scaling is joined through `WaveType` and `DataChannels.ChanType`.
-`ScalarType 2` uses division by the recorded scalar. The ECG convention remains an
-assumption: the viewer defaults to 100 counts per mV and allows adjustment in Settings.
+`ScalarType 2` uses division by the recorded scalar. For `ScalarType 1` (ECG) the scalar
+is nanovolts per count (2500 nV = 400 counts per mV), which matches the 12-lead record's
+own amplitude field; Settings can override it.
 Not every scalar type or unit conversion is established. Invalid/sentinel samples
 must be rejected rather than treated as physiological measurements.
 

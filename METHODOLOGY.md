@@ -69,8 +69,9 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
    decay fit assumes a zero asymptotic pressure and has no fit-quality threshold; it
    should not be equated with independently measured resistance × compliance.
 
-6. **Units, bandwidth and applicability are incompletely established.** ECG counts/mV
-   remain assumed, the format reference covers one X Series export, and real-arrest CPR
+6. **Units, bandwidth and applicability are incompletely established.** The ECG scale is
+   read from the file (confirmed against the 12-lead's own amplitude in one export), the
+   format reference covers one X Series export, and real-arrest CPR
    extraction is untested. Adult reference bands are not adapted to pediatric records.
    Fixed “physiologic” cutoffs may discard genuine extremes. PR/QT, axis and morphology
    estimates need validation against annotations acquired at adequate bandwidth and
