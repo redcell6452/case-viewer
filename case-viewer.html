@@ -8249,14 +8249,20 @@ function trendAt(t){
 function alarmEnabled(v){ return v && +(typeof v==='object'?v['#text']:v)===1; }
 function alarmSetting(id,t){
   const cfg=M.alarmLimits || {};
+  /* each pressure line's settings are split into Sys, Dia and Map, like NIBP's (in
+     real exports too); the line is found by its @Seq, falling back to its position */
+  const ibpNode=n=>{ const a=cfg.Ibp==null ? [] : Array.isArray(cfg.Ibp) ? cfg.Ibp : [cfg.Ibp];
+    return a.find(x=>x && +x['@Seq']===n) || a[n-1] || null; };
+  const ibpSpec=n=>{ const node=ibpNode(n);
+    return {node, parts:node && node.Sys ? [['Sys'],['Dia'],['Map']] : null, ibp:'ibp'+n, unit:'mmHg'}; };
   const spec={
     hr:{node:cfg.Hr,codes:[319,320],unit:'bpm'},
     spo2:{node:cfg.Spo2,codes:[227,228],unit:'%'},
-    etco2:{node:cfg.Etco2,codes:[141,142],unit:'mmHg'},
+    /* 141/142 are any parameter's high/low crossing; an invasive pressure line's
+       crossings are not EtCO2's */
+    etco2:{node:cfg.Etco2,codes:[141,142],skip:/invasive pressure/i,unit:'mmHg'},
     nibp:{node:cfg.Nibp,parts:[['Sys',[197,198]],['Dia',[199,200]],['Map',[201,202]]],unit:'mmHg'},
-    ibp1:{node:Array.isArray(cfg.Ibp)?cfg.Ibp[0]:cfg.Ibp,unit:'mmHg'},
-    ibp2:{node:Array.isArray(cfg.Ibp)?cfg.Ibp[1]:null,unit:'mmHg'},
-    ibp3:{node:Array.isArray(cfg.Ibp)?cfg.Ibp[2]:null,unit:'mmHg'},
+    ibp1:ibpSpec(1), ibp2:ibpSpec(2), ibp3:ibpSpec(3),
     rr:{node:cfg.Resp,unit:'/min'}, pi:{node:cfg.PI,unit:''}
   }[id];
   if(!spec || !spec.node) return '';
@@ -8265,9 +8271,20 @@ function alarmSetting(id,t){
     const low=alarmEnabled(node.LowLimOn), high=alarmEnabled(node.HighLimOn);
     if(!low && !high) return '';
     let match=null;
-    for(const e of M.events){
+    if(spec.ibp){
+      /* a pressure alarm names neither the line nor the part; alarmIndex gives each
+         crossing to the line and part whose value was nearest, and its limits are
+         the ones set on that line at the time */
+      const comp=label ? label.toLowerCase() : null;
+      for(const c of (alarmIndex().cross[spec.ibp]||[])){
+        if(c.t>t) break;
+        if(comp==null || c.comp===comp)
+          match={LowLimVal:Number.isFinite(c.lo)?c.lo:null, HighLimVal:Number.isFinite(c.hi)?c.hi:null};
+      }
+    } else for(const e of M.events){
       if(e.t>t) break;
-      if(e.kind==='alarm' && codes && codes.includes(+e.code) && e.limits) match=e.limits;
+      if(e.kind==='alarm' && codes && codes.includes(+e.code) && e.limits &&
+         !(spec.skip && spec.skip.test(e.name))) match=e.limits;
     }
     const fmt=(on,key,word)=>on ? (match && match[key]!=null ? word+' '+match[key] : word+' on') : '';
     return (label?label+' ':'')+[fmt(low,'LowLimVal','low'),fmt(high,'HighLimVal','high')]
@@ -8346,17 +8363,50 @@ function alarmIndex(){
       (warn[id]=warn[id]||[]).push({t0:e.t, t1:end});
     }
   });
+  /* A pressure alarm names neither the channel nor the part. In order of trust:
+     1. the monitor's own flag: the trend row written with the alarm marks the line
+        and part that is in alarm;
+     2. the same limits: limits stay as they were set, so a crossing carrying
+        exactly the limits of one line and part already identified by its flag is
+        that line and part;
+     3. the nearest value, read from the trend row written with the alarm. This is
+        the weakest, especially in an arrest, when every pressure is low. */
+  const rowValue=(pts,t)=>{
+    for(const q of pts){ if(q.t<t-500) continue; if(q.t>t+3000) break; if(q.v!=null) return q.v; }
+    return valueNear(pts, t);
+  };
+  const items=[];
   for(const e of evs){
     if(e.kind!=='alarm' || !e.limits || !Number.isFinite(+e.value)) continue;
     const L=e.limits, lo=Number.isFinite(+L.LowLimVal)?+L.LowLimVal:-Infinity, hi=Number.isFinite(+L.HighLimVal)?+L.HighLimVal:Infinity;
     let ids = /heart rate/i.test(e.name) ? ['hr_dev'] : /SpO2/i.test(e.name) ? ['spo2']
       : /invasive pressure/i.test(e.name) ? ['ibp1','ibp2','ibp3'] : /pressure/i.test(e.name) ? ['nibp'] : [];
     ids=ids.filter(id=>M.paramById[id]);
-    /* a pressure alarm names neither the channel nor the part, so take the
-       channel and part whose value at that moment is nearest the alarm value */
     let best=null;
-    for(const id of ids) for(const s of paramSeries(M.paramById[id])){
-      const v=valueNear(s.pts, e.t); if(v==null) continue;
+    if(ids.length>1 && M.trends) for(const r of M.trends){
+      if(r.t<e.t-1000) continue; if(r.t>e.t+3000) break;
+      for(const id of ids){
+        const f=vitalFlags(M.paramById[id], r); if(!f || !f.alarm) continue;
+        for(const s of paramSeries(M.paramById[id])){
+          if(!(f[s.comp] && f[s.comp].alarm)) continue;
+          const v=valueNear(s.pts, r.t), d=v==null ? Infinity : Math.abs(v-(+e.value));
+          if(!best || d<best.d) best={id, comp:s.comp, d};
+        }
+      }
+    }
+    items.push({e, ids, lo, hi, best, flagged:!!best});
+  }
+  for(const x of items){
+    const e=x.e, ids=x.ids, lo=x.lo, hi=x.hi;
+    let best=x.best;
+    if(!best && ids.length>1){
+      const same=new Map();
+      for(const k of items) if(k.flagged && k.lo===lo && k.hi===hi && ids.includes(k.best.id))
+        same.set(k.best.id+'.'+k.best.comp, k.best);
+      if(same.size===1) best=[...same.values()][0];
+    }
+    if(!best) for(const id of ids) for(const s of paramSeries(M.paramById[id])){
+      const v=rowValue(s.pts, e.t); if(v==null) continue;
       const d=Math.abs(v-(+e.value));
       if(!best || d<best.d) best={id, comp:s.comp, d};
     }
@@ -12313,65 +12363,57 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
-    'Pressure lines keep the monitor’s names, P1, P2 and P3, everywhere, with their type beside the name. The type is the one you choose (a drop-down in the line’s box in the parameter panel on the Monitor and CPR pages, and beside the waveform choice on Physiology), else the monitor’s own label, else a guess from the waveform that is always marked as one (“Art?”). A choice made on any page carries to all of them: the parameter panel, Trends, Vitals, CPR, Physiology and Analysis. A venous or intracranial line reads as its mean on the parameter panel and in Vitals, and Trends draws only its mean. The child sample has only an arterial line and a CVP, unlabelled; no PA catheter.',
-    'Start page: a third sample case, a child cardiac arrest: the monitor in Pediatric mode, child heart rates, pressures and alarm limits, so the CPR page uses the Child (PALS) targets and shows the perfusion proxy’s adult-derived warning. Fixed: the samples’ answer sheets gave the first NIBP mean as 96; the reading is 97.',
-    'Whole-case ECG: works from the keyboard. Tab to the panel and use ← → (1 s, Shift 10 s), ↑ ↓ for a row, Page Up / Page Down for five rows, Home / End; its top edge takes focus too, and ↑ ↓ resize it (Home resets). Screen readers hear the playhead time.',
-    'Sources: the four studies the perfusion proxy’s time constants and release factor are scaled from (Mader 2009, Berg 2001, Yin 2024, Yannopoulos 2005) are now checked and listed under Settings › Sources and on the CPR page.',
-    'Rev 3: Monitor waveform choices persist across cases and reloads. Opening an event snapshot pauses playback, selects that acquisition, and returns to the previous view on resume. Selecting an event puts its start at the left edge of the strip (it scrolls normally once the playhead reaches its usual place). Leads recorded only during a 12-lead start hidden in every case.',
-    'Data handling: patient boundaries now trim waveform samples, trends, pacing, ventilations and CPR data. Captures that may cross the boundary are withheld; exports with multiple in-case New Patient markers are rejected. CPR report caches are refreshed.',
-    'SpO₂: invalid readings and recording gaps split desaturation events; durations exclude unobserved time and indicate when recovery was not observed. Rapid pause/resume no longer creates duplicate playback loops.',
-    'Monitor: the waveform chooser starts open, so it is easy to find; if you close it, it stays closed. It now looks like the Physiology tab’s: a Waveforms heading and a coloured pill for each trace, with the 12-lead-only leads grouped. Fixed: when a case recorded lead I or III continuously as well as in a 12-lead, the continuous trace started hidden on the Monitor.']},
+    'Fixed: pressure lines now show their alarm settings, and EtCO2 no longer shows an arterial line’s limits as its own.',
+    'Pressure lines are named P1–P3 everywhere. Set a line’s type from the drop-down in its box; otherwise the monitor’s label is used, or a guess marked with “?”. The choice applies on every page.',
+    'Venous and intracranial lines show their mean only.',
+    'Start page: a third sample, a child cardiac arrest in Pediatric mode with child targets and alarm limits.',
+    'Whole-case ECG works from the keyboard and with screen readers.',
+    'Sources: the four studies behind the perfusion proxy are listed.',
+    'Rev 3: Monitor waveform choices are remembered across cases.',
+    'Opening a snapshot pauses playback; resuming returns to where you were.',
+    'Selecting an event starts the strip at the event.',
+    'Leads recorded only during a 12-lead start hidden.',
+    'Data after a New Patient marker is left out; files with more than one are rejected.',
+    'SpO₂ desaturations split at recording gaps and leave out unrecorded time.',
+    'The Monitor’s waveform chooser starts open and matches the Physiology tab’s.',
+    'Fixed: quick pause and resume no longer starts playback twice.',
+    'Fixed: a continuous lead I or III that was also in a 12-lead no longer starts hidden.',
+    'Fixed: the sample answer sheets now give the first NIBP mean as 97.']},
   {date:'2026-11-12', items:[
-    'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview and the O key open it too; the CPR page’s separate Whole-case ECG button is gone.',
-    'Start page: two built-in sample cases (cardiac arrest, neuro critical care), made-up and built on this computer when opened, each with what to look for; Hide puts them away. The light/dark toggle, GitHub and Changelog are on the start page too.',
-    'CPR page: treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other …) are marked in purple on the quality graph, strips and cascade, and named in the hover readout.',
-    'Light mode: trace and parameter colours are darkened until they read clearly on white; yellow NIBP and cyan SpO₂ were too pale. The parameter panel now redraws in the new colours when the theme changes.',
-    'CPR page: the bottom strips show a pointer rather than a magnifying glass, since a click moves the playhead.',
-    'CPR page: waveform rows above the quality graph (pads ECG and CO₂ by default; add ECG leads, pleth or pressures), the Monitor’s parameter panel beside it, and statistics for whatever is under the pointer. The bottom strips no longer show a magnifying glass; clicking them moves the playhead.',
-    'CPR page: a live dashboard under the quality graph, like the monitor’s CPR display: rate, depth and release velocity at the playhead, a diamond showing a perfusion proxy (a model from depth, rate, release and pauses: it climbs toward the quality delivered and falls quickly in a pause; a shock is not a reset), and a pause timer.',
-    'Physiology: the optional case inputs (height, weight, calibration) start open so they are easy to find; closing them is remembered.',
-    'Fixed: QRS onset and offset no longer stop at the bottom of a Q or S wave, which made QRS look short and put the J point inside the S wave.',
-    '12-lead: ST-J level in every lead (J point against the PR segment, in mm, coloured at the usual elevation and depression thresholds) and the P, QRS and T axes, measured here.',
-    'CPR trend report (on the case list): reads every case in the folder, or chosen files, on this computer and reports arrests and ROSC with average CPR quality by month, quarter or year against your targets; filter by tag, age group or reviewed; export CSV.',
-    'Case library: tags and a reviewed mark for each case (set in the library side panel or Case details), filters by tag, reviewed and only-unopened, and search that covers tags and patient ID.',
-    'Analysis: a Case features section listing the vitals and waveforms recorded, CPR, shocks advised and delivered, 12-leads, snapshots, pacing and ROSC, and which parameters alarmed high or low.',
-    'CPR quality graph: a chosen waveform (CO₂ when recorded, or ECG or a pressure) above the rate and depth panels on the same time scale.',
-    'Whole-case ECG overview (Overview on the Monitor, Whole-case ECG on the CPR page, or O): the entire recording in rows of 1, 2 or 5 minutes with CPR, pauses, ROSC, shocks, alarms and unrecorded stretches marked; click to jump there.',
-    'CPR targets in Settings, defaulting to the 2025 AHA guidelines (ACLS, PALS, NRP): depth in inches or cm; adult, child, infant and newborn targets chosen from the monitor’s patient mode and the patient’s age; rate; shock-pause targets; pause threshold; and goals for compressions in target and compression fraction.',
-    'CPR page summary: pads on, first compression and first shock times, compression fraction ring, depth and rate split too low / in target / too high, pauses by length, longest pauses, and the pause before and after each shock.',
-    'CPR page: green for in target, red for out, amber for half; pauses and ROSC tinted; the shock is a bold marker on every view; summary values coloured against their targets.',
-    'CPR page: the quality graph follows the playhead like the Monitor, with a window choice, drag and wheel scrolling, and a jump to CPR when the playhead is elsewhere.',
-    'CPR page: a cascade with one row per minute of CPR, each compression a bar coloured by quality, and that minute’s rate, depth and % in target.',
-    'Monitor: the parameter panel fits all chosen parameters in one, two or three columns, with related parameters on the same row; drag its edge to resize (double-click for automatic).',
-    'Monitor: reading values at the pointer no longer adds a box to the panel; the time is tagged on the time axis, and a pinned point has a Back to playhead button over the strip.',
-    'Fixed: the arterial fast-flush (damping) test now works on the monitor’s paired pressure samples; it was missing flushes entirely.',
-    'Fixed: PR no longer mistakes the previous T wave for the P wave at faster rates, and QT no longer runs into the next P wave; both use the PR segment as baseline.',
-    'Copy buttons beside PNG put the Monitor strip, an ECG strip or a 12-lead on the clipboard as an image, ready to paste.',
-    'The calipers button is labelled Caliper, and it sits with March in a box labelled Calipers, on the Monitor and on ECG strips.',
-    'Buttons a key toggles show that key in parentheses: play (Space), Annotate (A), calipers (C), March (M), theme (T) and the event list (E). Hidden on touch screens.',
-    'Monitor: when an invasive line was zeroed, the pressure row shows a ZERO flag with the time, a dashed line, and a tick at the 0 mmHg level.',
-    'Monitor: a pressure trace that goes past the monitor scale (above 180, a flush, a zero) no longer runs into the row edge; the row widens its scale in round steps and the scale label shows the range in use.',
-    'Event list: during playback the playhead marker moves down the list and the list turns the page when it reaches the bottom.',
-    'Changelog: this list, from the button beside GitHub (on a phone, under Settings › Project).',
-    'Blood pressures read like the monitor: systolic/diastolic with the mean in large parentheses, e.g. 133/66 (89).',
-    'Monitor: parameters in alarm are boxed and flash, red for alarms and yellow for sensor alerts such as a probe off. Flash on the toolbar turns the flashing off.',
-    'Monitor: the Parameters button and the (i) explanations now work while the recording is playing.',
-    'Monitor: drag the strip to move through the recording; while paused, the parameter panel follows the pointer and a click pins it.',
-    'Annotate now drops a sticky note where you click on a trace. Drag a note to move it, click it to edit.',
-    'The playhead is labelled with the case time on the time axis.',
-    'The case details (ⓘ) button opens everything about the case in full, on any screen size.',
-    'Formulas: an A–Z index, with abbreviations listed beside full names.',
-    'March-out calipers repeat a measured interval along the trace to check regularity, on the Monitor and on ECG paper.',
-    'Every Monitor parameter has an (i) explanation.',
-    'The start page and header state plainly that case files never leave the computer, and the page now blocks all network requests. The title returns to the start page. The event-list button sits at the left of the tab row.',
-    'Explanations for every derived measure, a searchable Formulas tab, remembered setup, and settings import and export. Invasive pressures are smoothed for display only. Physiology moved after Trends.',
-    'Links to the published sources behind the methods. Monitor display changes are marked, and stretches with no recorded waveform are hatched.',
-    'Corrections from an algorithm review: ECG scale read from the file; beat detection, pauses, QRS axis and 12-lead timing; vitals values and staleness; arterial line dP/dt and damping; breathing and SpO₂ estimates; time zones and clock drift; CPR periods and compression fraction.',
-    'Notice that this is an independent project and not a medical device.',
-    'Vitals follow the NIBP auto cycle, show P1–P3 and optional line-zeroing rows, and mark off-scale (+++/---) and alarm-flagged values; the table fits the window. Pacer pulses are marked on the traces, snapshots and strips. A quieter, neutral design.'
+    'Whole-case ECG: a tab above the playback bar (or O) shows the whole case in rows with CPR, shocks, treatments and alarms marked. Click or drag to move through it.',
+    'Start page: two sample cases (cardiac arrest, neuro critical care), each with what to look for.',
+    'Case files never leave the computer, and the page blocks all network requests.',
+    'Case library: tags, a reviewed mark, filters and search.',
+    'CPR trend report: arrests, ROSC and CPR quality by month, quarter or year across your cases, with CSV export.',
+    'CPR targets in Settings, defaulting to the 2025 AHA guidelines for adults, children, infants and newborns.',
+    'CPR page: a summary of first compression and shock, compression fraction, depth and rate in target, and pauses.',
+    'CPR page: a quality graph that follows the playhead, waveform rows above it and a cascade by minute.',
+    'CPR page: a live dashboard with rate, depth, release, a pause timer and a perfusion proxy.',
+    'CPR page: treatments logged on the monitor are marked.',
+    '12-lead: ST-J level in every lead, and the P, QRS and T axes.',
+    'Analysis: a Case features section listing what was recorded and what alarmed.',
+    'Monitor: the parameter panel fits one to three columns and can be resized.',
+    'Monitor: parameters in alarm are boxed and flash, red for alarms and yellow for sensor alerts.',
+    'Monitor: line zeroing is marked, and pressure rows widen their scale for values off the monitor’s scale.',
+    'Monitor: drag the strip to move. While paused, the panel follows the pointer and a click pins it.',
+    'Blood pressures read like the monitor’s: 133/66 (89).',
+    'Vitals follow the NIBP cycle, show P1–P3, and mark off-scale and alarm-flagged values.',
+    'Calipers: March repeats a measured interval along the trace.',
+    'Annotate drops a sticky note on a trace.',
+    'Copy puts a strip or 12-lead on the clipboard as an image.',
+    'Buttons show their keyboard shortcut, e.g. play (Space).',
+    'The event list follows the playhead during playback.',
+    'Light mode: trace colours are darkened to read clearly on white.',
+    'An explanation for every measure, a searchable Formulas tab, remembered settings, and settings import and export.',
+    'Links to the published sources behind the methods.',
+    'Fixed: QRS onset and offset, PR and QT measurement errors.',
+    'Fixed: the arterial fast-flush test missed flushes.',
+    'Corrections from an algorithm review of ECG, pressure, SpO₂, timing and CPR measures.',
+    'A notice that this is an independent project, not a medical device.',
+    'Changelog: this list.'
   ]},
   {date:'2026-11-01', items:[
-    'First public release (Rev 2): the offline viewer, its documentation and regression tests.'
+    'First public release (Rev 2).'
   ]}
 ];
 /* the key that toggles a button, shown in the button as "(K)" */

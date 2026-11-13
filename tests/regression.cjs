@@ -1397,3 +1397,25 @@ test('opening an event pins the strip at its start until the playhead reaches it
   assert.equal(r.releasedT0, 15000);      /* continuous: no jump at the hand-over */
   assert.equal(r.anchorAfter, null);
 });
+test('pressure-line alarm limits: read per part, the crossing given to the line that alarmed, and not borrowed by EtCO2', () => {
+  for (const [opts, lo, hi] of [['{}', 90, 180], ['{child:true}', 70, 140]]) {
+    const a = app();
+    a.run(`(()=>{ const x=synthCase(false, null, ${opts}); const {json,xml}=splitZol(x.zol.buffer);
+      buildModel(json, xml, 'sample.zol'); loadSites(); retargetArterial(); buildParams(); })()`);
+    const r = JSON.parse(a.run(`JSON.stringify({
+      p1:alarmSetting('ibp1',M.durMs), p2:alarmSetting('ibp2',M.durMs), early:alarmSetting('ibp1',60000),
+      etco2:alarmSetting('etco2',M.durMs),
+      crossings:Object.entries(alarmIndex().cross).filter(([id])=>/^ibp/.test(id))
+        .flatMap(([id,l])=>l.map(c=>id+'.'+c.comp)),
+      invasive:M.events.filter(e=>e.kind==='alarm'&&/invasive/.test(e.name)).length,
+      flat:(()=>{ const keep=M.alarmLimits.Ibp; M.alarmLimits.Ibp={HighLimOn:1, LowLimOn:{'#text':1}};
+        const s=alarmSetting('ibp1',M.durMs); M.alarmLimits.Ibp=keep; return s; })()})`));
+    assert.ok(r.p1.startsWith(`Sys low ${lo} · high ${hi} mmHg`), opts + ' P1: ' + r.p1);
+    assert.ok(!/\d/.test(r.p2.replace('mmHg', '')), opts + ' P2 has no limits of its own: ' + r.p2);
+    assert.equal(r.early, 'Sys low on · high on mmHg; Dia low on · high on mmHg; Map low on · high on mmHg');
+    assert.equal(r.etco2, 'low on · high on mmHg');
+    assert.ok(r.invasive >= 3);
+    assert.deepEqual(r.crossings, Array(r.invasive).fill('ibp1.sys'));
+    assert.equal(r.flat, `low ${lo} · high ${hi} mmHg`);   /* a line written without Sys/Dia/Map */
+  }
+});
