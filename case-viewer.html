@@ -10234,7 +10234,6 @@ function renderCprPane(){
         '<span class="shockkey">⚡ Shock</span>'+
         (cprTreatments().length ? '<span class="treatkey">┊ Treatment</span>' : '')+
       '</div>'+
-      '<button type="button" id="cprOverview" title="Show or hide the whole case\'s ECG above the playback bar (O)">Whole-case ECG</button>'+
       '<span id="cprWaves" class="cprwaves">'+cprWaveCtlHtml()+'</span>'+
       '<label class="cprwin">Window <select id="cprWin">'+CPR_WINS.map(([v,l])=>
         '<option value="'+v+'"'+(v===win?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+
@@ -10291,7 +10290,6 @@ function renderCprPane(){
   }
   redrawCpr();
 
-  $('#cprOverview').onclick = openOverview;
   wireCprWaveCtl();
   if(APP.view==='cpr') mountNumerics('cpr');
   if(typeof ResizeObserver!=='undefined' && $('#cprMon')){
@@ -12074,7 +12072,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
-    'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview, the O key and the CPR page’s button open it too.',
+    'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview and the O key open it too; the CPR page’s separate Whole-case ECG button is gone.',
     'Start page: two built-in sample cases (cardiac arrest, neuro critical care), made-up and built on this computer when opened, each with what to look for; Hide puts them away. The light/dark toggle, GitHub and Changelog are on the start page too.',
     'CPR page: treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other …) are marked in purple on the quality graph, strips and cascade, and named in the hover readout.',
     'Light mode: trace and parameter colours are darkened until they read clearly on white; yellow NIBP and cyan SpO₂ were too pale. The parameter panel now redraws in the new colours when the theme changes.',
