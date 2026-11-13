@@ -70,7 +70,7 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), event markers, sticky notes and annotation bands, calipers with march-out, and playback. |
+| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. |
