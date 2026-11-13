@@ -24,7 +24,7 @@ algorithms. That review does not change the validation status described above.
 it remembers that folder; from then on it opens on a list of your cases. You can also just
 drop a `.zol` or `.zip` on it, or use *Open a file…*.
 
-The opening screen, case header and browser title show **Rev 2**. The revision is
+The opening screen, case header and browser title show **Rev 3**. The revision is
 defined by `APP_REVISION` in the viewer; increment it when distributing an updated file.
 
 Across the top of a loaded case: **Local only** explains how the page is kept offline;
@@ -32,6 +32,13 @@ Across the top of a loaded case: **Local only** explains how the page is kept of
 switch; **Open…** returns to the case list (so does clicking the title); **GitHub**; and
 **Changelog**, a dated list of what changed in each update. On a phone, GitHub and the
 changelog are under Settings › Project.
+
+Monitor waveform choices are remembered between cases and browser sessions; new
+continuous channels start visible. Leads recorded only during a 12-lead start hidden in
+every case (ticking one is a one-off look at that acquisition). Selecting an event puts
+its start at the left edge of the strip; the strip holds still until the playhead reaches
+its usual place and then scrolls normally. Selecting a snapshot pauses playback and opens that exact acquisition; Play returns
+to the view you were using. A matched or estimated 12-lead start is used when available.
 
 ## Case library
 
@@ -485,13 +492,20 @@ rate and a patient-triggered one look very different.
 
 ## Notes on the data
 
-- **Pre-case event logs are filtered.** A `.zol` can carry the monitor's rolling log from
-  previous days and previous patients. Event-log entries before the *New Patient*
-  marker are filtered, with one exception kept deliberately: **self-tests from the same
-  calendar day**, which document that the device was serviceable when it was picked up.
-  The Analysis tab reports how many event records were dropped. This does not currently
-  trim waveform, trend and snapshot payloads; see the remaining case-boundary limitation
-  in [METHODOLOGY.md](METHODOLOGY.md).
+- **Patient boundaries apply before analysis.** A `.zol` can carry records from previous
+  days and patients. The viewer uses the in-case *New Patient* marker, or case time zero
+  when none is present. It trims waveform samples, filters trends (including repeated
+  earlier cuff readings), pacing and ventilation marks, and clips CPR periods. Earlier
+  snapshots and snapshots whose samples may cross the boundary are withheld. The Analysis
+  tab reports exclusions. Same-day self-tests remain in the **device log** only. Exports
+  with multiple distinct in-case *New Patient* markers are rejected: open a separate export
+  for each patient. These rules have synthetic regression coverage; the device timing
+  limitations in [METHODOLOGY.md](METHODOLOGY.md) still apply.
+- **SpO₂ gaps are unobserved time.** Events and burden use the same valid sampling
+  intervals. Invalid readings or gaps exceeding 1.5 times the median recorded cadence
+  (never more than two minutes) break continuity. Values are not extended beyond the
+  final observation. The event list reports supported duration, unobserved time, and
+  whether recovery was observed. Durations remain estimates between discrete readings.
 - **Background rhythm analysis is filed separately.** The monitor runs a continuous
   analysis every few seconds all case long. Those go behind the *Device log* chip so the
   real events stay visible.
@@ -560,6 +574,13 @@ installed. The suite includes the 25 built-in arterial checks plus parser, annot
 windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, changelog
 and synthetic integration regressions.
 Synthetic success verifies these scenarios, not accuracy on real clinical recordings.
+
+Optional browser checks: `node tests/browser.cjs` with `playwright-core` installed, or
+`PLAYWRIGHT_MODULE` set to an existing module path. Set `BROWSER_EXECUTABLE` to an installed
+Chromium executable if needed. These checks use generated, anonymous fixtures and test
+saved waveform choices, exact snapshot selection, pause/resume, event positioning,
+desktop and narrow-screen interaction, and recovery after a rejected import. They close
+their isolated browser on completion. Set `BROWSER_SCREENSHOT` to save the mobile result.
 
 ## Synthetic test cases
 

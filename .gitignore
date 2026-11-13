@@ -10,6 +10,7 @@
 !/tests/
 /tests/*
 !/tests/regression.cjs
+!/tests/browser.cjs
 !/tools/
 /tools/*
 !/tools/make-test-case.cjs

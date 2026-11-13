@@ -1157,7 +1157,7 @@ dialog input[type=text]{width:100%}
 const $  = (s,r)=> (r||document).querySelector(s);
 const $$ = (s,r)=> Array.from((r||document).querySelectorAll(s));
 // Increment this number when distributing an updated viewer.
-const APP_REVISION = '2';
+const APP_REVISION = '3';
 function applyAppIdentity(caseId){
   const revision='Rev '+APP_REVISION;
   $$('[data-app-revision]').forEach(el=>{ el.textContent=revision; });
@@ -2063,6 +2063,7 @@ function buildModel(json, xml, fileName){
   M.fileName = fileName; M.caseId=''; M.channels={}; M.monitorExtra=[]; M.displayHistory=[];
   M.trends=[]; M.events=[]; M.snapshots=[]; M.vents=[]; M.deviceLog=[]; M.pace=[];
   M.ventSamplesIgnored=false;
+  M.clockDriftMsPerMin=0; M.caseStartMs=0; M.boundaryStats={};
   M._nibp=null; M._lineBeats={}; M._hemoBeats={}; M._wholeSig=null;
 
   const by = k => recs.filter(r=>r[k]!=null).map(r=>r[k]);
@@ -2562,25 +2563,51 @@ function buildModel(json, xml, fileName){
   }
   if(!M.caseId) M.caseId = (fileName||'case').replace(/\.(zol|zip|json)$/i,'');
 
-  /* --- drop everything that predates the New Patient marker ---
+  /* --- enforce the patient boundary before any signal analysis ---
      A .zol carries the monitor's rolling log from previous days and previous
      patients. Nothing before this case began belongs to it, with one exception
      worth keeping: the self-tests from the same calendar day, which document
      that the device was serviceable when it was picked up. */
-  const npEvt = M.events.find(e=>/new patient/i.test(e.name));
-  const npT = npEvt ? npEvt.t : 0;
+  const markers=M.events.filter(e=>/^new patient$/i.test(e.name.trim()) && e.t>=-500)
+    .map(e=>Math.max(0,e.t)).sort((a,b)=>a-b);
+  const npT = markers[0] || 0;
+  if(markers.some(t=>t>npT+500))
+    throw new Error('This export contains multiple New Patient markers. Open a separate export for each patient; combined patient recordings are not supported.');
+  M.caseStartMs=npT;
   const dayStart = new Date(t0); dayStart.setUTCHours(0,0,0,0);
   const dayLo = dayStart.getTime(), dayHi = dayLo + 86400000;
   const keepRec = e => {
-    if(e.t >= npT - 500) return true;                 /* at or after New Patient */
+    if(e.t >= npT) return true;
     const w = e.wall ? parseISO(e.wall) : (t0 + e.t);
     if(!isFinite(w)) return false;
     return /self[\s-]?test/i.test(e.name||'') && w>=dayLo && w<dayHi;
   };
   M.prePruneCount = M.events.length + M.deviceLog.length;
-  M.events    = M.events.filter(keepRec);
+  /* Periods crossing the boundary are clipped, not discarded. Same-day device
+     self-tests remain in the device log, never in patient-derived calculations. */
+  M.events=M.events.flatMap(e=>{
+    if(e.tEnd!=null && e.t<npT && e.tEnd>npT)
+      return [{...e,t:npT,detail:'duration '+(e.tEnd-npT)/1000+' s (clipped to patient start)'}];
+    if(e.t>=npT) return [e];
+    if(keepRec(e)) M.deviceLog.push({...e,historic:true});
+    return [];
+  });
   M.deviceLog = M.deviceLog.filter(keepRec);
   M.prunedCount = M.prePruneCount - (M.events.length + M.deviceLog.length);
+  M.boundaryStats.waveSamples=0;
+  for(const ch of Object.values(M.channels)) M.boundaryStats.waveSamples+=trimChannelStart(ch,npT);
+  const inCase=x=>x.t>=npT;
+  M.boundaryStats.trends=M.trends.filter(r=>!inCase(r)).length;
+  M.trends=M.trends.filter(inCase);
+  /* A later trend can repeat a cuff reading taken before this patient began. */
+  for(const r of M.trends) if(r.nibpTime && devTime(r.nibpTime)-M.t0Wall<npT){
+    r.nsys=r.ndia=r.nmap=null; r.nibpTime=null; r.nibpNew=false;
+    if(r.fl) for(const k of ['nsys','ndia','nmap']) delete r.fl[k];
+  }
+  M.vents=M.vents.filter(t=>t>=npT); M.pace=M.pace.filter(t=>t>=npT);
+  M.displayHistory=M.displayHistory.filter(inCase); M.nibpAuto=M.nibpAuto.filter(inCase);
+  const snapByOldIndex=new Map(M.snapshots.map(s=>[s.idx,s]));
+  M.snapshots=M.snapshots.filter(inCase);
 
   /* --- overall duration --- */
   let dur = (sum.ElapsedTime||0)*1000;
@@ -2594,7 +2621,6 @@ function buildModel(json, xml, fileName){
   M.events.sort((a,b)=>a.t-b.t);
   M.deviceLog.sort((a,b)=>a.t-b.t);
   M.snapshots.sort((a,b)=>a.t-b.t);
-  M.snapshots.forEach((s,i)=>{ s.idx=i; });
   const captureLeads={};
   /* Where a 12-lead acquisition sits in time. The record's timestamp is neither its
      start nor its end: in the reference export its samples ran from about 1 s before
@@ -2622,32 +2648,58 @@ function buildModel(json, xml, fileName){
     }
     return {t0:s.t+TWELVE_START_FALLBACK_MS, matched:false};
   };
+  M.snapshots=M.snapshots.filter(s=>{
+    if(s.kind==='Ecg12LeadRec'){
+      const place=twelveStart(s); s.start=place.t0; s.startMatched=place.matched;
+      /* Do not publish a partial diagnostic acquisition at the patient boundary. */
+      return s.start>=npT;
+    }
+    /* Snapshot trigger offsets are not established for every device. Withhold a
+       capture close enough to the boundary that its samples might predate it. */
+    const duration=Math.max(...s.traces.map(tr=>tr.data.length*1000/tr.hz));
+    return s.t-duration>=npT;
+  });
+  M.boundaryStats.snapshots=snapByOldIndex.size-M.snapshots.length;
+  M.snapshots.forEach((s,i)=>{ s.idx=i; });
   for(const s of M.snapshots.filter(x=>x.kind==='Ecg12LeadRec')){
-    const place = twelveStart(s);
-    s.start = place.t0; s.startMatched = place.matched;
     for(const tr of s.traces){
       if(tr.lead==='II' && contII) continue;
       const name='12-Lead '+tr.lead;
       const ch=captureLeads[name] || (captureLeads[name]={name,kind:'ecg',isEcg:true,
         lead:tr.lead,hz:tr.hz,segs:[],units:'mV',color:CH_COLORS.ecg,nValid:0,
         captureOnly:true});
-      const t0=place.t0;
+      const t0=s.start;
       ch.segs.push({t0,n:tr.data.length,data:tr.data});
       ch.nValid+=tr.data.length;
     }
   }
   M.monitorExtra=LEAD_ORDER.map(l=>captureLeads['12-Lead '+l]).filter(Boolean);
-  for(const e of [...M.events,...M.deviceLog]){
-    if(e.kind==='snapshot' && e.snapIdx!=null){
-      const s=M.snapshots.find(s=>s.t===e.t && s.wall===e.wall);
-      if(s) e.snapIdx=s.idx;
-    }
-  }
+  const remapSnapshots=events=>events.filter(e=>{
+    if(e.kind!=='snapshot' || e.snapIdx==null) return true;
+    const s=snapByOldIndex.get(e.snapIdx);
+    if(!M.snapshots.includes(s)) return false;
+    e.snapIdx=s.idx; return true;
+  });
+  M.events=remapSnapshots(M.events); M.deviceLog=remapSnapshots(M.deviceLog);
   buildCpr(recs, xml);
   return M;
 }
 
 /* ---------------- sampling helpers ---------------- */
+function trimChannelStart(ch,start){
+  let removed=0; ch.vmin=Infinity; ch.vmax=-Infinity; ch.nValid=0;
+  ch.segs=ch.segs.flatMap(s=>{
+    const cut=Math.min(s.n,Math.max(0,Math.ceil((start-s.t0)*ch.hz/1000-1e-7)));
+    removed+=cut;
+    if(cut===s.n) return [];
+    const seg=cut ? {...s,t0:s.t0+cut*1000/ch.hz,n:s.n-cut,data:s.data.slice(cut)} : s;
+    for(const v of seg.data) if(Number.isFinite(v)){
+      ch.nValid++; ch.vmin=Math.min(ch.vmin,v); ch.vmax=Math.max(ch.vmax,v);
+    }
+    return [seg];
+  });
+  return removed;
+}
 function segAt(ch, t){
   for(const s of ch.segs){
     const end = s.t0 + s.n*1000/ch.hz;
@@ -5634,51 +5686,75 @@ function plethQuality(ch, pulses){
    so the numeric is always paired with pleth signal quality. */
 const SPO2_THRESHOLDS=[94,92,90,88,85,80];
 function spo2Series(win){
-  return M.trends.filter(r=>r.spo2!=null && (!win || (r.t>=win.t0 && r.t<=win.t1)))
-    .map(r=>({t:r.t, v:r.spo2}));
+  return M.trends.filter(r=>!win || (r.t>=win.t0 && r.t<=win.t1))
+    .map(r=>({t:r.t, v:Number.isFinite(r.spo2) ? r.spo2 : null}));
 }
 function spo2Analysis(win){
-  const s=spo2Series(win);
-  if(s.length<2) return {n:0, burden:{}, events:[], value:null};
-  /* time below each threshold, integrating over the sampling interval */
+  const all=spo2Series(), lo=win ? win.t0 : (all[0]?.t ?? 0),
+    hi=win ? win.t1 : (all[all.length-1]?.t ?? lo);
+  const s=all.filter(p=>p.t>=lo && p.t<=hi && p.v!=null);
+  /* Adjacent valid observations support an interval; invalid readings and gaps
+     over 1.5 times the usual cadence (capped at 2 min) break continuity. Never
+     extrapolate beyond the last observation. */
+  const steps=all.slice(1).map((p,i)=>p.t-all[i].t).filter(d=>d>0 && d<=120000).sort((a,b)=>a-b);
+  const gapMs=Math.min(120000, 1.5*(steps.length ? steps[(steps.length-1)>>1] : 80000));
+  const runs=[]; let run=[];
+  for(const p of all){
+    const prev=run[run.length-1];
+    if(p.v==null || (prev && (p.t<=prev.t || p.t-prev.t>gapMs))){
+      if(run.length) runs.push(run); run=[];
+    }
+    if(p.v!=null) run.push(p);
+  }
+  if(run.length) runs.push(run);
   const burden={}, area={};
   for(const th of SPO2_THRESHOLDS){ burden[th]=0; area[th]=0; }
-  let total=0;
-  for(let i=1;i<s.length;i++){
-    const dtms=s[i].t-s[i-1].t;
-    if(dtms<=0 || dtms>120000) continue;
-    total+=dtms;
-    const v=s[i-1].v;
-    for(const th of SPO2_THRESHOLDS)
-      if(v<th){ burden[th]+=dtms; area[th]+=(th-v)*dtms/60000; }
-  }
-  /* desaturation events, defined against the first threshold crossed */
-  const events=[];
-  let cur=null;
-  for(const p of s){
-    if(p.v<94 && !cur) cur={start:p.t, nadir:p.v, tNadir:p.t};
-    else if(cur){
-      if(p.v<cur.nadir){ cur.nadir=p.v; cur.tNadir=p.t; }
-      if(p.v>=94){ cur.end=p.t; cur.durS=(cur.end-cur.start)/1000; events.push(cur); cur=null; }
+  let total=0; const events=[];
+  for(const r of runs){
+    let cur=null;
+    const close=(end,censored)=>{ if(cur){ events.push({...cur,end,
+      durS:(end-cur.start)/1000,censored}); cur=null; } };
+    for(let i=0;i<r.length;i++){
+      const p=r[i], prev=r[i-1];
+      if(prev){
+        const a=Math.max(lo,prev.t), b=Math.min(hi,p.t), dt=b-a;
+        if(dt>0){
+          total+=dt;
+          for(const th of SPO2_THRESHOLDS) if(prev.v<th){
+            burden[th]+=dt; area[th]+=(th-prev.v)*dt/60000;
+          }
+          if(prev.v<94 && !cur) cur={start:a,nadir:prev.v,tNadir:prev.t};
+          if(p.v>=94 && p.t<=hi) close(b,false);
+        }
+      }
+      if(p.t<lo || p.t>hi) continue;
+      if(p.v<94){
+        if(!cur) cur={start:p.t,nadir:p.v,tNadir:p.t};
+        if(p.v<cur.nadir){ cur.nadir=p.v; cur.tNadir=p.t; }
+      }
     }
+    close(Math.min(hi,r[r.length-1].t),true);
   }
-  if(cur){ cur.end=s[s.length-1].t; cur.durS=(cur.end-cur.start)/1000; events.push(cur); }
   /* Rate of change, %/min, measured against the reading about a minute earlier (at
      least 30 s back). Between neighbouring readings a single 1% step under a second
      apart reads as -60 %/min; a real desaturation shows over tens of seconds. */
-  let maxFall=0, maxRise=0;
-  for(let i=1, j=0;i<s.length;i++){
-    while(j<i && s[i].t-s[j+1].t>=60000) j++;
-    const dtMs=s[i].t-s[j].t;
+  let maxFall=null, maxRise=null;
+  for(const full of runs){
+    const r=full.filter(p=>p.t>=lo && p.t<=hi);
+    for(let i=1, j=0;i<r.length;i++){
+    while(j<i && r[i].t-r[j+1].t>=60000) j++;
+    const dtMs=r[i].t-r[j].t;
     if(dtMs<30000 || dtMs>120000) continue;
-    const g=(s[i].v-s[j].v)/(dtMs/60000);
+    const g=(r[i].v-r[j].v)/(dtMs/60000);
+    if(maxFall==null){ maxFall=0; maxRise=0; }
     if(g<maxFall) maxFall=g;
     if(g>maxRise) maxRise=g;
+    }
   }
   const vals=s.map(p=>p.v).sort((a,b)=>a-b);
-  return {n:s.length, totalMs:total, burden, area, events,
-    value: vals[Math.floor(vals.length/2)],
-    min: vals[0], max: vals[vals.length-1],
+  return {n:s.length, totalMs:total, unknownMs:Math.max(0,hi-lo-total), gapMs, burden, area, events,
+    value: vals[Math.floor(vals.length/2)] ?? null,
+    min: vals[0] ?? null, max: vals[vals.length-1] ?? null,
     maxFall, maxRise};
 }
 
@@ -6479,8 +6555,8 @@ function sigCompute(winArg){
     const spLim = (extra.pleth && !extra.pleth.quality.valid) ? ['poor_pleth_quality'] : [];
     put('spo2', sp.value, {confidence:pq, dataQuality:pq, n:sp.n, limitations:spLim});
     put('spo2_min', sp.min, {confidence:pq, n:sp.n, limitations:spLim});
-    put('t90', sp.burden[90]/1000, {confidence:pq});
-    put('hypox_burden', sp.area[90], {confidence:pq});
+    put('t90', sp.totalMs>0 ? sp.burden[90]/1000 : null, {confidence:pq});
+    put('hypox_burden', sp.totalMs>0 ? sp.area[90] : null, {confidence:pq});
     put('spo2_fall', sp.maxFall, {confidence:pq});
     put('sf_ratio', (CFG.fio2>0 && sp.value!=null) ? sp.value/CFG.fio2 : null,
       {invalid:!(CFG.fio2>0), limitations: CFG.fio2>0?[]:['fio2_not_supplied']});
@@ -6922,7 +6998,10 @@ function anNotable(){
   if(X.spo2 && X.spo2.events)
     list('Desaturations below 94%', X.spo2.events, e=>'<tr data-t="'+Math.round(e.start)+
       '"><td>'+fmtClock(M.t0Wall+e.start)+'</td><td>nadir '+e.nadir+'% for '+
-      e.durS.toFixed(0)+' s</td></tr>');
+      e.durS.toFixed(0)+' s observed'+(e.censored?' — recovery not observed':'')+'</td></tr>');
+  if(X.spo2 && X.spo2.n) blocks.push('<div class="note-inline">SpO₂ coverage: '+
+    (X.spo2.totalMs/1000).toFixed(0)+' s in supported sampling intervals; '+
+    (X.spo2.unknownMs/1000).toFixed(0)+' s unobserved. Gaps and invalid readings break events.</div>');
   if(X.capno && X.capno.apnea)
     list('Recorded CO₂ below 8 mmHg for over 10 s', X.capno.apnea.events, e=>'<tr data-t="'+
       Math.round(e.t)+'"><td>'+fmtClock(M.t0Wall+e.t)+'</td><td>'+e.seconds.toFixed(1)+
@@ -7315,6 +7394,12 @@ const APP = {
    their name with the continuous lead (both "12-Lead I"), so they get their own key;
    otherwise hiding the 12-lead copy would also hide the continuous trace. */
 const monKey = c => c.captureOnly ? '12:'+c.name : c.name;
+function restoreMonitorChoices(){
+  const saved=CFG.monitorChoices;
+  APP.hidden=new Set(Object.values(M.channels).concat(M.monitorExtra||[])
+    .filter(c=>!c.captureOnly && saved && Object.hasOwn(saved,monKey(c)) && typeof saved[monKey(c)]==='boolean'
+      ? !saved[monKey(c)] : !!c.captureOnly).map(monKey));
+}
 function visibleChannels(){
   const order = {ecg:0, pads:1, ibp1:2, ibp2:3, ibp3:4, spo2:5, co2:6, imp:7, other:8};
   return Object.values(M.channels).concat(M.monitorExtra||[])
@@ -7336,6 +7421,9 @@ function renderMonitorChoices(){
       '<small>These leads were recorded only during the 12-lead ECG. Ticking one jumps to that moment.</small>' : '');
   $$('#monitorLeadList input').forEach(el=>el.onchange=()=>{
     if(el.checked) APP.hidden.delete(el.dataset.ch); else APP.hidden.add(el.dataset.ch);
+    /* remembered for later cases: the continuous waveforms only; a 12-lead-only lead
+       is a one-off look at that acquisition */
+    if(!el.dataset.ch.startsWith('12:')){ CFG.monitorChoices={...CFG.monitorChoices, [el.dataset.ch]:el.checked}; cfgSave(); }
     const ch=(M.monitorExtra||[]).find(c=>monKey(c)===el.dataset.ch);
     if(el.checked && ch && !ch.segs.some(s=>APP.cursor>=s.t0 && APP.cursor<s.t0+s.n*1000/ch.hz)){
       if(APP.playing) setPlaying(false);
@@ -7405,7 +7493,7 @@ function drawMonitor(){
   g.fillStyle = T0.bg; g.fillRect(0,0,w,h);
   const chans = visibleChannels();
   const LEFT = 74, BOT = 22;
-  const t1 = APP.cursor + APP.win*0.25, t0 = t1 - APP.win;
+  const {t0,t1} = followWindow(APP.win, 'monitorAnchor');
   const plotW = Math.max(10, w-LEFT-8), plotH = Math.max(10, h-BOT);
   const rowH = plotH / Math.max(1, chans.length);
   const X = t => LEFT + (t-t0)/(t1-t0)*plotW;
@@ -9115,13 +9203,16 @@ function compressionsFromWave(ch){
 }
 
 function buildCpr(recs, xml){
+  const start=M.caseStartMs||0;
+  const periods=tag=>parsePeriods(xml,tag).filter(p=>p.t1>start)
+    .map(p=>({...p,t0:Math.max(start,p.t0)}));
   const C = {
-    periods: parsePeriods(xml,'UserCprPeriods').concat(parsePeriods(xml,'CprPeriods')),
-    pauses:  parsePeriods(xml,'CprPausePeriods'),
-    rosc:    parsePeriods(xml,'RoscPeriods'),
-    autopulse: parsePeriods(xml,'AutoPulsePeriods'),
-    resq:    parsePeriods(xml,'ResQPumpPeriods'),
-    vents:   M.vents.slice(),
+    periods: periods('UserCprPeriods').concat(periods('CprPeriods')),
+    pauses:  periods('CprPausePeriods'),
+    rosc:    periods('RoscPeriods'),
+    autopulse: periods('AutoPulsePeriods'),
+    resq:    periods('ResQPumpPeriods'),
+    vents:   M.vents.filter(t=>t>=start),
     shocks:  [],
     comps:   [],
     source:  null,
@@ -9137,7 +9228,7 @@ function buildCpr(recs, xml){
       const d=r.DefibTrace; if(!d) continue;
       if(!(d.CurrEnergy>0)) continue;
       const t=devTime(d.StdHdr.DevDateTime||'')-M.t0Wall;
-      if(!isFinite(t) || t<0 || t>M.durMs) continue;
+      if(!isFinite(t) || t<start || t>M.durMs) continue;
       if(t-last<2000) continue;
       C.shocks.push({t, label:'Defib discharge '+d.CurrEnergy+' J'});
       last=t;
@@ -9152,7 +9243,8 @@ function buildCpr(recs, xml){
     C.source = 'records: '+rec.src;
     for(const c of rec.list){
       const base = c.tRec ? elapsedOfHdr(c.tRec) : 0;
-      C.comps.push({t: base + (c.offMs||0), depth:c.depth, relVel:c.relVel, rate:null});
+      const t=base+(c.offMs||0);
+      if(t>=start) C.comps.push({t, depth:c.depth, relVel:c.relVel, rate:null});
     }
     C.comps.sort((a,b)=>a.t-b.t);
     for(let i=0;i<C.comps.length-1;i++){
@@ -9442,8 +9534,7 @@ const CPR_WINS=[['30000','30 s'],['60000','1 min'],['120000','2 min'],['300000',
 function cprView(){
   const whole=cprSpan(), w=CFG.cprWin||'60000';
   if(w==='all') return {t0:whole.t0, t1:whole.t1, whole:true};
-  const W=+w, t1=APP.cursor+W*0.25;
-  return {t0:t1-W, t1, whole:false};
+  return {...followWindow(+w, 'cprAnchor'), whole:false};
 }
 function drawCprQuality(cv){
   const waves=cprWaveChannels();
@@ -9630,7 +9721,7 @@ const RPT={cases:[], running:false, cancel:false};
 const RPT_CACHE='zollviewer:rptCache';
 function rptCacheGet(){ try{ return JSON.parse(localStorage.getItem(RPT_CACHE)||'{}')||{}; }catch(e){ return {}; } }
 function rptCachePut(c){ try{ localStorage.setItem(RPT_CACHE, JSON.stringify(c)); }catch(e){} }
-function rptSig(){ return JSON.stringify(cprConfig()); }
+function rptSig(){ return 'patient-boundary-v1:'+JSON.stringify(cprConfig()); }
 /* the CPR figures of the case currently in M */
 function rptMeasure(){
   const C=M.cpr||{};
@@ -11471,6 +11562,11 @@ function renderEcgPane(){
   };
   $$('#snapList button').forEach(btn=> btn.onclick=()=>{
     const s=selectedSnap=M.snapshots[+btn.dataset.s];
+    APP.snapshotIndex=s.idx;
+    $$('#snapList button').forEach(b=>{
+      const selected=b===btn; b.classList.toggle('on',selected);
+      b.setAttribute('aria-pressed',String(selected));
+    });
     PAPER.zoom=s.is12?0.5:1;
     const picker=$('#leadPicker');
     picker.classList.toggle('hide',!s.is12);
@@ -11495,7 +11591,7 @@ function renderEcgPane(){
         '<label><input type="checkbox" value="'+esc(t.lead)+'" checked>'+esc(t.lead)+'</label>').join('');
     }
     drawSnapshot();
-    seek(s.t);
+    seek(s.start ?? s.t);
   });
   $('#leadChoices').onchange=()=>{
     if(!$('#leadChoices input:checked')) return;
@@ -11558,7 +11654,8 @@ function renderEcgPane(){
   $('#stripCopy').onclick = ()=> copyCanvasImage($('#paper'), 'ECG image');
   $('#stripPng').onclick = ()=> $('#paper').toBlob(bl=>
     download(M.caseId+'-strip-'+fmtClock(M.t0Wall+APP.cursor).replace(/:/g,'')+'.png', bl));
-  if(twelve.length) $$('#snapList button')[M.snapshots.indexOf(twelve[0])].click();
+  const selected=M.snapshots[APP.snapshotIndex] || twelve[0];
+  if(selected) $('#snapList button[data-s="'+selected.idx+'"]').click();
   else doStrip(true);
 }
 
@@ -11591,6 +11688,11 @@ function legacyAnalysisSections(){
       (M.summary.twelveLeads!=null?M.summary.twelveLeads:'—'),
       'pacer '+(M.summary.pacerTime||0)+' s')+
     '</div>';
+  if(M.boundaryStats && (M.boundaryStats.waveSamples || M.boundaryStats.trends || M.boundaryStats.snapshots))
+    out.case+='<div class="note-inline">Patient boundary at '+fmtClock(M.t0Wall+(M.caseStartMs||0))+': '+
+      (M.boundaryStats.waveSamples||0).toLocaleString()+' pre-patient waveform samples and '+
+      (M.boundaryStats.trends||0)+' trend rows excluded; '+(M.boundaryStats.snapshots||0)+
+      ' snapshots withheld because they predate or may cross that boundary.</div>';
 
   out.channels='<table class="grid">'+
     '<tr><th>Channel</th><th>Rate</th><th>Bandwidth</th><th>Valid samples</th><th>Recorded</th>'+
@@ -11733,7 +11835,7 @@ const CFG_DEFAULT = {
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
   showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, ovDock:false, leadPickerOpen:true, ovH:200, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
   /* remembered between runs: the last setup of each view */
-  peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
+  peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor', monitorChoices:null
 };
 const CFG = Object.assign({}, CFG_DEFAULT);
 const CASE_INPUT_KEYS=['heightCm','weightKg','svK','assumedCvp','fio2'];
@@ -11828,6 +11930,7 @@ function applyEcgCal(v){
 }
 function applyCfgToSession(){
   syncEventPanel();
+  restoreMonitorChoices();
   HEMO.heightCm=CFG.heightCm; HEMO.weightKg=CFG.weightKg;
   HEMO.bsaFormula=CFG.bsaFormula||'dubois';
   HEMO.svK=CFG.svK; HEMO.assumedCvp=CFG.assumedCvp;
@@ -12087,6 +12190,9 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
+    'Rev 3: Monitor waveform choices persist across cases and reloads. Opening an event snapshot pauses playback, selects that acquisition, and returns to the previous view on resume. Selecting an event puts its start at the left edge of the strip (it scrolls normally once the playhead reaches its usual place). Leads recorded only during a 12-lead start hidden in every case.',
+    'Data handling: patient boundaries now trim waveform samples, trends, pacing, ventilations and CPR data. Captures that may cross the boundary are withheld; exports with multiple in-case New Patient markers are rejected. CPR report caches are refreshed.',
+    'SpO₂: invalid readings and recording gaps split desaturation events; durations exclude unobserved time and indicate when recovery was not observed. Rapid pause/resume no longer creates duplicate playback loops.',
     'Monitor: the waveform chooser starts open, so it is easy to find; if you close it, it stays closed. It now looks like the Physiology tab’s: a Waveforms heading and a coloured pill for each trace, with the 12-lead-only leads grouped. Fixed: when a case recorded lead I or III continuously as well as in a 12-lead, the continuous trace started hidden on the Monitor.']},
   {date:'2026-11-12', items:[
     'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview and the O key open it too; the CPR page’s separate Whole-case ECG button is gone.',
@@ -12220,8 +12326,39 @@ async function importSettings(file){
 }
 
 /* ---------------- transport ---------------- */
+/* The strip normally shows three quarters of its window before the playhead. Opening
+   an event pins the window's left edge to the event's start instead, so you see the
+   item from its beginning; the window then holds still until the playhead reaches its
+   usual place, and from there scrolls normally (no jump). Dragging, the wheel or any
+   other seek lets go of the pin. */
+function followWindow(win, key){
+  const a=APP[key];
+  if(a!=null){
+    if(APP.cursor>=a && APP.cursor-a<win*0.75) return {t0:a, t1:a+win};
+    APP[key]=null;
+  }
+  const t0=APP.cursor-win*0.75;
+  return {t0, t1:t0+win};
+}
+function releaseAnchors(){ APP.monitorAnchor=null; APP.cprAnchor=null; }
+function openEvent(t, snapshotIndex){
+  const snap=snapshotIndex!=null ? M.snapshots[snapshotIndex] : null;
+  if(snap){
+    if(APP.view!=='ecg') APP.returnView=APP.view;
+    setPlaying(false);
+    APP.snapshotIndex=snapshotIndex;
+    t=snap.start ?? snap.t;
+  }
+  t=clamp(t, M.caseStartMs||0, M.durMs);
+  seek(t,true);
+  APP.monitorAnchor=t; APP.cprAnchor=t; HV.anchor=t;
+  if(APP.view==='monitor') drawMonitor();
+  if(APP.view==='cpr') redrawCpr();
+  if(snap) setView('ecg');
+}
 function seek(t, quiet){
   APP.inspect = null;
+  if(!APP.playing) releaseAnchors();   /* playback keeps the pin until the playhead catches up */
   APP.cursor = clamp(t, 0, M.durMs);
   $('#clock').textContent = fmtClock(M.t0Wall+APP.cursor);
   $('#elapsed').textContent = '+'+fmtElMs(APP.cursor);
@@ -12240,22 +12377,27 @@ function seek(t, quiet){
 }
 function renderTrendsCursor(){ if(APP.view==='trends') renderTrends(); }
 function setPlaying(on){
+  if(on && APP.playing) return;
+  if(on && APP.view==='ecg' && APP.returnView){
+    const back=APP.returnView; APP.returnView=null; setView(back);
+  }
   APP.playing = on;
+  const epoch=APP.playEpoch=(APP.playEpoch||0)+1;
   if(on && APP.inspect) setInspect(null);
   $('#btnPlay').innerHTML = (on ? '❚❚' : '▶')+keyHint('Space');
   $('#btnPlay').classList.toggle('on', on);
-  if(on){ APP.lastFrame = performance.now(); requestAnimationFrame(tick); }
+  if(on){ APP.lastFrame = performance.now(); requestAnimationFrame(now=>tick(now,epoch)); }
   else if(APP.view==='hemo') refreshHemoValues(true);
 }
-function tick(now){
-  if(!APP.playing) return;
+function tick(now, epoch=APP.playEpoch){
+  if(!APP.playing || epoch!==APP.playEpoch) return;
   const dt = Math.min(250, now - APP.lastFrame);
   APP.lastFrame = now;
   const next = APP.cursor + dt*APP.speed;
   if(next >= M.durMs){ seek(M.durMs); setPlaying(false); return; }
   seek(next, true);
   if(Math.random()<0.15) selectEventNear(APP.cursor);
-  requestAnimationFrame(tick);
+  requestAnimationFrame(now=>tick(now,epoch));
 }
 /* paint a placeholder, let the browser show it, then do the expensive render */
 /* Physiology and Analysis take a second or two to build on a long case, and the work is
@@ -12286,6 +12428,7 @@ function deferRender(sel, fn, label){
 /* the CPR page follows the playhead, so it keeps the playback bar */
 const NO_TRANSPORT_VIEWS = new Set(['vitals','analysis','settings','formulas']);
 function setView(v){
+  if(v!=='ecg') APP.returnView=null;
   APP.view = v;
   if(CFG.lastView!==v){ CFG.lastView=v; cfgSave(); }
   $$('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
@@ -12489,8 +12632,7 @@ function wire(){
     const el=ev.target.closest('.ev'); if(!el) return;
     $$('.ev', $('#eventlist')).forEach(x=>x.classList.remove('sel'));
     el.classList.add('sel');
-    seek(+el.dataset.t, true);
-    if(el.dataset.snap!=null && M.snapshots[+el.dataset.snap]) setView('ecg');
+    openEvent(+el.dataset.t, el.dataset.snap==null ? null : +el.dataset.snap);
     if(window.matchMedia('(max-width: 900px)').matches) setEventPanelVisible(false);
   };
   $('#annDlg').addEventListener('close', ()=> annCommit($('#annDlg').returnValue));
@@ -13248,7 +13390,10 @@ async function openSample(x){
 }
 
 async function loadFile(file){
+  if(APP.loading){ toast('A case is already opening. Please wait.'); return; }
+  APP.loading=true;
   const from=LIB.opening; LIB.opening=null;   /* set by the library, if that is where this came from */
+  setPlaying(false);
   try{
     $('#drop').style.display='flex';
     prog(0.05,'Reading '+file.name+' ('+(file.size/1048576).toFixed(1)+' MB)…');
@@ -13283,10 +13428,13 @@ async function loadFile(file){
     M.metaKey=(from&&from.path)||M.fileName; metaSet(M.metaKey, {opened:Date.now()});
     $('#drop').style.display='none';
   }catch(err){
+    /* A rejected file may have partially populated the model. Never leave the
+       previous patient's controls available against that partial model. */
+    $('#app').classList.remove('live');
     console.error(err);
     prog(0, 'Error: '+(err&&err.message?err.message:err));
     $('#progtext').style.color='#ff9a9a';
-  }
+  }finally{ APP.loading=false; }
 }
 /* earliest moment any channel carries a real sample — the leading frames of a
    channel are often placeholder/sentinel values before the sensor is plugged in */
@@ -13383,7 +13531,9 @@ function startApp(){
   caseDetailsToggle(false);
   $('#app').classList.add('live');
   renderChips(); renderEvents();
-  APP.hidden=new Set(M.monitorExtra.map(monKey));
+  restoreMonitorChoices();
+  APP.snapshotIndex=null; APP.returnView=null;
+  APP.monitorAnchor=null; APP.cprAnchor=null; HV.anchor=null;
   { const bp=$('#btnPace');
     const inSnaps = M.snapshots.some(s=>s.traces.some(t=>t.pace && t.pace.length));
     if(bp){ bp.hidden=!M.pace.length && !inSnaps;

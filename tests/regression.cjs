@@ -1170,3 +1170,133 @@ test('sample cases: the built-in generator makes a readable, anonymous case, the
   /* treatments for the CPR timeline: logged ones only, not device actions */
   assert.deepEqual(r.treats, ['IV Access', 'Epinephrine', 'Amiodarone', 'Intubation', 'Other']);
 });
+
+test('monitor waveform choices survive absent channels, case changes and settings reloads', () => {
+  const nodes={'#monitorLeadList':{innerHTML:''}};
+  const inputs=[{dataset:{ch:'12-Lead I'},checked:false}, {dataset:{ch:'12:12-Lead I'},checked:true}];
+  const a=app({document:{querySelector:s=>nodes[s]||null,
+    querySelectorAll:s=>s==='#monitorLeadList input'?inputs:[]}});
+  a.run(`drawMonitor=()=>{}; M.channels={'12-Lead I':{name:'12-Lead I',kind:'ecg',nValid:1}};
+    M.monitorExtra=[{name:'12-Lead I',kind:'ecg',nValid:1,captureOnly:true,hz:1,segs:[{t0:0,n:1}]}];
+    restoreMonitorChoices(); renderMonitorChoices();`);
+  inputs[0].onchange(); inputs[1].onchange();
+  a.run(`M.channels={Other:{name:'Other',kind:'other',nValid:1}}; M.monitorExtra=[]; restoreMonitorChoices();`);
+  assert.equal(a.run('APP.hidden.size'),0,'new channels remain visible by default');
+  a.run(`CFG.monitorChoices=null; cfgLoad();
+    M.channels={'12-Lead I':{name:'12-Lead I',kind:'ecg',nValid:1}};
+    M.monitorExtra=[{name:'12-Lead I',captureOnly:true}]; restoreMonitorChoices();`);
+  assert.equal(a.run(`APP.hidden.has('12-Lead I')`),true);
+  /* a 12-lead-only lead is a one-off look at that acquisition: ticking it is not carried into the next case */
+  assert.equal(a.run(`APP.hidden.has('12:12-Lead I')`),true,'12-lead-only leads start hidden in each case');
+  assert.equal(a.run(`'12:12-Lead I' in (CFG.monitorChoices||{})`),false,'12-lead-only ticks are not saved');
+});
+
+test('SpO2 events and burden exclude recording gaps and report unobserved recovery', () => {
+  const a=app();
+  a.run('M.trends=[{t:0,spo2:85},{t:1000,spo2:85},{t:601000,spo2:97}]');
+  const r=JSON.parse(a.run('JSON.stringify(spo2Analysis())'));
+  assert.equal(r.totalMs,1000); assert.equal(r.unknownMs,600000);
+  assert.equal(r.burden[90],1000); assert.equal(r.events[0].durS,1);
+  assert.equal(r.events[0].censored,true); assert.equal(r.maxFall,null);
+});
+
+test('SpO2 invalid readings and skipped sampling intervals split low episodes', () => {
+  const a=app();
+  a.run(`M.trends=[{t:0,spo2:85},{t:30000,spo2:85},{t:60000,spo2:null},
+    {t:90000,spo2:84},{t:120000,spo2:97},{t:240000,spo2:83},{t:270000,spo2:96}];`);
+  const r=JSON.parse(a.run('JSON.stringify(spo2Analysis())'));
+  assert.equal(r.totalMs,90000); assert.equal(r.burden[90],90000);
+  assert.deepEqual(r.events.map(e=>[e.start,e.durS,e.censored]),
+    [[0,30,true],[90000,30,false],[240000,30,false]]);
+  assert.equal(r.gapMs,45000);
+});
+
+test('SpO2 analysis clips supported intervals to the window and never extrapolates', () => {
+  const a=app();
+  a.run(`M.trends=[{t:0,spo2:85},{t:30000,spo2:86},{t:60000,spo2:97}];`);
+  let r=JSON.parse(a.run('JSON.stringify(spo2Analysis({t0:15000,t1:45000}))'));
+  assert.equal(r.totalMs,30000); assert.equal(r.events[0].start,15000);
+  assert.equal(r.events[0].durS,30); assert.equal(r.events[0].censored,true);
+  r=JSON.parse(a.run('JSON.stringify(spo2Analysis({t0:45000,t1:120000}))'));
+  assert.equal(r.totalMs,15000); assert.equal(r.unknownMs,60000);
+  assert.equal(r.events[0].durS,15); assert.equal(r.events[0].censored,false);
+  a.run('M.trends=[{t:0,spo2:85}]');
+  assert.equal(a.run('spo2Analysis({t0:0,t1:60000}).totalMs'),0);
+});
+
+function boundaryRecords() {
+  const hdr=t=>({ElapsedTime:t});
+  const wave=t=>({StdHdr:hdr(t),Waveform:{WaveRec:{WaveType:3,WaveTypeVar:'12-Lead II',
+    SampleTime:1000000,UnpackedSamples:[100,200,300,400,500,600],SampleStatus:[2,0,0,0,2,0]}}});
+  return [{CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:60}},
+    {DataChannels:{DataChannel:[{ChanType:3,Scalar:10000,ScalarType:1}]}},
+    {AnnotationEvt:{StdHdr:hdr(10),'@EvtName':'New Patient'}},
+    {AnnotationEvt:{StdHdr:hdr(5),'@EvtName':'Self-test passed'}},
+    {AnnotationEvt:{StdHdr:hdr(5),'@EvtName':'Epinephrine',TreatmentSummary:1}},
+    {ContinWaveRec:wave(7)},
+    {TrendRpt:{StdHdr:hdr(9),Trend:{Hr:{Val:199}}}},
+    {TrendRpt:{StdHdr:hdr(12),Trend:{Hr:{Val:70},Nibp:{Time:'2020-01-01T00:00:05',
+      Sys:{Val:200},Dia:{Val:100},Map:{Val:140}}}}},
+    {SnapshotRpt:wave(9)}, {SnapshotRpt:wave(12)}, {SnapshotRpt:wave(30)},
+    {CPRRecord:{StdHdr:hdr(5),Compressions:[{Depth:2,Offset:0},{Depth:2,Offset:6000}]}},
+    {DefibTrace:{StdHdr:{DevDateTime:'2020-01-01T00:00:05'},CurrEnergy:100}},
+    {DefibTrace:{StdHdr:{DevDateTime:'2020-01-01T00:00:20'},CurrEnergy:120}}];
+}
+function modelFromRecords(a,recs,xml=null){
+  a.ctx.fixture=JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:recs}]}});
+  a.ctx.fixtureXml=xml; a.run(`buildModel(fixture,fixtureXml,'boundary.json')`);
+}
+test('patient boundaries trim samples, trends, snapshots, vents, pacing and CPR before analysis', () => {
+  const a=app();
+  modelFromRecords(a,boundaryRecords(),`<CaseReview><EtCO2Ventilations>
+    <Ventilation second="5" ms="0"/><Ventilation second="12" ms="0"/><Ventilation second="17" ms="0"/>
+    </EtCO2Ventilations><CprPeriods><CprPeriod Start="5" End="20"/></CprPeriods>
+    <CprPausePeriods><CprPausePeriod Start="2" End="6"/></CprPausePeriods></CaseReview>`);
+  assert.equal(a.run('M.caseStartMs'),10000);
+  assert.equal(a.run(`JSON.stringify(Array.from(M.channels['12-Lead II'].segs[0].data))`),'[4,5,6]');
+  assert.equal(a.run(`M.channels['12-Lead II'].segs[0].t0`),10000);
+  assert.equal(a.run(`M.channels['12-Lead II'].nValid`),3);
+  assert.equal(a.run('M.trends.length'),1); assert.equal(a.run('M.trends[0].nsys'),null);
+  assert.equal(a.run('M.snapshots.length'),1); assert.equal(a.run('M.snapshots[0].t'),30000);
+  assert.equal(a.run('M.events.find(e=>e.kind==="snapshot").snapIdx'),0);
+  assert.equal(a.run('M.boundaryStats.snapshots'),2);
+  assert.equal(a.run('JSON.stringify(M.vents)'),'[12000,17000]');
+  assert.equal(a.run('JSON.stringify(M.pace)'),'[11000]');
+  assert.equal(a.run('JSON.stringify(M.cpr.periods)'),'[{"t0":10000,"t1":20000}]');
+  assert.equal(a.run('M.cpr.pauses.length'),0);
+  assert.equal(a.run('JSON.stringify(M.cpr.comps.map(c=>c.t))'),'[11000]');
+  assert.equal(a.run('JSON.stringify(M.cpr.shocks.map(c=>c.t))'),'[20000]');
+  assert.equal(a.run('M.events.some(e=>e.t<10000)'),false);
+  assert.equal(a.run('M.deviceLog.some(e=>e.name==="Self-test passed")'),true);
+});
+
+test('multiple patient segments are rejected and boundary state resets on the next file', () => {
+  const a=app(), recs=boundaryRecords();
+  recs.push({AnnotationEvt:{StdHdr:{ElapsedTime:40},'@EvtName':'New Patient'}});
+  assert.throws(()=>modelFromRecords(a,recs),/multiple New Patient/);
+  modelFromRecords(a,[{CaseSummary:{StartTime:'2020-01-02T00:00:00',ElapsedTime:60}}]);
+  assert.equal(a.run('M.caseStartMs'),0); assert.equal(a.run('M.clockDriftMsPerMin'),0);
+});
+
+test('rapid pause and resume invalidates old animation callbacks', () => {
+  const h=physiologyPlayback(), a=h.a;
+  a.run('APP.cursor=15000; setPlaying(true); setPlaying(false); setPlaying(true)');
+  const old=h.frames.shift(), current=h.frames.shift();
+  old(2100); assert.equal(a.run('APP.cursor'),15000);
+  current(2100); assert.equal(a.run('APP.cursor'),15100);
+  a.run('setPlaying(true)'); assert.equal(h.frames.length,1,'only one playback loop is scheduled');
+});
+
+test('opening an event pins the strip at its start until the playhead reaches its usual place, then scrolls normally', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    APP.cursor=15000; APP.monitorAnchor=15000;
+    const pinned=followWindow(8000,'monitorAnchor').t0;          /* event at the left edge */
+    APP.cursor=19000; const holding=followWindow(8000,'monitorAnchor').t0;   /* still holding */
+    APP.cursor=21000; const released=followWindow(8000,'monitorAnchor');     /* reached 3/4: normal */
+    return JSON.stringify({pinned, holding, releasedT0:released.t0, anchorAfter:APP.monitorAnchor});
+  })()`));
+  assert.equal(r.pinned, 15000); assert.equal(r.holding, 15000);
+  assert.equal(r.releasedT0, 15000);      /* continuous: no jump at the hand-over */
+  assert.equal(r.anchorAfter, null);
+});

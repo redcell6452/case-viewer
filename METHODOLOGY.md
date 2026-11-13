@@ -6,6 +6,19 @@ validate the underlying detectors or turn derived values into diagnostic measure
 
 ## Corrected in this revision
 
+- **Patient-boundary filtering covered only event logs.** It now trims continuous samples
+  before analysis and filters trends, repeated earlier cuff measurements, ventilation and
+  pacing marks, snapshots, compression records and shocks. CPR/ROSC periods are clipped.
+  Captures with uncertain placement that may cross the boundary are withheld, and files
+  with multiple distinct in-case New Patient markers are rejected rather than combined.
+  Same-day self-tests remain in the device log. Cached CPR reports are invalidated.
+- **SpO₂ events could span gaps omitted from burden calculations.** Both now use the same
+  uninterrupted valid sampling intervals: invalid readings and gaps over 1.5 times the
+  median cadence (capped at 120 seconds) break continuity. Window edges clip supported
+  intervals; the last value is never extrapolated. Event durations, unobserved time and
+  unobserved recovery are explicit. Rates of change cannot bridge these gaps. The cadence
+  rule is an engineering continuity policy, not a validated physiological threshold.
+
 Found with the synthetic test cases (`tools/make-test-case.cjs`), whose answers are known:
 
 - **Fast-flush damping test missed every flush.** Invasive pressures are stored as identical
@@ -54,12 +67,14 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
 
 ## Important limitations that remain
 
-1. **Case boundaries are not consistently enforced on all data types.** The New Patient
-   pruning pass filters event logs, not waveform, trend or snapshot payloads. Whole-case
-   calculations that traverse all stored samples can therefore include pre-case signal
-   data if present. The README now describes the actual behavior. A verified export
-   containing multiple patient segments is needed to establish boundary semantics and
-   test trimming across every record type.
+1. **Boundary timing still needs independent verification.** Filtering is tested with
+   synthetic crossings. A verified multi-patient export is still needed to establish
+   marker semantics across firmware versions. Snapshot trigger offsets are incompletely
+   known: ambiguous boundary captures are withheld rather than treated as diagnostic
+   partial acquisitions. A 12-lead start remains matched or estimated as documented in
+   the parser. Multiple in-case patient segments are not supported. CaseSummary duration
+   is not used as a hard end boundary because the reference export continues logging
+   beyond it; records retain their original case-relative timestamps.
 
 2. **Detectors and pattern scores are unvalidated heuristics.** Arterial foot searches
    use a fixed 420 ms lookback; notch detection accepts the first rising sample after a
@@ -68,11 +83,11 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
    insufficient to establish sensitivity, specificity or timing accuracy. Quality scores
    and the AF pattern score are not calibrated probabilities.
 
-3. **Missing-data handling still differs between metrics.** SpO₂ events can span gaps
-   that the burden integral omits; valid samples separated by up to two minutes are
-   treated as if the preceding value persisted. Some beat integrals skip missing samples
-   without a coverage requirement. These estimates need explicit observation-duration
-   accounting, censoring rules and gap tests before interpreting durations or burdens.
+3. **Missing-data handling still differs between metrics.** SpO₂ events and burden now
+   share gap rules and report observation coverage, but still estimate intervals using
+   the preceding discrete reading. Changing sampling cadence can alter the continuity
+   cutoff. Some beat integrals skip missing samples without a coverage requirement;
+   they still need observation-duration accounting, censoring rules and gap tests.
 
 4. **Time alignment is unresolved.** The format documentation describes disagreeing
    subsystem counters and one-second wall timestamps. Sample resolution is not alignment
