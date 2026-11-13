@@ -239,6 +239,9 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between}
 .num .val{font:600 30px/1.05 var(--mono);letter-spacing:-1px}
 .num .val small{font-size:13px;font-weight:500;color:var(--dim)}
+.num .val:has(.bp-map){display:flex;flex-wrap:wrap;align-items:baseline;column-gap:.22em}
+.num .val .bp-dia{font-size:.74em}
+.num .val .bp-map{font-size:.8em;font-weight:700}
 .num .sub{font:11px var(--mono);color:var(--dim)}
 /* the configured limits, not an alarm: dim, so amber and red only mean something happened */
 .num .alarm-setting{font:11px/1.4 var(--mono);color:var(--dim);margin-top:3px}
@@ -3410,8 +3413,11 @@ function paramText(p, t){
   const a = paramAt(p,t);
   if(p.sub){
     if(a.sys==null && a.map==null) return {main:'--', sub:'', when:a.when};
-    return {main:(a.sys!=null?a.sys:'--')+'<small>/'+(a.dia!=null?a.dia:'--')+'</small>',
-            sub:(a.map!=null?('MAP '+a.map):''), when:a.when};
+    /* laid out the way the monitor shows a pressure: systolic/diastolic with the
+       mean beside it in parentheses, large enough to read at a glance */
+    return {main:'<span class="bp-sd">'+(a.sys!=null?a.sys:'--')+'<span class="bp-dia">/'+(a.dia!=null?a.dia:'--')+'</span></span>'+
+                 '<span class="bp-map" title="Mean arterial pressure">('+(a.map!=null?a.map:'--')+')</span>',
+            sub:'', when:a.when};
   }
   return {main: a.v==null?'--':a.v.toFixed(p.dec||0), sub:'', when:a.when};
 }
