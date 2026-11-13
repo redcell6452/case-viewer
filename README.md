@@ -95,13 +95,13 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. It stays open across tabs and follows the playhead during playback. |
+| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. From the keyboard, tab to the panel: ← → move 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End the ends; its top edge also takes focus, and ↑ ↓ resize it (Home resets). It stays open across tabs and follows the playhead during playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. Under each 12-lead, the viewer's own ST-J level in every lead (red at the usual elevation thresholds, amber at depression) and the P, QRS and T axes. |
 | **Vitals** | Every selected parameter as a table. Opens on the monitor's own NIBP auto cycle when the case records one (each row on that cycle's cuff reading, with P1–P3 alongside), otherwise at a chosen interval. Resizable columns, CSV export and a pop-out window. |
 | **Annotations** | Your sticky notes and annotated time ranges, with import/export. |
-| **CPR** | Resuscitation quality, coloured against the AHA targets (green in target, amber half, red out): a rate/depth quality graph that follows the playhead like the Monitor (window choice, drag or wheel to scroll), case metrics, a **summary** (pads-on, first-compression and first-shock times; compression fraction; depth and rate split too low / in target / too high; pauses by length and the longest; pre- and post-shock pauses), a **cascade** with one row per minute of CPR, and the stacked performance strips. Shocks are marked boldly on every view, and treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other and the rest) as purple markers, labelled on the quality graph. Waveform rows sit above the quality graph on the same time scale: the ECG from the pads (or the monitor's ECG lead) and CO₂ by default; add or remove ECG leads, the SpO₂ pleth, pressures and the rest with **Add waveform…**. The Monitor's parameter panel sits beside the graph, with the same **Parameters…** choice. Hover anywhere on the graph for what's under the pointer (the nearest compression's rate, depth and release, any pause, shock or ROSC, the last 10 s in target, ventilations and the perfusion estimate), and the parameter panel shows that moment. A live **dashboard** under the graph shows rate, depth and release velocity at the playhead, a pause timer, and a diamond showing a **perfusion proxy**: a model reconstructed from compression depth, rate, release and pauses that climbs toward the quality being delivered (time constant 5 s) and falls quickly when compressions stop (time constant 3.6 s, about a quarter left after 5 s). A shock doesn't reset it; the hands-off time around the shock is what lowers it. It is not a measured pressure, not coronary perfusion pressure, not a chance of ROSC and not the monitor's own indicator, and it is marked as adult-derived on child, infant and newborn cases. The constants and the studies they were scaled from are listed in the code beside the model. |
+| **CPR** | Resuscitation quality, coloured against the AHA targets (green in target, amber half, red out): a rate/depth quality graph that follows the playhead like the Monitor (window choice, drag or wheel to scroll), case metrics, a **summary** (pads-on, first-compression and first-shock times; compression fraction; depth and rate split too low / in target / too high; pauses by length and the longest; pre- and post-shock pauses), a **cascade** with one row per minute of CPR, and the stacked performance strips. Shocks are marked boldly on every view, and treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other and the rest) as purple markers, labelled on the quality graph. Waveform rows sit above the quality graph on the same time scale: the ECG from the pads (or the monitor's ECG lead) and CO₂ by default; add or remove ECG leads, the SpO₂ pleth, pressures and the rest with **Add waveform…**. The Monitor's parameter panel sits beside the graph, with the same **Parameters…** choice. Hover anywhere on the graph for what's under the pointer (the nearest compression's rate, depth and release, any pause, shock or ROSC, the last 10 s in target, ventilations and the perfusion estimate), and the parameter panel shows that moment. A live **dashboard** under the graph shows rate, depth and release velocity at the playhead, a pause timer, and a diamond showing a **perfusion proxy**: a model reconstructed from compression depth, rate, release and pauses that climbs toward the quality being delivered (time constant 5 s) and falls quickly when compressions stop (time constant 3.6 s, about a quarter left after 5 s). A shock doesn't reset it; the hands-off time around the shock is what lowers it. It is not a measured pressure, not coronary perfusion pressure, not a chance of ROSC and not the monitor's own indicator, and it is marked as adult-derived on child, infant and newborn cases. The constants and the four studies they were scaled from (Mader 2009, Berg 2001, Yin 2024, Yannopoulos 2005; listed under Sources) are set out in the code beside the model. |
 | **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. **Case features** lists the vitals and waveforms recorded, CPR, shocks advised and delivered, 12-leads, pacing, ROSC, and which parameters alarmed high or low. |
 | **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. **CPR targets** default to the 2025 AHA guidelines (ACLS, PALS, NRP), with the age group taken from the monitor's mode and the patient's age; depth in inches or cm. |
 | **Formulas** | Every measure the viewer calculates or explains, searchable and with an A–Z index (abbreviations included): what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
@@ -575,16 +575,20 @@ windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, ch
 and synthetic integration regressions.
 Synthetic success verifies these scenarios, not accuracy on real clinical recordings.
 
-Optional browser checks: `node tests/browser.cjs` with `playwright-core` installed, or
-`PLAYWRIGHT_MODULE` set to an existing module path. Set `BROWSER_EXECUTABLE` to an installed
-Chromium executable if needed. These checks use generated, anonymous fixtures and test
-saved waveform choices, exact snapshot selection, pause/resume, event positioning,
-desktop and narrow-screen interaction, and recovery after a rejected import. They close
-their isolated browser on completion. Set `BROWSER_SCREENSHOT` to save the mobile result.
+Browser checks: `node tests/browser.cjs`. Nothing needs installing: it drives an installed
+Edge or Chrome headless over the DevTools protocol with Node's built-in WebSocket (Node 22
+or later); set `BROWSER_EXECUTABLE` to choose the browser. It uses a throwaway profile on a
+port the system picks, and closes the browser and deletes the profile when done. The checks
+use generated, anonymous data and real mouse and keyboard input: opening the child sample
+from the start page (child CPR targets and the adult-derived warning), saved waveform
+choices across cases and reloads, exact snapshot selection, pause on a 12-lead and resume to
+the previous view, event positioning on Monitor and Physiology, the whole-case ECG panel
+(drag to scrub, keyboard stepping, keyboard resize), a narrow screen, and recovery after a
+rejected import. Set `BROWSER_SCREENSHOT=path.png` to save the desktop and narrow results.
 
 ## Synthetic test cases
 
-These are the same two cases the start page offers as samples: the generator is
+These are the same three cases the start page offers as samples: the generator is
 `synthCase()` inside `case-viewer.html`, and the command-line tool runs that code.
 
 `node tools/make-test-case.cjs` writes `test-cases/synthetic-cardiac.zol`, a made-up
@@ -597,6 +601,15 @@ logged during the arrest (IV access, epinephrine, amiodarone, intubation, other)
 arterial, **PA** and CVP, with two temperatures. `--neuro` writes `synthetic-neuro.zol`
 instead: arterial, CVP and ICP lines (CPP, and PRx that is negative before the arrest and
 positive after ROSC) and an ECG recorded at diagnostic bandwidth so PR and QT are measured.
+`--child` writes `synthetic-child.zol`: the cardiac story in a 7-year-old, with the monitor in
+Pediatric mode, child heart rates, pressures and alarm limits, a 100 J shock, breathing at
+20/min and compressions to the child depth, so the CPR page uses the Child (PALS) targets and
+shows the perfusion proxy's adult-derived warning.
+
+`--new-patient-at <seconds>` (with any of the above, plus `--out`) logs the New Patient marker
+at that time instead of at the start, so everything before it belongs to an earlier patient
+and must be excluded: waveforms, trend rows, alarms, events and snapshots. The regression
+tests use this to check the patient boundary on a whole case.
 
 Each case comes with `<name>.expected.md`, a timeline of what happens and what the viewer
 should find. The output is seeded, so it is the same on every run.
@@ -639,6 +652,10 @@ Published sources behind the methods, formulas and thresholds the viewer uses. T
 - Rice TW et al. Comparison of the SpO2/FIO2 ratio and the PaO2/FIO2 ratio in patients with acute lung injury or ARDS. Chest 2007;132(2):410-7. [10.1378/chest.07-0617](https://doi.org/10.1378/chest.07-0617) (used for S/F ratio)
 - Panchal AR et al. Part 3: Adult basic and advanced life support: 2020 American Heart Association guidelines for CPR and ECC. Circulation 2020;142(16 suppl 2):S366-S468. [10.1161/CIR.0000000000000916](https://doi.org/10.1161/CIR.0000000000000916) (used for CPR rate and depth targets)
 - Kovacs A et al. Chest compression release velocity: association with survival and favorable neurologic outcome after out-of-hospital cardiac arrest. Resuscitation 2015;92:107-14. [10.1016/j.resuscitation.2015.04.026](https://doi.org/10.1016/j.resuscitation.2015.04.026) (used for release velocity target)
+- Mader TJ et al. The effect of the preshock pause on coronary perfusion pressure decay and rescue shock outcome in porcine ventricular fibrillation. Prehosp Emerg Care 2009;13(4):487-94. [10.1080/10903120903144916](https://doi.org/10.1080/10903120903144916) (used for the perfusion proxy's fall in a pause (CPP 23.4 to 7.6 mmHg over a median 4.1 s; time constant 3.6 s))
+- Berg RA et al. Adverse hemodynamic effects of interrupting chest compressions for rescue breathing during cardiopulmonary resuscitation for ventricular fibrillation cardiac arrest. Circulation 2001;104(20):2465-70. [10.1161/hc4501.098926](https://doi.org/10.1161/hc4501.098926) (used for the perfusion proxy's build-up (CPP rebuilding over a compression cycle; upper bound of the 5 s time constant))
+- Yin RT et al. Recovery of arterial blood pressure after chest compression pauses in patients with out-of-hospital cardiac arrest. Resuscitation 2024;201:110311. [10.1016/j.resuscitation.2024.110311](https://doi.org/10.1016/j.resuscitation.2024.110311) (used for the perfusion proxy's build-up (arterial pressure back above 90% within 2 compressions; lower bound of the 5 s time constant))
+- Yannopoulos D et al. Effects of incomplete chest wall decompression during cardiopulmonary resuscitation on coronary and cerebral perfusion pressures in a porcine model of cardiac arrest. Resuscitation 2005;64(3):363-72. [10.1016/j.resuscitation.2004.10.009](https://doi.org/10.1016/j.resuscitation.2004.10.009) (used for the perfusion proxy's release factor (CPP 23.3 to 15.1 mmHg with 75% recoil))
 
 ## License
 

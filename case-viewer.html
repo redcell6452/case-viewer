@@ -715,7 +715,9 @@ dialog::backdrop{background:#000a}
 .ovdock[hidden]{display:none}
 .ovgrip{height:8px;cursor:ns-resize;touch-action:none;position:relative}
 .ovgrip::after{content:"";position:absolute;left:50%;top:2px;transform:translateX(-50%);width:46px;height:3px;border-radius:2px;background:var(--line2)}
-.ovgrip:hover::after,.ovgrip.drag::after{background:var(--accent)}
+.ovgrip:hover::after,.ovgrip.drag::after,.ovgrip:focus-visible::after{background:var(--accent)}
+.ovgrip:focus-visible{outline:none}
+#ovCanvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ovdockhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 12px 4px}
 .ovdockhead .ovlegend{flex:1;padding:0}
 .ovbody{position:relative;overflow:auto;height:min(var(--ovH,200px),40vh);flex:0 0 auto;padding:0 10px 6px}
@@ -972,13 +974,16 @@ dialog input[type=text]{width:100%}
         <button type="button" id="ovTab" class="ovtab" aria-expanded="false" aria-controls="ovDock"
           title="The whole case's ECG in rows: click or drag on it to move the playhead (O)">▲ Whole-case ECG<span class="keyhint" aria-hidden="true">(O)</span></button>
         <section id="ovDock" class="ovdock" hidden aria-label="Whole-case ECG">
-          <div id="ovGrip" class="ovgrip" role="separator" aria-orientation="horizontal" title="Drag to resize · double-click to reset"></div>
+          <div id="ovGrip" class="ovgrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize the whole-case ECG panel"
+            aria-valuemin="90" aria-valuemax="700" aria-valuenow="200" title="Drag to resize · double-click to reset (or focus it and use the arrow keys; Home resets)"></div>
           <div class="ovdockhead">
             <div class="ovlegend" id="ovLegend"></div>
             <label class="ovrow">Row <select id="ovRow"><option value="60000">1 min</option><option value="120000">2 min</option><option value="300000">5 min</option></select></label>
           </div>
           <div class="ovbody" id="ovBody">
-            <canvas id="ovCanvas"></canvas>
+            <canvas id="ovCanvas" tabindex="0" role="slider" aria-label="Playhead in the whole case"
+              aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-keyshortcuts="ArrowUp ArrowDown PageUp PageDown"
+              title="Click or drag to move the playhead. Keyboard: ← → 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End"></canvas>
             <div id="ovCursor" class="ovcursor"></div>
             <div id="ovTip" class="ovtip" hidden></div>
           </div>
@@ -1023,7 +1028,7 @@ dialog input[type=text]{width:100%}
             <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
           </fieldset>
           <div class="grp adv">
-            <button id="btnOverview" type="button" aria-haspopup="dialog" title="Show or hide the whole case's ECG above the playback bar, with CPR, pauses, shocks and alarms; click or drag on it to move the playhead (O)">Overview</button>
+            <button id="btnOverview" type="button" aria-controls="ovDock" aria-expanded="false" title="Show or hide the whole case's ECG above the playback bar, with CPR, pauses, shocks and alarms; click or drag on it to move the playhead (O)">Overview</button>
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -3116,7 +3121,11 @@ const SOURCES = {
   cppBtf:{cite:'Carney N et al. Guidelines for the management of severe traumatic brain injury, fourth edition. Neurosurgery 2017;80(1):6-15.', url:'https://doi.org/10.1227/NEU.0000000000001432', use:'CPP'},
   sfRatio:{cite:'Rice TW et al. Comparison of the SpO2/FIO2 ratio and the PaO2/FIO2 ratio in patients with acute lung injury or ARDS. Chest 2007;132(2):410-7.', url:'https://doi.org/10.1378/chest.07-0617', use:'S/F ratio'},
   cprAha:{cite:'Panchal AR et al. Part 3: Adult basic and advanced life support: 2020 American Heart Association guidelines for CPR and ECC. Circulation 2020;142(16 suppl 2):S366-S468.', url:'https://doi.org/10.1161/CIR.0000000000000916', use:'CPR rate and depth targets'},
-  cprRelease:{cite:'Kovacs A et al. Chest compression release velocity: association with survival and favorable neurologic outcome after out-of-hospital cardiac arrest. Resuscitation 2015;92:107-14.', url:'https://doi.org/10.1016/j.resuscitation.2015.04.026', use:'release velocity target'}
+  cprRelease:{cite:'Kovacs A et al. Chest compression release velocity: association with survival and favorable neurologic outcome after out-of-hospital cardiac arrest. Resuscitation 2015;92:107-14.', url:'https://doi.org/10.1016/j.resuscitation.2015.04.026', use:'release velocity target'},
+  perfDecay:{cite:'Mader TJ et al. The effect of the preshock pause on coronary perfusion pressure decay and rescue shock outcome in porcine ventricular fibrillation. Prehosp Emerg Care 2009;13(4):487-94.', url:'https://doi.org/10.1080/10903120903144916', use:'the perfusion proxy’s fall in a pause (CPP 23.4 to 7.6 mmHg over a median 4.1 s; time constant 3.6 s)'},
+  perfRebuild:{cite:'Berg RA et al. Adverse hemodynamic effects of interrupting chest compressions for rescue breathing during cardiopulmonary resuscitation for ventricular fibrillation cardiac arrest. Circulation 2001;104(20):2465-70.', url:'https://doi.org/10.1161/hc4501.098926', use:'the perfusion proxy’s build-up (CPP rebuilding over a compression cycle; upper bound of the 5 s time constant)'},
+  perfRecovery:{cite:'Yin RT et al. Recovery of arterial blood pressure after chest compression pauses in patients with out-of-hospital cardiac arrest. Resuscitation 2024;201:110311.', url:'https://doi.org/10.1016/j.resuscitation.2024.110311', use:'the perfusion proxy’s build-up (arterial pressure back above 90% within 2 compressions; lower bound of the 5 s time constant)'},
+  perfRecoil:{cite:'Yannopoulos D et al. Effects of incomplete chest wall decompression during cardiopulmonary resuscitation on coronary and cerebral perfusion pressures in a porcine model of cardiac arrest. Resuscitation 2005;64(3):363-72.', url:'https://doi.org/10.1016/j.resuscitation.2004.10.009', use:'the perfusion proxy’s release factor (CPP 23.3 to 15.1 mmHg with 75% recoil)'}
 };
 /* linked citations for one or more source keys */
 function sourcesHtml(keys){
@@ -9958,6 +9967,9 @@ function updateOvCursor(){
   const row=Math.min(k.rows-1, Math.floor(APP.cursor/k.rowMs)), frac=(APP.cursor-row*k.rowMs)/k.rowMs;
   const top=cv.offsetTop + k.T + row*(k.RH+k.GAP) - 2, left=cv.offsetLeft + k.L + frac*k.plotW;
   cur.style.top=top+'px'; cur.style.left=left+'px'; cur.style.height=(k.RH+4)+'px';
+  cv.setAttribute('aria-valuemax', String(Math.round(M.durMs/1000)));
+  cv.setAttribute('aria-valuenow', String(Math.round(APP.cursor/1000)));
+  cv.setAttribute('aria-valuetext', fmtClock(M.t0Wall+APP.cursor)+', '+fmtEl(APP.cursor)+' into the case');
   if(!OV.dragging){
     const body=$('#ovBody'), vis0=body.scrollTop, vis1=vis0+body.clientHeight;
     if(top<vis0 || top+k.RH>vis1) body.scrollTop=Math.max(0, top-Math.round(body.clientHeight/3));
@@ -9968,10 +9980,11 @@ function setOvDock(open){
   const dock=$('#ovDock'), tab=$('#ovTab'); if(!dock) return;
   if(open && !M.durMs) return;
   dock.hidden=!open; tab.setAttribute('aria-expanded', String(!!open));
+  const ob=$('#btnOverview'); if(ob) ob.setAttribute('aria-expanded', String(!!open));
   tab.firstChild.textContent=(open?'▼':'▲')+' Whole-case ECG';
   if(CFG.ovDock!==!!open){ CFG.ovDock=!!open; cfgSave(); }
   if(open){ ovLegendFill(); $('#ovRow').value=String(CFG.ovRow||120000);
-    $('#ovBody').style.setProperty('--ovH', (CFG.ovH||200)+'px');
+    $('#ovBody').style.setProperty('--ovH', (CFG.ovH||200)+'px'); $('#ovGrip').setAttribute('aria-valuenow', String(CFG.ovH||200));
     $('#ovCanvas')._key=null; drawOverview(); updateOvCursor(); }
   if(APP.view==='monitor') requestAnimationFrame(()=>drawMonitor());
 }
@@ -10051,13 +10064,19 @@ function cprHoverHtml(t){
               is not recoil fraction)
 
    Constants and where their scale comes from (engineering choices, not physiological
-   constants; a literature review, sources not all individually checked here):
+   constants; each figure below checked against the paper's abstract, 2026-11-13; listed in
+   SOURCES as perfDecay, perfRebuild, perfRecovery and perfRecoil):
      TD 3.6 s   exponential fit to swine CPP 23.4 -> 7.6 mmHg over a median 4.1 s
                 pre-shock pause (Mader 2009, doi 10.1080/10903120903144916)
-     TB 5 s     between human arterial pressure recovering in ~2 compressions after a
-                pause (Yin 2024, doi 10.1016/j.resuscitation.2024.110311) and swine CPP
-                rebuilding over a 15-compression cycle (Berg 2001, doi 10.1161/HC4501.098926)
-     recoil     Yannopoulos 2005, doi 10.1016/j.resuscitation.2004.10.009
+     TB 5 s     between human arterial pressure back above 90% within 2 compressions
+                (1.7 s) after a pause, with mechanical CPR (Yin 2024, doi
+                10.1016/j.resuscitation.2024.110311), and swine CPP rebuilding over a
+                15-compression cycle, 14 mmHg in its first two compressions to 21 in its
+                last two (Berg 2001, doi 10.1161/HC4501.098926)
+     recoil     CPP 23.3 mmHg with full recoil, 15.1 with 75% (Yannopoulos 2005, doi
+                10.1016/j.resuscitation.2004.10.009)
+   Mader 2009 also found the rescue shock's outcome was not worse after a longer pause;
+   the model treats a pause as lost perfusion only, not as a prediction of the shock.
    The model is adult-derived; child, infant and newborn cases are flagged.          */
 const CPR_PERF = {TB:5000, TD:3600, HYST:500};
 function cprCompScore(c){
@@ -10384,7 +10403,8 @@ function renderCprPane(){
         :'read from the per-compression records')+
       ' — measurement, not a scored interpretation. Colours compare each value with the AHA adult targets.</div>'+
     '<div class="note-inline srclist">Targets from: '+sourcesHtml(['cprAha','cprRelease'])+
-      '. EtCO₂ during CPR: '+sourcesHtml('capnoCpr')+'.</div>';
+      '. EtCO₂ during CPR: '+sourcesHtml('capnoCpr')+
+      '. The perfusion proxy’s time constants and release factor are scaled from: '+sourcesHtml(['perfDecay','perfRebuild','perfRecovery','perfRecoil'])+'.</div>';
 
   function strip(title, target, right, kind, hpx){
     return '<div style="margin-bottom:12px">'+
@@ -12190,6 +12210,9 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
+    'Start page: a third sample case, a child cardiac arrest: the monitor in Pediatric mode, child heart rates, pressures and alarm limits, so the CPR page uses the Child (PALS) targets and shows the perfusion proxy’s adult-derived warning. Fixed: the samples’ answer sheets gave the first NIBP mean as 96; the reading is 97.',
+    'Whole-case ECG: works from the keyboard. Tab to the panel and use ← → (1 s, Shift 10 s), ↑ ↓ for a row, Page Up / Page Down for five rows, Home / End; its top edge takes focus too, and ↑ ↓ resize it (Home resets). Screen readers hear the playhead time.',
+    'Sources: the four studies the perfusion proxy’s time constants and release factor are scaled from (Mader 2009, Berg 2001, Yin 2024, Yannopoulos 2005) are now checked and listed under Settings › Sources and on the CPR page.',
     'Rev 3: Monitor waveform choices persist across cases and reloads. Opening an event snapshot pauses playback, selects that acquisition, and returns to the previous view on resume. Selecting an event puts its start at the left edge of the strip (it scrolls normally once the playhead reaches its usual place). Leads recorded only during a 12-lead start hidden in every case.',
     'Data handling: patient boundaries now trim waveform samples, trends, pacing, ventilations and CPR data. Captures that may cross the boundary are withheld; exports with multiple in-case New Patient markers are rejected. CPR report caches are refreshed.',
     'SpO₂: invalid readings and recording gaps split desaturation events; durations exclude unobserved time and indicate when recovery was not observed. Rapid pause/resume no longer creates duplicate playback loops.',
@@ -12590,6 +12613,16 @@ function wire(){
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', ()=>{ OV.dragging=false; tip.hidden=true; });
     cv.addEventListener('pointerleave', ()=>{ if(!OV.dragging) tip.hidden=true; });
+    /* keyboard: left/right (1 s, Shift 10 s) and Home/End are the app-wide keys; on the
+       panel, up/down move a row and Page Up/Down five rows, as the panel is laid out */
+    cv.addEventListener('keydown', ev=>{
+      const rowMs=(cv._ov && cv._ov.rowMs) || CFG.ovRow || 120000;
+      const step={ArrowUp:-rowMs, ArrowDown:rowMs, PageUp:-5*rowMs, PageDown:5*rowMs}[ev.key];
+      if(step==null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      if(APP.playing) setPlaying(false);
+      seek(clamp(APP.cursor+step, 0, M.durMs));
+    });
     /* the top edge resizes the panel */
     const grip=$('#ovGrip'); let y0=0, h0=0, on=false;
     grip.addEventListener('pointerdown', ev=>{ ev.preventDefault(); grip.setPointerCapture(ev.pointerId); on=true; grip.classList.add('drag');
@@ -12600,7 +12633,16 @@ function wire(){
       if(APP.view==='monitor') drawMonitor(); });
     const stop=()=>{ if(!on) return; on=false; grip.classList.remove('drag'); cfgSave(); updateOvCursor(); };
     grip.addEventListener('pointerup', stop); grip.addEventListener('pointercancel', stop);
-    grip.addEventListener('dblclick', ()=>{ CFG.ovH=200; cfgSave(); $('#ovBody').style.setProperty('--ovH','200px'); if(APP.view==='monitor') drawMonitor(); });
+    const setH=hh=>{ CFG.ovH=hh; $('#ovBody').style.setProperty('--ovH', hh+'px'); grip.setAttribute('aria-valuenow', String(hh));
+      if(APP.view==='monitor') drawMonitor(); };
+    grip.addEventListener('dblclick', ()=>{ setH(200); cfgSave(); });
+    grip.addEventListener('keydown', ev=>{
+      const cur=CFG.ovH||200, max=Math.round(Math.max(140, innerHeight*0.7));
+      const next={ArrowUp:cur+20, ArrowDown:cur-20, PageUp:cur+80, PageDown:cur-80, Home:200}[ev.key];
+      if(next==null) return;
+      ev.preventDefault(); ev.stopPropagation();
+      setH(Math.round(clamp(next, 90, max))); cfgSave(); updateOvCursor();
+    });
     if(typeof ResizeObserver!=='undefined'){ let raf=0;
       new ResizeObserver(()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; if(!$('#ovDock').hidden) drawOverview(); }); }).observe($('#ovBody')); }
   }
@@ -12723,16 +12765,32 @@ function wire(){
    Builds a fully synthetic .zol in memory: an invented patient, device and agency, and
    physiology modelled so every algorithm here has a known answer to find. Deterministic
    (seeded). The Open page's sample cases come from this, and tools/make-test-case.cjs
-   runs this same code to write the files and their answer sheets. */
-function synthCase(NEURO, fileName){
+   runs this same code to write the files and their answer sheets.
+   opts.child: the cardiac story in a 7-year-old (Pediatric mode, child rates, pressures,
+     alarm limits and compression depth).
+   opts.newPatientAt: seconds; the New Patient marker is logged there instead of at the
+     start, so everything before it belongs to an earlier patient and must be excluded. */
+function synthCase(NEURO, fileName, opts){
   'use strict';
-  fileName = fileName || (NEURO ? 'synthetic-neuro.zol' : 'synthetic-cardiac.zol');
+  opts = opts || {};
+  const CHILD = !!opts.child && !NEURO;
+  const NP_AT = opts.newPatientAt > 0 ? Math.floor(opts.newPatientAt) : 0;
+  fileName = fileName || (NEURO ? 'synthetic-neuro.zol' : CHILD ? 'synthetic-child.zol' : 'synthetic-cardiac.zol');
 /* ---------------- deterministic randomness ---------------- */
-let seed = NEURO ? 77031 : 20260314;
+let seed = NEURO ? 77031 : CHILD ? 31415926 : 20260314;
 const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
 const gauss = () => { const u = Math.max(1e-12, rnd()), v = rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
 const hex = n => Array.from({length:n}, () => '0123456789abcdef'[Math.floor(rnd()*16)]).join('');
 const G = (x, mu, sd) => Math.exp(-0.5*((x-mu)/sd)**2);
+
+/* ---------------- adult or child ----------------
+   The child is the same story at child rates: heart rates x1.35, pressures x0.8,
+   breathing 20/min, pacing at 100, compressions to the child depth, and the monitor's
+   pediatric alarm limits. Multiplying by 1 leaves the adult case exactly as it was. */
+const HRK = CHILD ? 1.35 : 1, PK = CHILD ? 0.8 : 1;
+const PACE = CHILD ? 100 : 70, JOULES = CHILD ? 100 : 200;   /* child: about 4 J/kg */
+const LIM = CHILD ? {hrLo: 70, hrHi: 170, artLo: 70, artHi: 140, nibpLo: 70, nibpHi: 140}
+                  : {hrLo: 50, hrHi: 140, artLo: 90, artHi: 180, nibpLo: 90, nibpHi: 160};
 
 /* ---------------- case clock ---------------- */
 const DUR = 1800;                                   /* seconds */
@@ -12774,9 +12832,9 @@ const breaths = [];   /* inspiration onsets */
     const ph = phase(t);
     if (t >= T.apnea0 && t < T.apnea1) { t = T.apnea1; continue; }
     breaths.push(t);
-    const rr = ph === 'vf' || ph === 'pea' ? 6.0               /* 10/min during CPR */
-      : t >= T.rosc ? 5.0                                       /* ventilated 12/min */
-      : 60/14 * (1 + 0.06*gauss());                             /* spontaneous ~14/min */
+    const rr = ph === 'vf' || ph === 'pea' ? (CHILD ? 3.0 : 6.0)   /* 10/min during CPR (child 20) */
+      : t >= T.rosc ? (CHILD ? 3.0 : 5.0)                         /* ventilated 12/min (child 20) */
+      : 60/(CHILD ? 20 : 14) * (1 + 0.06*gauss());                /* spontaneous ~14/min (child 20) */
     t += rr;
   }
 }
@@ -12804,7 +12862,7 @@ const comps = [];
     if (t >= T.cprPause0 && t < T.cprPause1) { t = T.cprPause1; continue; }
     const late = (t - T.cprStart) / (T.cprEnd - T.cprStart);
     const rate = 112 + 8*gauss() + (t > 1200 ? 14 : 0);       /* drifts fast late on */
-    const depth = 2.2 - 0.45*Math.max(0, late - 0.6) + 0.08*gauss(); /* inches; fatigue */
+    const depth = (CHILD ? 2.0 : 2.2) - 0.45*Math.max(0, late - 0.6) + 0.08*gauss(); /* inches; fatigue */
     comps.push({t, depth: +depth.toFixed(2), relVel: Math.round(410 - 90*Math.max(0, late-0.5) + 25*gauss())});
     t += 60/rate;
   }
@@ -12820,23 +12878,23 @@ const beats = [];
     if (t >= T.afEnd && t < T.leadGapEnd) { /* rhythm continues; only recording stops */ }
     let rr, type = 'sinus', pr = 0.16, qrs = 0.09, qt = 0.38, weak = false;
     const resp = Math.sin(2*Math.PI*breathPhase(t).p);
-    if (ph === 'sinus') { rr = 60/78 * (1 - 0.045*resp) * (1 + 0.012*gauss()); }
+    if (ph === 'sinus') { rr = 60/78/HRK * (1 - 0.045*resp) * (1 + 0.012*gauss()); }
     else if (ph === 'af') {
-      type = 'af'; rr = 0.33 + 0.42*rnd(); qt = 0.33;
+      type = 'af'; rr = (0.33 + 0.42*rnd())/HRK; qt = 0.33;
       if (t > 455 && t < 490) rr *= 0.82;                     /* fast run: high-rate alarm */
-      weak = rr < 0.42;                                       /* short cycles barely eject */
+      weak = rr*HRK < 0.42;                                   /* short cycles barely eject */
     }
-    else if (ph === 'brady') { rr = 60/48 * (1 + 0.02*gauss()); qt = 0.44;
+    else if (ph === 'brady') { rr = 60/48/HRK * (1 + 0.02*gauss()); qt = 0.44;
       if (Math.abs(t - T.pause) < 0.7) rr = 3.2; }
-    else if (ph === 'paced') { type = 'paced'; rr = 60/70; qt = 0.42; }
-    else if (ph === 'pea') { rr = 60/100 * (1 + 0.01*gauss()); qt = 0.34; }
+    else if (ph === 'paced') { type = 'paced'; rr = 60/PACE; qt = 0.42; }
+    else if (ph === 'pea') { rr = 60/100/HRK * (1 + 0.01*gauss()); qt = 0.34; }
     else {                                                    /* after ROSC */
-      const hr = 108 - 16*(t - T.rosc)/(DUR - T.rosc);
+      const hr = (108 - 16*(t - T.rosc)/(DUR - T.rosc))*HRK;
       rr = 60/hr * (1 - 0.02*resp) * (1 + 0.01*gauss()); qt = 0.36;
       if (t > T.pvc0 && t < T.pvc1 && n % 14 === 13) { type = 'pvc'; rr *= 0.7; }
     }
     beats.push({t, type, pr, qrs, qt, weak, rr, ph});
-    if (type === 'pvc') { t += rr; t += 60/100*1.3; n++; continue; } /* compensatory pause */
+    if (type === 'pvc') { t += rr; t += 60/100/HRK*1.3; n++; continue; } /* compensatory pause */
     t += rr; n++;
   }
 }
@@ -12900,7 +12958,8 @@ const art = new Float32Array(N), pa = new Float32Array(N), cvp = new Float32Arra
 /* slow vasomotor waves (~1/min). Before the arrest ICP moves against them (intact
    autoregulation, PRx negative); after ROSC it follows them (impaired, PRx positive) */
 const slowWave = t => 6*Math.sin(2*Math.PI*t/55);
-const pressureTarget = (t, b) => {      /* systolic, diastolic for a beat at time t */
+const pressureTarget = (t, b) => { const [s, d] = pressureAdult(t, b); return [s*PK, d*PK]; };
+const pressureAdult = (t, b) => {       /* systolic, diastolic for a beat at time t */
   const ph = phase(t), sw = slowWave(t);
   if (ph === 'sinus') return [128 + sw, 74 + sw*0.6];
   if (ph === 'af') return b && b.weak ? [92, 70] : [118, 72];
@@ -13023,7 +13082,8 @@ const tempAt = (k, t) => {
 /* NIBP readings: auto every 5 min, then 10 min after ROSC; one fails during CPR */
 const nibp = [];
 {
-  const read = (t, s, d, manual) => nibp.push({t, s, d, m: Math.round((s + 2*d)/3), manual});
+  const read = (t, s, d, manual) => { s = Math.round(s*PK); d = Math.round(d*PK);
+    nibp.push({t, s, d, m: Math.round((s + 2*d)/3), manual}); };
   read(30, 134, 78); read(300, 131, 76); read(600, 116, 71); read(900, 108, 64);
   read(1270, 86, 52, true);   /* manual after ROSC: low */
   read(1500, 102, 61); read(1800 - 2, 128, 74);
@@ -13037,12 +13097,16 @@ const val = (v, units, unitsVal, extra) => v == null
   ? {TrendData: {Alarm: 0, DataStatus: 1, Val: {'#text': -21846, '@Units': units, '@UnitsVal': unitsVal}, DataState: 'invalid'}, ...extra}
   : {TrendData: {Alarm: 0, DataStatus: 0, Val: {'#text': Math.round(v), '@Units': units, '@UnitsVal': unitsVal}, DataState: 'valid'}, ...extra};
 
-const caseId = NEURO ? 'SIM-NEURO-0001' : 'SIM-CARDIAC-0001';
+const caseId = NEURO ? 'SIM-NEURO-0001' : CHILD ? 'SIM-CHILD-0001' : 'SIM-CARDIAC-0001';
 const uniq = hex(32);
 const SERIAL = 'SIM00000001';
-const patient = {Weight: {'#text': 180, '@Units': 'lb'}, FirstName: 'Synthetic', MiddleName: '', LastName: 'Testcase',
-  Age: 58, PatientId: 'SIM-000001', RoomNo: '', Height: {'#text': 70, '@Units': 'in'}, PatMode: 0, Gender: 1,
-  PatientMode: 'Adult', Sex: 'Male'};
+const patient = CHILD
+  ? {Weight: {'#text': 55, '@Units': 'lb'}, FirstName: 'Synthetic', MiddleName: '', LastName: 'Testcase',
+    Age: 7, PatientId: 'SIM-000002', RoomNo: '', Height: {'#text': 48, '@Units': 'in'}, PatMode: 1, Gender: 1,
+    PatientMode: 'Pediatric', Sex: 'Male'}
+  : {Weight: {'#text': 180, '@Units': 'lb'}, FirstName: 'Synthetic', MiddleName: '', LastName: 'Testcase',
+    Age: 58, PatientId: 'SIM-000001', RoomNo: '', Height: {'#text': 70, '@Units': 'in'}, PatMode: 0, Gender: 1,
+    PatientMode: 'Adult', Sex: 'Male'};
 
 push('NewCase', {StdHdr: hdr(4, 0), CaseLabel: caseId, '@TdrRecVer': 5, UniqueCaseId: uniq});
 push('DeviceConfiguration', {StdHdr: hdr(1, 0), DeviceSerialNumber: SERIAL, ProductType: 9, TimeZone: -300,
@@ -13117,7 +13181,7 @@ for (let s = 0; s < DUR; s++) {
 
 /* --- trends every 30 s, plus rows forced by NIBP results and alarms --- */
 const alarmRows = new Set();
-const flags = {hr: t => { const h = hrAt(t); return h != null && (h < 50 || h > 140); },
+const flags = {hr: t => { const h = hrAt(t); return h != null && (h < LIM.hrLo || h > LIM.hrHi); },
   spo2: t => { const v = spo2At(t); return v != null && v < 90; }};
 let lastNibp = null;
 const trendRow = (s, evt) => {
@@ -13137,12 +13201,12 @@ const trendRow = (s, evt) => {
     const r = {'@ChanNum': k + 1, SrcLabelVal: label, SrcLabel: 7, DispForm: 1, ChanState: 0,
       Sys: val(x && x.sys, 2, 'mmHg'), Dia: val(x && x.dia, 2, 'mmHg'), Map: val(x && x.map, 2, 'mmHg')};
     if (k === 0 && s >= T.flush && s < T.flush + 6) r.Sys.TrendData.DataState = '+++';  /* above measurable */
-    if (k === 0 && x && (x.sys > 180 || (x.sys < 90 && s > T.rosc))) r.Sys.TrendData.Alarm = 1;
+    if (k === 0 && x && (x.sys > LIM.artHi || (x.sys < LIM.artLo && s > T.rosc))) r.Sys.TrendData.Alarm = 1;
     return r;
   });
   const nibpRec = {ChanState: 0, DispForm: 1, IsNew: isNew ? 'true' : 'false', Time: nb ? iso(nb.t) : '',
     Sys: val(nb && nb.s, 2, 'mmHg'), Dia: val(nb && nb.d, 2, 'mmHg'), Map: val(nb && nb.m, 2, 'mmHg')};
-  if (nb && nb.s < 90) nibpRec.Sys.TrendData.Alarm = 1;
+  if (nb && nb.s < LIM.nibpLo) nibpRec.Sys.TrendData.Alarm = 1;
   const temp = [1, 2, 3].map(k => {
     const v = k === 3 ? (tempAt(1, s) != null ? tempAt(1, s) - tempAt(2, s) : null) : tempAt(k, s);
     return {...val(v == null ? null : v*10, 4, 'Degrees F'), SrcLabelVal: k === 3 ? 'ΔTemp' : 'Temp ' + k, SrcLabel: 1, '@Type': k, ChanState: 0};
@@ -13161,8 +13225,8 @@ const yday = s => ({...hdr(8, s), DevDateTime: new Date(START - 86400000 + s*100
 push('AnnotationEvt', {StdHdr: yday(3600), '@EvtName': 'Battery Connected', TreatmentSummary: 0, DevEvtCode: 5, XidCode: '00000006', Payload: '0 0 0 0', '@TdrRecVer': 1});
 push('AnnotationEvt', {StdHdr: {...hdr(8, 0), DevDateTime: new Date(START - 2*3600000).toISOString().slice(0, 19)}, '@EvtName': 'Self Test Passed', TreatmentSummary: 1, DevEvtCode: 78, XidCode: '00000142', Payload: '0 0 0 0', '@TdrRecVer': 1});
 ev(0, 'System On', 0, '00000001', 1);
-ev(0, 'New Patient', 13, '0000000B', 1);
-ev(0, 'Patient Mode Adult', 14, '0000016C', 1);
+ev(NP_AT, 'New Patient', 13, '0000000B', 1);
+ev(NP_AT, CHILD ? 'Patient Mode Pediatric' : 'Patient Mode Adult', 14, '0000016C', 1);
 ev(1, 'SPO2 Probe Connected', 223, '0000008B', 0);
 ev(2, 'IBP Probe1 Connected', 171, '0000005D', 0);
 ev(2, 'IBP Probe2 Connected', 174, '00000060', 0);
@@ -13204,19 +13268,19 @@ const ALARM = (s, code, xid, src, value, lo, hi, units, unitsVal) => {
   };
   for (let s = 5; s < DUR; s++) {
     const h = hrAt(s);
-    check('hrlo', s, h != null && h < 50, () => ALARM(s, 319, '0000010E', 0, h, 50, 140, 10, 'Beats per minute'));
-    check('hrhi', s, h != null && h > 140, () => ALARM(s, 320, '0000010F', 0, h, 50, 140, 10, 'Beats per minute'));
+    check('hrlo', s, h != null && h < LIM.hrLo, () => ALARM(s, 319, '0000010E', 0, h, LIM.hrLo, LIM.hrHi, 10, 'Beats per minute'));
+    check('hrhi', s, h != null && h > LIM.hrHi, () => ALARM(s, 320, '0000010F', 0, h, LIM.hrLo, LIM.hrHi, 10, 'Beats per minute'));
     const sp = spo2At(s);
     check('splo', s, sp != null && sp < 90, () => ALARM(s, 227, '0000008F', 0, sp, 90, 100, 5, 'Percent (%)'));
     const a = stats(art, s, 3);
     if (a && !(s >= T.zeroStart && s < T.flush + 3)) {
-      check('artlo', s, a.sys < 90 && s > T.vfStart, () => ALARM(s, 142, '00000043', 7, a.sys, 90, 180, 2, 'mmHg'));
-      check('arthi', s, a.sys > 180, () => ALARM(s, 141, '00000042', 7, a.sys, 90, 180, 2, 'mmHg'));
+      check('artlo', s, a.sys < LIM.artLo && s > T.vfStart, () => ALARM(s, 142, '00000043', 7, a.sys, LIM.artLo, LIM.artHi, 2, 'mmHg'));
+      check('arthi', s, a.sys > LIM.artHi, () => ALARM(s, 141, '00000042', 7, a.sys, LIM.artLo, LIM.artHi, 2, 'mmHg'));
     }
   }
-  const low = nibp.find(x => x.s < 90);
+  const low = nibp.find(x => x.s < LIM.nibpLo);
   if (low) push('AlarmEvt', {TreatmentSummary: 1, StdHdr: hdr(16, low.t + 1), DevEvtCode: 197, XidCode: '00000061', DataSrc: {RawDataSrc: 5},
-    Value: low.s, AlarmLimits: {Units: 2, HighLimVal: 160, UnitsVal: 'mmHg', ScaleFactor: 0, LowLimVal: 90}, '@TdrRecVer': 2});
+    Value: low.s, AlarmLimits: {Units: 2, HighLimVal: LIM.nibpHi, UnitsVal: 'mmHg', ScaleFactor: 0, LowLimVal: LIM.nibpLo}, '@TdrRecVer': 2});
 }
 for (let s = 30; s < DUR; s += 30) trendRow(s);
 for (const r of nibp) trendRow(r.t + 1, 191);
@@ -13225,12 +13289,12 @@ for (const s of alarmRows) trendRow(s, 142);
 /* defibrillator subsystem: pads applied before the arrest, pacing, one shock */
 for (let s = 0; s < DUR; s += 2) {
   const pads = s >= T.paceStart - 20, pacing = s >= T.paceStart && s < T.paceEnd;
-  push('DefibTrace', {StdHdr: hdr(10, s), PacerRate: pacing ? 70 : 0, CurrEnergy: s === T.shock ? 200 : 0, SelEnergy: 200,
+  push('DefibTrace', {StdHdr: hdr(10, s), PacerRate: pacing ? PACE : 0, CurrEnergy: s === T.shock ? JOULES : 0, SelEnergy: JOULES,
     PaddleType: 18, '@TdrRecVer': 1, State: 505, PacerCurrent: pacing ? 85 : 0, ModeFlags: '0A25',
     Impedance: pads ? 92 + Math.round(4*gauss()) : 9999, NotificationCode: 0, StatCode: 0});
 }
 /* AED: the analysis before the shock, and the background analysis every 30 s */
-push('Aed', {StdHdr: hdr(27, T.shock - 8), ModeEvts: {UsePads: 0, CableFault: 0, CheckPads: 0}, Protocol: 0, DefibEnergy: 200,
+push('Aed', {StdHdr: hdr(27, T.shock - 8), ModeEvts: {UsePads: 0, CableFault: 0, CheckPads: 0}, Protocol: 0, DefibEnergy: JOULES,
   State: 2, Mode: '0003', AnalysisResult: {ShockResult: 1, SegNum: 1, NoisyEcgCnt: 0}, AnalysisEvts: {}, CprEvts: {}, DefibEvts: {}, '@TdrRecVer': 1});
 for (let s = 15, k = 1; s < DUR; s += 30, k++)
   push('AedContinAnalysis', {StdHdr: hdr(30, s), '@TdrRecVer': 3, Analysis: {Timestamp: s*1000, SchemaId: 1, Segment: []},
@@ -13288,7 +13352,7 @@ const vm = list => list.map(t => `<Ventilation second="${Math.floor(t)}" ms="${M
 const xml = `<?xml version="1.0" encoding="utf-16"?>
 <ZOLLData><CaseReview version="5.3.0.0"><Case id="${caseId}"><Date>${iso(0).slice(0, 10)}</Date><Time>${iso(0).slice(11)}</Time>
 <Length>${DUR}</Length><CaseType>Synthetic test case</CaseType>
-<Patient><FirstName>Synthetic</FirstName><LastName>Testcase</LastName><ID>SIM-000001</ID><Gender>Male</Gender></Patient>
+<Patient><FirstName>Synthetic</FirstName><LastName>Testcase</LastName><ID>${patient.PatientId}</ID><Gender>Male</Gender></Patient>
 <Defibrillator><Model type="7" /><Serial>${SERIAL}</Serial><Software>09.99.00.00</Software>
 <EtCO2Ventilations Parsed="1">${vm(breaths.filter(b => b < DUR - 2))}</EtCO2Ventilations>
 <ImpedanceRespirationVentilations Parsed="1">${vm(breaths.filter(b => b < T.vfStart))}</ImpedanceRespirationVentilations></Defibrillator>
@@ -13310,31 +13374,44 @@ zdv.setUint32(4 + json.length, xmlBuf.length, true); zol.set(xmlBuf, 8 + json.le
 
 /* ---------------- the answer sheet ---------------- */
 const clock = s => iso(s).slice(11);
+const hrS = x => Math.round(x*HRK), bpS = x => Math.round(x*PK);
+const nb0 = nibp[0], nbLow = nibp.find(x => x.manual);
+const variantNote = (CHILD ? `
+
+**Child variant.** The cardiac story in a 7-year-old: the monitor is in Pediatric mode, so the
+CPR page uses the Child (PALS) targets (depth 1.8–2.2 in, 100–120/min) and the perfusion proxy
+shows its adult-derived warning. Heart rates are about 1.35 times and pressures 0.8 times the
+adult case; alarm limits are HR ${LIM.hrLo}–${LIM.hrHi}, arterial systolic ${LIM.artLo}–${LIM.artHi}.` : '') + (NP_AT ? `
+
+**Earlier patient.** The New Patient marker is at ${clock(NP_AT)}, not at the start. Everything
+recorded before it belongs to an earlier patient: the viewer must exclude those waveforms,
+trend rows, alarms, events and snapshots (rows below that end before ${clock(NP_AT)} should
+show nothing), and Case details notes the patient boundary.` : '');
 const sheet = `# ${fileName} — what the viewer should find
 
-Synthetic, generated by \`tools/make-test-case.cjs${NEURO ? ' --neuro' : ''}\`. No real patient or device.
-Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below are case clock.
+Synthetic, generated by \`tools/make-test-case.cjs${NEURO ? ' --neuro' : CHILD ? ' --child' : ''}${NP_AT ? ' --new-patient-at ' + NP_AT : ''}\`. No real patient or device.
+Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below are case clock.${variantNote}
 
 | Case time | What happens | What to check |
 |---|---|---|
-| ${clock(0)}–${clock(T.afStart)} | Sinus 78/min with respiratory sinus arrhythmia (rate swings with each breath) | HR ~78; QRS ~90 ms; QRS axis ~50°; RR CV low, AF score 0; RSA and HRV present. ${NEURO ? 'ECG recorded at diagnostic bandwidth (0.05–150 Hz), so Physiology measures PR ~160 ms, QT ~380 ms (QTcB ~433, QTcF ~412)' : 'ECG at monitoring bandwidth (0.67–40 Hz): PR and QT are withheld by design; the neuro case records diagnostic bandwidth to test them'} |
-| ${clock(30)} | First NIBP 134/78 (96) | Vitals NIBP column; auto cycle 5 min |
+| ${clock(0)}–${clock(T.afStart)} | Sinus ${hrS(78)}/min with respiratory sinus arrhythmia (rate swings with each breath) | HR ~${hrS(78)}; QRS ~90 ms; QRS axis ~50°; RR CV low, AF score 0; RSA and HRV present. ${NEURO ? 'ECG recorded at diagnostic bandwidth (0.05–150 Hz), so Physiology measures PR ~160 ms, QT ~380 ms (QTcB ~433, QTcF ~412)' : 'ECG at monitoring bandwidth (0.67–40 Hz): PR and QT are withheld by design; the neuro case records diagnostic bandwidth to test them'} |
+| ${clock(30)} | First NIBP ${nb0.s}/${nb0.d} (${nb0.m}) | Vitals NIBP column; auto cycle 5 min |
 | ${clock(200)} | 12-lead ECG (sinus) | 12-Lead tab; placed by matching lead II; interpretation axis 50 |
 | ${clock(T.zeroStart)}–${clock(T.zeroEnd)} | P1 open to air at 0 mmHg, then **IBP Probe1 Zeroed** | ZERO flag on the P1 row; Vitals zero row |
 | ${clock(T.flush)} | Fast flush: 300 mmHg square, then ringing at ~11 Hz | Trend P1 systolic **+++**; damping / flush test reading; the flush also trips the arterial high alarm, as it would on a monitor |
-| ${clock(T.afStart)}–${clock(T.afEnd)} | Atrial fibrillation ~115/min, faster run ${clock(455)}–${clock(490)}; short cycles produce weak pulses | AF pattern score high, RR CV high; pulse deficit (pleth/arterial rate below ECG rate); **HR high alarm** (red box) |
+| ${clock(T.afStart)}–${clock(T.afEnd)} | Atrial fibrillation ~${hrS(115)}/min, faster run ${clock(455)}–${clock(490)}; short cycles produce weak pulses | AF pattern score high, RR CV high; pulse deficit (pleth/arterial rate below ECG rate); **HR high alarm** (red box) |
 | ${clock(470)} | Snapshot | Snapshots list |
 | ${clock(T.afEnd)}–${clock(T.leadGapEnd)} | **Ecg Lead Fault**, display switches lead III → lead I, 3 s with no ECG recorded | "Monitor display changed" event; hatched "not recorded" stretch |
-| ${clock(T.leadGapEnd)}–${clock(T.paceStart)} | Sinus bradycardia 48/min; **3.2 s pause** at ${clock(T.pause)} | HR low alarm; pause found; QT 440 |
-| ${clock(T.paceStart)}–${clock(T.paceEnd)} | External pacing 70/min, wide paced complexes | Pacer marks on Monitor, snapshot ${clock(950)} and strips; pacing time 180 s |
+| ${clock(T.leadGapEnd)}–${clock(T.paceStart)} | Sinus bradycardia ${hrS(48)}/min; **3.2 s pause** at ${clock(T.pause)} | HR low alarm; pause found; QT 440 |
+| ${clock(T.paceStart)}–${clock(T.paceEnd)} | External pacing ${PACE}/min, wide paced complexes | Pacer marks on Monitor, snapshot ${clock(950)} and strips; pacing time 180 s |
 | ${clock(T.paceStart - 20)} | Pads impedance falls from open circuit to ~92 Ω | "Possible patient pad contact" |
 | ${clock(T.vfStart)}–${clock(T.shock)} | **VF**; arterial pressure collapses; CPR from ${clock(T.cprStart)} | Arterial low alarm; CPR tab populated |
-| ${clock(T.cprStart)}–${clock(T.cprEnd)} | Compressions ~112/min (faster after ${clock(1200)}), depth ~2.2 in falling late, release ~410 mm/s; pause ${clock(T.cprPause0)}–${clock(T.cprPause1)}; ventilations 10/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P${NEURO ? '2' : '3'} CVP) |
-| ${clock(T.shock - 8)} / ${clock(T.shock)} | AED **SHOCK ADVISED**, **Shock Delivered** 200 J | Device rhythm analysis; shock on CPR timeline |
-| ${clock(T.shock)}–${clock(T.rosc)} | Organised rhythm 100/min with low pressure (PEA-like) while CPR continues | |
+| ${clock(T.cprStart)}–${clock(T.cprEnd)} | Compressions ~112/min (faster after ${clock(1200)}), depth ~${CHILD ? '2.0' : '2.2'} in falling late, release ~410 mm/s; pause ${clock(T.cprPause0)}–${clock(T.cprPause1)}; ventilations ${CHILD ? 20 : 10}/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P${NEURO ? '2' : '3'} CVP) |
+| ${clock(T.shock - 8)} / ${clock(T.shock)} | AED **SHOCK ADVISED**, **Shock Delivered** ${JOULES} J | Device rhythm analysis; shock on CPR timeline |
+| ${clock(T.shock)}–${clock(T.rosc)} | Organised rhythm ${hrS(100)}/min with low pressure (PEA-like) while CPR continues | |
 | ${clock(T.cprStart + 40)}, ${clock(T.cprStart + 90)}, ${clock(T.cprStart + 120)}, ${clock(T.shock + 40)}, ${clock(T.shock + 70)} | Treatments logged: IV Access, Epinephrine, Intubation, Amiodarone, Other | Purple treatment markers on the CPR graph, strips and cascade; Events list |
 | ${clock(T.rosc)} | **ROSC**: EtCO2 jumps to 48 then settles to 38 | ROSC period; EtCO2 rise |
-| ${clock(T.rosc)}–${clock(1500)} | Ventilated 12/min; **PPV ~17%**, SPV, pleth variation; pressure 84/50 rising | PPV ~17%, SPV, DPV (regular rhythm, ventilated 12/min), PVI 19; shock index; low NIBP 86/52 at ${clock(1270)} (alarm, red) |
+| ${clock(T.rosc)}–${clock(1500)} | Ventilated ${CHILD ? 20 : 12}/min; ${CHILD ? 'pressure swings with each breath' : '**PPV ~17%**, SPV, pleth variation'}; pressure ${bpS(84)}/${bpS(50)} rising | ${CHILD ? 'PPV and SPV withheld with an excessive-noise flag: the line noise is the same as the adult case but the pulse pressure is smaller' : 'PPV ~17%, SPV, DPV (regular rhythm, ventilated 12/min)'}, PVI 19; shock index; low NIBP ${nbLow.s}/${nbLow.d} at ${clock(nbLow.t)} (alarm, red) |
 | ${clock(T.desat0)}–${clock(T.desat1)} | SpO2 dips to 83% | SpO2 low alarm (red); hypoxic burden, T90, SpO2/FiO2 with a FiO2 entered |
 | ${clock(T.pvc0)}–${clock(T.pvc1)} | A PVC every 14 beats with compensatory pause | Ectopy on the ECG; PPV and SPV withheld here (irregular rhythm) |
 | ${clock(T.obstr0)}–${clock(T.obstr1)} | Bronchospasm-shaped capnogram (slow phase II, steep phase III) | Capnogram shape: phase III slope up, alpha angle wider |
@@ -13342,10 +13419,10 @@ Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below a
 | ${clock(T.probeOff)}–${clock(T.probeOn)} | **SpO2 probe disconnected**, no pleth recorded | Yellow box on SpO2/PI; hatched pleth |
 | ${clock(T.tempOff)}–${clock(T.tempOn)} | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | ${clock(T.apnea0)}–${clock(T.apnea1)} | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |
-| ${clock(T.high0)}–${clock(T.high1)} | Arterial systolic ~186 | Arterial high alarm (red) |
+| ${clock(T.high0)}–${clock(T.high1)} | Arterial systolic ~${bpS(186)} | Arterial high alarm (red) |
 | whole case | P1 arterial (auto-detected), ${NEURO ? 'P2 CVP (auto-detected), P3 labelled ICP: raised ICP ~26; slow pressure waves throughout, with ICP moving against them before the arrest (intact autoregulation, PRx negative) and with them after ROSC (impaired, PRx positive)' : 'P2 labelled **PA** ~28/12, 34/15 after ROSC, P3 CVP ~8 (auto-detected)'} | ${NEURO ? 'CPP = MAP − ICP ~65; PRx negative before the arrest, positive after ROSC' : 'mPAP; CVP; site picker in Physiology'} |
 | whole case | T1 core 98.6 → 97.1 °F, T2 skin 96.4 → 95.6 °F, ΔT | Temperatures in Monitor, Trends, Vitals |
-| whole case | Patient 58 y male, 70 in, 180 lb | BSA (DuBois ~1.96 m²) |
+| whole case | ${CHILD ? 'Patient 7 y male, 48 in, 55 lb, Pediatric mode | BSA (DuBois ~0.92 m²); CPR targets Child (PALS); "Adult-derived model" warning on the CPR page' : 'Patient 58 y male, 70 in, 180 lb | BSA (DuBois ~1.96 m²)'} |
 
 Rolling device log: a "Battery Connected" from the previous day (should be dropped) and a
 "Self Test Passed" from earlier the same morning (kept).
@@ -13358,7 +13435,9 @@ const SAMPLES=[
   {neuro:false, name:'synthetic-cardiac.zol', title:'Cardiac arrest',
    text:'30 minutes: AF, a pause and external pacing, then VF with CPR, a shock and ROSC, ventilation, and an ST-elevation 12-lead. Arterial, PA and CVP lines, CO₂, SpO₂ and two temperatures.'},
   {neuro:true, name:'synthetic-neuro.zol', title:'Neuro critical care',
-   text:'The same 30 minutes with raised ICP, CPP and PRx in place of the PA line, and slow pressure waves throughout.'}];
+   text:'The same 30 minutes with raised ICP, CPP and PRx in place of the PA line, and slow pressure waves throughout.'},
+  {neuro:false, child:true, name:'synthetic-child.zol', title:'Child cardiac arrest',
+   text:'The cardiac story in a 7-year-old: Pediatric mode, child heart rates and pressures, and CPR judged against the child targets.'}];
 function renderSamples(){
   const box=$('#samples'); if(!box) return;
   if(CFG.hideSamples){
@@ -13376,7 +13455,7 @@ function renderSamples(){
   $('#sampHide').onclick=()=>{ CFG.hideSamples=true; cfgSave(); renderSamples(); };
   box.querySelectorAll('[data-samp]').forEach(b=> b.onclick=()=>openSample(SAMPLES[+b.dataset.samp]));
   box.querySelectorAll('[data-sheet]').forEach(b=> b.onclick=()=>{
-    const x=SAMPLES[+b.dataset.sheet], r=synthCase(x.neuro, x.name);
+    const x=SAMPLES[+b.dataset.sheet], r=synthCase(x.neuro, x.name, {child:x.child});
     $('#sampDlgTitle').textContent=x.title+': what the viewer should find';
     $('#sampSheet').textContent=r.sheet; $('#sampDlg').showModal(); });
 }
@@ -13384,7 +13463,7 @@ async function openSample(x){
   $('#drop').style.display='flex';
   prog(0.03,'Building the '+x.title.toLowerCase()+' sample…'); await nextFrame(); await nextFrame();
   let r;
-  try{ r=synthCase(x.neuro, x.name); }
+  try{ r=synthCase(x.neuro, x.name, {child:x.child}); }
   catch(e){ prog(0,'Could not build the sample: '+e.message); return; }
   loadFile(new File([r.zol], x.name, {type:'application/octet-stream', lastModified:Date.UTC(2026,2,14,9)}));
 }

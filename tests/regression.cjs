@@ -1166,9 +1166,52 @@ test('sample cases: the built-in generator makes a readable, anonymous case, the
   assert.ok(r.mb > 15 && r.mb < 25, 'size ' + r.mb);
   assert.equal(r.caseId, 'SIM-CARDIAC-0001');
   assert.equal(r.durMin, 30);
-  assert.equal(r.sheet, true); assert.equal(r.samples, 2); assert.equal(r.serial, true); assert.equal(r.neuro, true);
+  assert.equal(r.sheet, true); assert.equal(r.samples, 3); assert.equal(r.serial, true); assert.equal(r.neuro, true);
   /* treatments for the CPR timeline: logged ones only, not device actions */
   assert.deepEqual(r.treats, ['IV Access', 'Epinephrine', 'Amiodarone', 'Intubation', 'Other']);
+});
+
+function sampleModel(a, opts) {
+  a.run(`(()=>{ const x=synthCase(false, null, ${opts}); const {json,xml}=splitZol(x.zol.buffer);
+    buildModel(json, xml, 'sample.zol'); syncCprTargets(); globalThis.sheet=x.sheet; })()`);
+}
+test('the child sample: Pediatric mode, child CPR targets, the adult-derived warning and child alarm limits', () => {
+  const a = app();
+  sampleModel(a, '{child:true}');
+  const r = JSON.parse(a.run(`JSON.stringify({caseId:M.caseId, group:CPR_TARGET.group, lo:CPR_TARGET.depthLo, hi:CPR_TARGET.depthHi,
+    bsa:+hemoPatient().bsa.toFixed(2), depth:+(M.cpr.comps.reduce((s,c)=>s+c.depth,0)/M.cpr.comps.length).toFixed(2),
+    hr:[100,800,1300].map(s=>trendAt(s*1000).hr),
+    alarms:M.events.filter(e=>/^Alarm/.test(e.name)).map(e=>e.name),
+    sheet:sheet.includes('--child') && sheet.includes('Child (PALS)')})`));
+  assert.equal(r.caseId, 'SIM-CHILD-0001');
+  assert.equal(r.group, 'child'); assert.equal(r.lo, 1.8); assert.equal(r.hi, 2.2);
+  assert.equal(r.bsa, 0.92);
+  assert.ok(r.depth > 1.85 && r.depth < 2.05, 'compressions near the child target: ' + r.depth);
+  assert.ok(r.hr[0] > 98 && r.hr[0] < 112 && r.hr[1] < 70 && r.hr[2] > 135, 'child heart rates: ' + r.hr);
+  /* the child limits (HR 70-170, arterial 70-140, NIBP below 70) all trip somewhere in the story */
+  for (const k of ['heart rate event 319', 'heart rate event 320', 'invasive pressure low limit', 'invasive pressure high limit', 'pressure event 197'])
+    assert.ok(r.alarms.some(n => n.includes(k)), 'alarm ' + k + ' in ' + r.alarms);
+  assert.equal(r.sheet, true);
+  /* the CPR page shows its adult-derived warning whenever the group is not adult */
+  assert.ok(a.run('drawCprDash.toString()').includes(`CPR_TARGET.group!=='adult' ? '<div class="dashwarn">Adult-derived model`));
+});
+test('a sample with the New Patient marker partway through excludes the earlier patient everywhere', () => {
+  const a = app();
+  sampleModel(a, '{newPatientAt:650}');
+  const r = JSON.parse(a.run(`JSON.stringify({start:M.caseStartMs, stats:M.boundaryStats,
+    firstSample:Math.min(...Object.values(M.channels).flatMap(c=>c.segs.map(s=>s.t0))),
+    firstTrend:M.trends[0].t, snaps:M.snapshots.map(s=>s.start!=null?s.start:s.t),
+    early:M.events.filter(e=>e.t<650000).map(e=>e.name), nibp:M.trends.filter(r=>r.nibpTime && devTime(r.nibpTime)-M.t0Wall<650000).length,
+    cpr:M.cpr.comps.length, sheet:/--new-patient-at 650/.test(sheet)})`));
+  assert.equal(r.start, 650000);
+  assert.ok(r.stats.waveSamples > 0 && r.stats.trends > 0 && r.stats.snapshots === 2, JSON.stringify(r.stats));
+  assert.ok(r.firstSample >= 650000, 'first sample ' + r.firstSample);
+  assert.ok(r.firstTrend >= 650000, 'first trend ' + r.firstTrend);
+  assert.ok(r.snaps.every(t => t >= 650000), 'snapshots ' + r.snaps);
+  assert.deepEqual(r.early, []);
+  assert.equal(r.nibp, 0, 'no cuff reading from the earlier patient');
+  assert.ok(r.cpr > 250, 'the arrest after the marker is kept');
+  assert.equal(r.sheet, true);
 });
 
 test('monitor waveform choices survive absent channels, case changes and settings reloads', () => {

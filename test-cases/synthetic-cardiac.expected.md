@@ -6,7 +6,7 @@ Case start 2026-03-14 09:00:00 (device local), 30 minutes. Times below are case 
 | Case time | What happens | What to check |
 |---|---|---|
 | 09:00:00–09:07:00 | Sinus 78/min with respiratory sinus arrhythmia (rate swings with each breath) | HR ~78; QRS ~90 ms; QRS axis ~50°; RR CV low, AF score 0; RSA and HRV present. ECG at monitoring bandwidth (0.67–40 Hz): PR and QT are withheld by design; the neuro case records diagnostic bandwidth to test them |
-| 09:00:30 | First NIBP 134/78 (96) | Vitals NIBP column; auto cycle 5 min |
+| 09:00:30 | First NIBP 134/78 (97) | Vitals NIBP column; auto cycle 5 min |
 | 09:03:20 | 12-lead ECG (sinus) | 12-Lead tab; placed by matching lead II; interpretation axis 50 |
 | 09:05:00–09:05:08 | P1 open to air at 0 mmHg, then **IBP Probe1 Zeroed** | ZERO flag on the P1 row; Vitals zero row |
 | 09:05:30 | Fast flush: 300 mmHg square, then ringing at ~11 Hz | Trend P1 systolic **+++**; damping / flush test reading; the flush also trips the arterial high alarm, as it would on a monitor |
