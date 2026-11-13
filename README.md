@@ -139,7 +139,8 @@ shared across all three views. Averaging windows for the derived rates are in Se
   clears it. Event markers are shaped by severity — triangle for alarms, diamond for
   warnings, square for snapshots, dot for notes — and annotations fly a flag.
 - The **event list carries a marker rule** at the cursor, so you can see where playback
-  sits between events. It follows along while playing.
+  sits between events. While playing it moves down the list, and when it reaches the
+  bottom the list turns the page so the marker starts again at the top.
 - The **event-list button** at the left of the tab row, beside Monitor, shows or hides
   the left event list; **E** does the same. The desktop choice is remembered,
   and the waveforms expand into the available space. On narrow screens, the list

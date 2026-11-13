@@ -9187,7 +9187,17 @@ function updateNowLine(){
   if(target){ if(line.nextSibling!==target || line.parentNode!==list) list.insertBefore(line,target); }
   else if(line.parentNode!==list || list.lastChild!==line) list.appendChild(line);
   line.firstChild.textContent = fmtClock(M.t0Wall+APP.cursor);
-  if(APP.playing) line.scrollIntoView({block:'nearest'});
+  if(APP.playing) pageNowLine(list, line);
+}
+/* While playing, the rule walks down the visible list like a page being read; when
+   it reaches the bottom the list turns the page, putting the rule back at the top.
+   If it is out of view altogether (after a seek or a manual scroll) it is brought
+   to the top the same way. */
+function pageNowLine(list, line){
+  const cr=list.getBoundingClientRect(); if(!cr.height) return;
+  const y=line.getBoundingClientRect().top - cr.top;   /* rule's position in the view */
+  const TOP=14, BOTTOM=cr.height-6;                   /* room for the time label */
+  if(y < TOP-1 || y > BOTTOM) list.scrollTop += y - TOP;
 }
 function selectEventNear(t){
   const list = EV.cache||[];
@@ -10532,6 +10542,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'Event list: during playback the playhead marker moves down the list and the list turns the page when it reaches the bottom.',
     'Changelog: this list, from the button beside GitHub (on a phone, under Settings › Project).',
     'Blood pressures read like the monitor: systolic/diastolic with the mean in large parentheses, e.g. 133/66 (89).',
     'Monitor: parameters in alarm are boxed and flash, red for alarms and yellow for sensor alerts such as a probe off. Flash on the toolbar turns the flashing off.',
