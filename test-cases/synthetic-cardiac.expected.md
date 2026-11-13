@@ -25,7 +25,7 @@ Case start 2026-03-14 09:00:00 (device local), 30 minutes. Times below are case 
 | 09:21:40–09:23:20 | SpO2 dips to 83% | SpO2 low alarm (red); hypoxic burden, T90, SpO2/FiO2 with a FiO2 entered |
 | 09:25:40–09:27:20 | A PVC every 14 beats with compensatory pause | Ectopy on the ECG; PPV and SPV withheld here (irregular rhythm) |
 | 09:23:20–09:26:40 | Bronchospasm-shaped capnogram (slow phase II, steep phase III) | Capnogram shape: phase III slope up, alpha angle wider |
-| 09:24:40 | 12-lead ECG with ST elevation V2–V4 | 12-Lead tab |
+| 09:24:40 | 12-lead ECG with ST elevation V2–V4 | 12-Lead tab: ST-J about +1.8 mm in V2–V4 and 0 elsewhere (the 09:03:20 12-lead reads 0 in every lead); P, QRS and T axes about 50–55° |
 | 09:25:00–09:25:30 | **SpO2 probe disconnected**, no pleth recorded | Yellow box on SpO2/PI; hatched pleth |
 | 09:26:00–09:27:00 | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | 09:27:30–09:27:55 | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |

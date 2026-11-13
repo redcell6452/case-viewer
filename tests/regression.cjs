@@ -291,12 +291,15 @@ test('S/F ratio is hidden without known FiO2 and uses percentage input correctly
   a.run('applyCaseInputDraft({fio2:""})');
   assert.ok(!a.run('sigTable(sigCompute(wholeCase()).results,["Pulmonary"],{showAll:true})').includes('SpO₂/FiO₂ ratio'));
 });
-test('optional inputs are collapsed, labeled, and limited to data relevant to the case', () => {
+test('optional inputs start open, are labeled, and are limited to data relevant to the case', () => {
   const a=app();
   assert.equal(a.run('renderCaseInputs()'),'');
   arterialCase(a);
   const markup=a.run('renderCaseInputs()');
-  assert.ok(markup.includes('<details class="caseinputs" id="caseInputs">'));
+  assert.ok(markup.includes('<details class="caseinputs" id="caseInputs" open>'));
+  a.run('CASE_INPUT_UI.open=false');
+  assert.ok(a.run('renderCaseInputs()').includes('<details class="caseinputs" id="caseInputs">'));
+  a.run('CASE_INPUT_UI.open=true');
   for(const key of ['heightCm','weightKg','svK','assumedCvp','fio2'])
     assert.ok(markup.includes('for="caseInput_'+key+'"'));
   assert.ok(!script.includes('id="cfgSvK"'));
@@ -975,4 +978,173 @@ test('PR and QT stay on their own waves at 100/min (no T wave taken for P, no P 
   const pr = med(r.map(x=>x.pr)), qt = med(r.map(x=>x.qt));
   assert.ok(pr > 130 && pr < 180, 'PR ' + pr);          /* built at 160 ms */
   assert.ok(qt > 320 && qt < 370, 'QT ' + qt);          /* tangent end of a 360 ms QT */
+});
+
+test('CPR summary: pauses binned by length, peri-shock pauses, depth and rate split three ways', () => {
+  const a = app();
+  const S = JSON.parse(a.run(`(()=>{
+    const comps=[]; let t=10000;
+    for(let i=0;i<120;i++){ comps.push({t, depth: i<30?1.7:i<100?2.2:2.6, rate: i<60?110:130, relVel:400}); t+=500;
+      if(i===40) t+=3000; if(i===80) t+=7000; if(i===100) t+=14000; }
+    M.events=[]; M.durMs=200000;
+    M.cpr={comps, periods:[], pauses:[], rosc:[], autopulse:[], resq:[], vents:[], shocks:[{t:comps[80].t+3000, label:'Shock'}]};
+    return JSON.stringify(cprSummary());
+  })()`));
+  assert.deepEqual(S.pauseBins, [1, 1, 1]);
+  assert.equal(S.shocks[0].pre, 3000);
+  assert.equal(S.shocks[0].post, 4500);
+  assert.equal(Math.round(S.depth[0]), 25);   /* 30 of 120 too shallow */
+  assert.equal(Math.round(S.depth[2]), 17);   /* 20 of 120 too deep */
+  assert.equal(Math.round(S.rate[2]), 50);    /* 60 of 120 too fast */
+});
+
+test('CPR targets follow the monitor mode and age (ACLS, PALS, NRP), and the settings', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const grp=(mode, age, evMode)=>{ M.patient={PatientMode:mode, Age:age};
+      M.events=evMode?[{t:0, name:'Patient Mode '+evMode}]:[]; M.cpr={comps:[{t:5000}]}; CFG.cprT=null; syncCprTargets();
+      return [CPR_TARGET.group, CPR_TARGET.depthLo, CPR_TARGET.depthHi, CPR_TARGET.rateLo, CPR_TARGET.rateHi]; };
+    const out={adult:grp('Adult',58), child:grp('Pediatric',6), infant:grp('Pediatric',0.5), newborn:grp('Pediatric',0.01),
+      switched:grp('Adult',6,'Pediatric')};
+    M.patient={PatientMode:'Adult'}; M.events=[];
+    CFG.cprT={unit:'cm', pre:3, pauseMin:3, quality:70}; syncCprTargets();
+    out.cfg=[cprDFmt(2,2), CPR_TARGET.pre, CPR_TARGET.pauseMin, cprGoalGrade(60,70), cprGoalGrade(50,70)];
+    CFG.cprT=null; syncCprTargets();
+    out.defaults=[CPR_TARGET.pre, CPR_TARGET.post, CPR_TARGET.fraction, CPR_TARGET.unit];
+    return JSON.stringify(out);
+  })()`));
+  assert.deepEqual(r.adult, ['adult', 2.0, 2.4, 100, 120]);
+  assert.deepEqual(r.child, ['child', 1.8, 2.2, 100, 120]);
+  assert.deepEqual(r.infant, ['infant', 1.3, 1.7, 100, 120]);
+  assert.deepEqual(r.newborn, ['newborn', 1.0, 1.4, 85, 95]);
+  assert.deepEqual(r.switched, ['child', 1.8, 2.2, 100, 120]);   /* a Patient Mode event before CPR wins */
+  assert.deepEqual(r.cfg, ['5.1 cm', 3, 3, 'mid', 'bad']);
+  assert.deepEqual(r.defaults, [10, 10, 60, 'in']);
+});
+
+test('case features: vitals and waveforms present, events, alarms by parameter and direction', () => {
+  const a = app();
+  const F = JSON.parse(a.run(`(()=>{
+    M.params=[{id:'hr_dev',label:'HR',origin:'device',pts:[{t:0,v:80}]},{id:'spo2',label:'SpO2',origin:'device',pts:[{t:0,v:null}]}];
+    M.channels={a:{name:'12-Lead II',nValid:10},b:{name:'CO2 mmHg, Waveform',nValid:0}};
+    M.snapshots=[{is12:true},{is12:false},{is12:false}]; M.pace=[]; M.summary={shocks:1, pacerTime:0};
+    M.cpr={comps:[{t:1}], periods:[], rosc:[{t0:60000,t1:90000}], shocks:[{t:5}]}; M.t0Wall=0; M.deviceLog=[];
+    M.events=[
+      {kind:'alarm', name:'Alarm: heart rate event 320', value:150, limits:{LowLimVal:50,HighLimVal:140}},
+      {kind:'alarm', name:'Alarm: heart rate event 320', value:155, limits:{LowLimVal:50,HighLimVal:140}},
+      {kind:'alarm', name:'Alarm: SpO2 event 227', value:85, limits:{LowLimVal:90,HighLimVal:100}},
+      {kind:'aed', name:'AED analysis: SHOCK ADVISED'}];
+    return JSON.stringify(caseFeatures());
+  })()`));
+  assert.deepEqual(F.vitals, ['HR']);
+  assert.deepEqual(F.waves, ['II']);
+  const ev = Object.fromEntries(F.events);
+  assert.equal(ev['CPR'], 'Yes'); assert.equal(ev['Shocks delivered'], '1'); assert.equal(ev['Shock advised'], '1');
+  assert.equal(ev['12-leads'], '1'); assert.equal(ev['Snapshots'], '2');
+  assert.deepEqual(F.alarms, [['HR','High ×2'], ['SpO₂','Low']]);
+});
+
+test('case library: tags, reviewed mark and unopened filter, and search across tags', () => {
+  const m = new Map();
+  const a = app({localStorage: {getItem: k => m.get(k) ?? null, setItem: (k,v) => m.set(k, String(v)),
+    removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length(){ return m.size; }}});
+  const r = JSON.parse(a.run(`(()=>{
+    LIB.files=[{path:'a.zol',name:'a.zol',serial:'X1',caseTime:3},{path:'b.zol',name:'b.zol',serial:'X2',caseTime:2},{path:'c.zol',name:'c.zol',serial:'X3',caseTime:1}];
+    LIB.q=''; LIB.filter='all';
+    metaSet('a.zol',{tags:['Station 14','QA'], reviewed:true});
+    metaSet('b.zol',{tags:['QA'], opened:123});
+    const names=()=>libRows().map(x=>x.path).join(',');
+    const out={};
+    LIB.tag='QA'; out.tagQA=names(); LIB.tag='';
+    LIB.reviewed='yes'; out.reviewed=names(); LIB.reviewed='no'; out.notReviewed=names(); LIB.reviewed='all';
+    LIB.unopened=true; out.unopened=names(); LIB.unopened=false;
+    LIB.q='station'; out.search=names(); LIB.q='';
+    out.allTags=metaTagsAll();
+    return JSON.stringify(out);
+  })()`));
+  assert.equal(r.tagQA, 'a.zol,b.zol');
+  assert.equal(r.reviewed, 'a.zol');
+  assert.equal(r.notReviewed, 'b.zol,c.zol');
+  assert.equal(r.unopened, 'a.zol,c.zol');
+  assert.equal(r.search, 'a.zol');
+  assert.deepEqual(r.allTags, ['QA', 'Station 14']);
+});
+
+test('CPR trend report: per-case results grouped by month, quarter and year', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const T=(y,m)=>Date.UTC(y,m-1,15);
+    const cases=[
+      {caseTime:T(2025,1), arrest:true, rosc:true, quality:50, depth:2.1, rate:110, ccf:80, pre:4, post:6},
+      {caseTime:T(2025,1), arrest:true, rosc:false, quality:70, depth:2.3, rate:120, ccf:60, pre:6, post:null},
+      {caseTime:T(2025,2), arrest:false},
+      {caseTime:T(2025,5), arrest:true, rosc:true, quality:90, depth:2.2, rate:105, ccf:90},
+      {error:'unreadable'}];
+    return JSON.stringify({month:rptAggregate(cases,'month'), quarter:rptAggregate(cases,'quarter'), year:rptAggregate(cases,'year')});
+  })()`));
+  assert.deepEqual(r.month.map(x=>x.period), ['2025-01','2025-02','2025-05']);
+  const jan = r.month[0];
+  assert.equal(jan.arrests, 2); assert.equal(jan.rosc, 1);
+  assert.equal(jan.quality, 60); assert.equal(jan.pre, 5); assert.equal(jan.post, 6);
+  assert.equal(r.month[1].arrests, 0); assert.equal(r.month[1].quality, null);
+  assert.deepEqual(r.quarter.map(x=>[x.period, x.cases, x.arrests]), [['2025 Q1',3,2],['2025 Q2',1,1]]);
+  assert.deepEqual(r.year.map(x=>[x.period, x.cases, x.arrests, x.rosc]), [['2025',4,3,2]]);
+});
+
+test('12-lead: ST-J at the J point across all leads (deep S in V2 does not end the QRS), and frontal axes', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const hz=500, n=hz*10, G=(x,m,s)=>Math.exp(-0.5*((x-m)/s)**2);
+    const W={I:[.08,-.03,.55,-.08,.18], II:[.15,-.08,1.1,-.25,.32], V2:[.08,0,.5,-1.3,.35]};
+    const Rs=[]; for(let t=0.6;t<9.6;t+=0.75) Rs.push(t);
+    const lead=(w,st)=>Float32Array.from({length:n},(_,i)=>{ const t=i/hz; let v=0;
+      for(const R of Rs){ const x=t-R; if(x<-0.4||x>0.6) continue;
+        v+=w[0]*G(x,-0.155,0.022)+w[1]*G(x,-0.036,0.009)+w[2]*G(x,0,0.0135)+w[3]*G(x,0.036,0.011)+w[4]*G(x,0.247,0.04);
+        if(st && x>0.02 && x<0.159) v+=st*Math.min(1,(x-0.02)/0.02); }
+      return v; });
+    const I=lead(W.I), II=lead(W.II), V2=lead(W.V2,0.18);
+    const snap={is12:true, traces:[{lead:'I',hz,data:I},{lead:'II',hz,data:II},{lead:'V2',hz,data:V2},
+      {lead:'aVF',hz,data:Float32Array.from(II,(v,i)=>v-I[i]/2)}]};
+    const m=twelveMeasure(snap);
+    return JSON.stringify({I:m.stj.I, II:m.stj.II, V2:m.stj.V2, qrs:m.axes.QRS, p:m.axes.P, t:m.axes.T});
+  })()`));
+  assert.ok(Math.abs(r.I) < 0.3 && Math.abs(r.II) < 0.3, 'limb leads near 0: ' + r.I + ' ' + r.II);
+  assert.ok(Math.abs(r.V2 - 1.8) < 0.6, 'V2 ST-J ' + r.V2);       /* built at 0.18 mV = 1.8 mm; was -12 before the fix */
+  assert.ok(r.qrs > 40 && r.qrs < 65, 'QRS axis ' + r.qrs);
+  assert.ok(r.p > 40 && r.p < 70 && r.t > 40 && r.t < 65, 'P/T axes ' + r.p + ' ' + r.t);
+});
+
+test('CPR perfusion proxy: builds toward the quality delivered (tau 5 s), decays fast in a pause (tau 3.6 s), no reset at a shock', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    syncCprTargets();
+    const comps=[]; let t=1000;
+    for(let i=0;i<60;i++){ comps.push({t, rate:110, depth:2.2, relVel:420}); t+=545; }   /* good, ~33 s */
+    const endGood=t-545;
+    t+=8000;                                                                              /* 8 s pause */
+    const resume=t;
+    for(let i=0;i<60;i++){ comps.push({t, rate:110, depth:1.7, relVel:420}); t+=545; }   /* 0.3 in short: q = 0.5 */
+    const endShallow=t-545;
+    for(let i=0;i<20;i++){ comps.push({t, rate:110, depth:2.6, relVel:420}); t+=545; }   /* deeper than target: q = 1 */
+    const endDeep=t-545;
+    const shockT=endDeep+3000;
+    M.cpr={comps, periods:[], pauses:[], rosc:[], shocks:[{t:shockT}]};
+    const span=60000/110+500;
+    return JSON.stringify({
+      after5s: cprPerfAt(1000+5000), after10s: cprPerfAt(1000+10000), endGood: cprPerfAt(endGood+10),
+      pause5: cprPerfAt(endGood+span+5000), pause5ratio: cprPerfAt(endGood+span+5000)/cprPerfAt(endGood+span),
+      jitter: cprPerfAt(endGood+span-1)/cprPerfAt(endGood+10),
+      shallow: cprPerfAt(endShallow+10), deep: cprPerfAt(endDeep+10),
+      preShock: cprPerfAt(shockT-1), postShock: cprPerfAt(shockT+1),
+      deepScore: cprCompScore({rate:110, depth:2.9, relVel:420}), lowRelease: cprCompScore({rate:110, depth:2.2, relVel:0}), noRelease: cprCompScore({rate:110, depth:2.2}) });
+  })()`));
+  assert.ok(r.after5s > 0.55 && r.after5s < 0.7, 'after 5 s: ' + r.after5s);          /* 1-e^-1 = 0.63 */
+  assert.ok(r.after10s > 0.8 && r.after10s < 0.9, 'after 10 s: ' + r.after10s);       /* 0.86 */
+  assert.ok(r.endGood > 0.97, 'full with sustained good CPR: ' + r.endGood);
+  assert.ok(Math.abs(r.pause5ratio - 0.25) < 0.02, 'a quarter left 5 s into a pause: ' + r.pause5ratio);
+  assert.ok(r.jitter > 0.99, 'no drop between compressions at a normal rate: ' + r.jitter);
+  assert.ok(Math.abs(r.shallow - 0.5) < 0.03, 'settles at quality 0.5: ' + r.shallow);
+  assert.ok(r.deepScore === 1 && r.deep > r.shallow + 0.4, 'deeper than target is not penalised: ' + r.deepScore + ' ' + r.deep);
+  assert.ok(Math.abs(r.postShock - r.preShock) < 0.01 && r.preShock > 0, 'a shock is not a reset: ' + r.preShock + ' -> ' + r.postShock);
+  assert.ok(Math.abs(r.lowRelease - 0.65) < 1e-9 && r.noRelease === 1, 'release factor: ' + r.lowRelease + ' ' + r.noRelease);
 });

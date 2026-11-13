@@ -41,8 +41,17 @@ serial are read straight from the filename, so listing a folder never opens an 1
 
 - **Sortable** on case, case date, device, size or file-modified — click a heading, click
   again to reverse.
-- **Filterable** to Today, Last 7 days, Last 30 days, or a custom date range, plus a
-  free-text filter on name and serial.
+- **Filterable** to Today, Last 7 days, Last 30 days, or a custom date range; by tag; by
+  reviewed or not; and to only cases never opened (they also show a dot). The search box
+  covers the name, serial, tags, and the patient ID, unit and agency once the preview has
+  read them.
+- **Tags and a reviewed mark** for each case, set in the side panel or in an open case's
+  Case details (ⓘ). They are kept in this browser and included in settings backups.
+- **CPR trend report** reads every case in the folder (or files you choose), on this
+  computer, and reports arrests and ROSC with average CPR quality by month, quarter or
+  year against your targets: compressions in target, depth, rate, release velocity,
+  compression fraction and the pre- and post-shock pauses. Filter by tag, age group or
+  reviewed cases, and export CSV. Results are cached, so re-runs read only new files.
 - **Recently opened** down the right, click to reopen, clearable. One row per case, keyed on the case id out of the file rather than on how you got to it — open the same case twice, or as a `.zol` one time and the `.zip` around it the next, and it stays a single row that moves to the top.
 
 Click a row and the **case details** panel on the right fills in: start and stop as wall
@@ -73,15 +82,15 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. |
+| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). **Overview** (or **O**) shows the whole case's ECG in rows with CPR, pauses, shocks and alarms marked; click to jump. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
-| **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. |
-| **Vitals** | Every selected parameter as a table at a chosen interval, with resizable columns, CSV export and a pop-out window. |
+| **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. Under each 12-lead, the viewer's own ST-J level in every lead (red at the usual elevation thresholds, amber at depression) and the P, QRS and T axes. |
+| **Vitals** | Every selected parameter as a table. Opens on the monitor's own NIBP auto cycle when the case records one (each row on that cycle's cuff reading, with P1–P3 alongside), otherwise at a chosen interval. Resizable columns, CSV export and a pop-out window. |
 | **Annotations** | Your sticky notes and annotated time ranges, with import/export. |
-| **CPR** | Resuscitation quality: the combined rate/depth quality graph, case metrics, and the stacked performance strips. |
-| **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. |
-| **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. |
+| **CPR** | Resuscitation quality, coloured against the AHA targets (green in target, amber half, red out): a rate/depth quality graph that follows the playhead like the Monitor (window choice, drag or wheel to scroll), case metrics, a **summary** (pads-on, first-compression and first-shock times; compression fraction; depth and rate split too low / in target / too high; pauses by length and the longest; pre- and post-shock pauses), a **cascade** with one row per minute of CPR, and the stacked performance strips. Shocks are marked boldly on every view. Waveform rows sit above the quality graph on the same time scale: the ECG from the pads (or the monitor's ECG lead) and CO₂ by default; add or remove ECG leads, the SpO₂ pleth, pressures and the rest with **Add waveform…**. The Monitor's parameter panel sits beside the graph, with the same **Parameters…** choice. Hover anywhere on the graph for what's under the pointer (the nearest compression's rate, depth and release, any pause, shock or ROSC, the last 10 s in target, ventilations and the perfusion estimate), and the parameter panel shows that moment. A live **dashboard** under the graph shows rate, depth and release velocity at the playhead, a pause timer, and a diamond showing a **perfusion proxy**: a model reconstructed from compression depth, rate, release and pauses that climbs toward the quality being delivered (time constant 5 s) and falls quickly when compressions stop (time constant 3.6 s, about a quarter left after 5 s). A shock doesn't reset it; the hands-off time around the shock is what lowers it. It is not a measured pressure, not coronary perfusion pressure, not a chance of ROSC and not the monitor's own indicator, and it is marked as adult-derived on child, infant and newborn cases. The constants and the studies they were scaled from are listed in the code beside the model. |
+| **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. **Case features** lists the vitals and waveforms recorded, CPR, shocks advised and delivered, 12-leads, pacing, ROSC, and which parameters alarmed high or low. |
+| **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. **CPR targets** default to the 2025 AHA guidelines (ACLS, PALS, NRP), with the age group taken from the monitor's mode and the patient's age; depth in inches or cm. |
 | **Formulas** | Every measure the viewer calculates or explains, searchable and with an A–Z index (abbreviations included): what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
 
 On Physiology, waveform filters, analysis window and sweep controls stay with the
@@ -131,9 +140,15 @@ shared across all three views. Averaging windows for the derived rates are in Se
 - **Drag the strip** left or right to move through the recording, like pulling paper
   (dragging right goes back in time); the **mouse wheel** over the strip does the same
 - **Point at the strip** (while paused) and the parameter panel shows the values at
-  that moment, the way the Trends page does; **click** to pin them there (a dashed line
-  marks the spot). Playing, moving the playhead, **Back to playhead** or **Esc** returns
+  that moment, the way the Trends page does; **click** to pin them there. The time being
+  read is tagged on the time axis and the panel is outlined; nothing in the panel moves.
+  Playing, moving the playhead, **Back to playhead** (over the strip) or **Esc** returns
   the panel to the playhead. Clicking while playing pauses and pins.
+- The **parameter panel** fits itself to the fewest columns (one, two or three) that show
+  every chosen parameter, up to half the strip's width. Drag its left edge to set the width
+  yourself; it switches columns as it passes each width, and the width is remembered.
+  Double-click the edge to go back to automatic. Related parameters share a row: the heart
+  rates together, the pulse rates together, the pressures together.
 - **Alarming parameters are boxed** in the parameter panel: **red** when the monitor
   flagged the value as in alarm, or an alarm it raised is still past the crossed limit;
   **yellow** for an equipment alert on that sensor (probe off, check probe, lead fault,
@@ -272,7 +287,7 @@ rows are hidden unless an independently established case calibration is already 
 No generic calibration value is substituted. PPV and the explicitly labeled SVV proxy
 remain available without absolute calibration, subject to their signal checks and limitations.
 
-**Physiology → Optional case inputs** is collapsed by default, beside the parameter tables.
+**Physiology → Optional case inputs** starts open beside the parameter tables, so it is easy to find; if you close it, it stays closed.
 It replaces the haemodynamic input fields previously in Settings. Known height and weight
 from the case are used automatically; optional overrides support BSA and indexed estimates.
 A known FiO₂ entered as a percentage enables S/F ratio. An assumed CVP remains explicitly

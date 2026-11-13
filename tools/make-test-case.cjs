@@ -156,7 +156,8 @@ function beatMv(b, dt, lead, stElev) {
   /* Q, R and S spread so the complex is about 90 ms from onset to offset */
   let v = w[1]*G(dt, -0.036, 0.009) + w[2]*G(dt, 0, 0.0135) + w[3]*G(dt, 0.036, 0.011) + w[4]*G(dt, tc, 0.040);
   if (b.type !== 'af') v += w[0]*G(dt, -b.pr + 0.005, 0.022);
-  if (stElev) v += stElev*(dt > 0.05 && dt < tc ? 1 : 0)*Math.min(1, (dt-0.05)/0.03);
+  /* ST elevation from the J point on (the end of the QRS, ~45 ms after R) */
+  if (stElev) v += stElev*(dt > 0.02 && dt < tc ? 1 : 0)*Math.min(1, (dt-0.02)/0.02);
   return v;
 }
 const ECG_HZ = 250;
@@ -560,8 +561,9 @@ for (const s of T.twelve) {
     L['Lead' + lead] = a;
   }
   push('Ecg12LeadRec', {StdHdr: hdr(18, s), '@TdrRecVer': 2, SampleRate: 500, Amplitude: {'#text': 2500, '@UnitsVal': 'nanovolts'},
-    LeadData: L, AnalysisResult: {HeartRate: hrAt(s), PrInterval: 160, QrsDuration: 90, QtInterval: s > T.rosc ? 360 : 380, QrsAxis: 50,
-      Statements: s > T.rosc ? ['Sinus tachycardia', 'ST elevation, anterior leads (synthetic)'] : ['Normal sinus rhythm']}});
+    LeadData: L, AnalysisResult: {HeartRate: hrAt(s), QrsDur: 90, QtInt: s > T.rosc ? 360 : 380,
+      CorrQtInt: Math.round((s > T.rosc ? 360 : 380)/Math.sqrt(60/hrAt(s))), QrsAxis: 50,
+      Statements: {Statement: s > T.rosc ? ['Sinus tachycardia', 'ST elevation, anterior leads (synthetic)'] : ['Normal sinus rhythm']}}});
 }
 const treat = recs.filter(r => (r.AnnotationEvt || r.AlarmEvt || {}).TreatmentSummary === 1).length;
 push('CaseSummary', {DeptId: 'Example EMS (synthetic)', StdHdr: hdr(17, DUR), ShockCnt: 1, SwVer: '09.99.00.00',
@@ -625,7 +627,7 @@ Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below a
 | ${clock(T.desat0)}–${clock(T.desat1)} | SpO2 dips to 83% | SpO2 low alarm (red); hypoxic burden, T90, SpO2/FiO2 with a FiO2 entered |
 | ${clock(T.pvc0)}–${clock(T.pvc1)} | A PVC every 14 beats with compensatory pause | Ectopy on the ECG; PPV and SPV withheld here (irregular rhythm) |
 | ${clock(T.obstr0)}–${clock(T.obstr1)} | Bronchospasm-shaped capnogram (slow phase II, steep phase III) | Capnogram shape: phase III slope up, alpha angle wider |
-| ${clock(1480)} | 12-lead ECG with ST elevation V2–V4 | 12-Lead tab |
+| ${clock(1480)} | 12-lead ECG with ST elevation V2–V4 | 12-Lead tab: ST-J about +1.8 mm in V2–V4 and 0 elsewhere (the ${clock(200)} 12-lead reads 0 in every lead); P, QRS and T axes about 50–55° |
 | ${clock(T.probeOff)}–${clock(T.probeOn)} | **SpO2 probe disconnected**, no pleth recorded | Yellow box on SpO2/PI; hatched pleth |
 | ${clock(T.tempOff)}–${clock(T.tempOn)} | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | ${clock(T.apnea0)}–${clock(T.apnea1)} | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |

@@ -234,7 +234,15 @@ button.sidetoggle.open .sidefill{opacity:.55}
 #waveArea{flex:1;display:flex;min-height:0}
 #waveCanvasWrap{flex:1;position:relative;min-width:0}
 #waveCanvas{position:absolute;inset:0;width:100%;height:100%}
-#numerics{width:212px;flex:0 0 212px;border-left:1px solid var(--line);background:var(--bg2);overflow:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
+#numerics{width:var(--numW,212px);flex:0 0 var(--numW,212px);background:var(--bg2);overflow:auto;padding:6px;
+  display:grid;grid-template-columns:repeat(var(--numCols,1),minmax(0,1fr));align-content:start;gap:6px}
+#numerics>.numpick,#numLive>.numat,#numLive>.note-inline,#numLive>.emptynote{grid-column:1/-1}
+@media (min-width: 901px){ #numerics .num.grpstart{grid-column-start:1} }
+/* the panel's left edge: drag to resize */
+#numGrip{flex:0 0 6px;cursor:col-resize;background:var(--bg2);border-left:1px solid var(--line);position:relative;touch-action:none}
+#numGrip::after{content:"";position:absolute;top:50%;left:1px;width:3px;height:36px;transform:translateY(-50%);
+  border-radius:2px;background:var(--line2)}
+#numGrip:hover::after,#numGrip.drag::after{background:var(--accent)}
 .num{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--bg)}
 .num .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;display:flex;justify-content:space-between}
 .num .val{font:600 30px/1.05 var(--mono);letter-spacing:-1px}
@@ -262,6 +270,10 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
 .numpick{width:100%;font-size:11px;padding:4px}
 #numLive{display:contents}
+#numerics.inspecting{box-shadow:inset 0 0 0 2px var(--line2)}
+#numerics.pinned{box-shadow:inset 0 0 0 2px var(--accent)}
+.inspback{position:absolute;top:6px;right:10px;z-index:3;font-size:12px;padding:3px 9px;min-height:0;
+  background:var(--bg2);border:1px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .keyhint{margin-left:5px;font-size:.78em;font-weight:400;color:var(--dim);letter-spacing:0}
 button.on .keyhint{color:inherit;opacity:.7}
 button.sidetoggle .keyhint{margin-left:4px}
@@ -476,6 +488,9 @@ a.srcref:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .legend .lg:hover{color:var(--fg)}
 @media (max-width:900px){ .setrow{grid-template-columns:1fr;gap:6px} }
 canvas.chart{cursor:zoom-in}
+/* on the CPR page a click moves the playhead rather than enlarging the chart */
+#cprBody canvas.chart{cursor:pointer}
+#cprBody #cprQual{cursor:grab}
 .expandhint{float:right;font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim2);font-size:11px}
 #chartDlg{width:95vw;max-width:1500px}
 #chartDlg .dh{display:flex;align-items:center;gap:8px}
@@ -538,6 +553,81 @@ table.grid tr:hover td{background:#182029}
 .card{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--bg2)}
 .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim)}
 .card .v{font:600 22px/1.25 var(--mono);margin-top:3px}
+/* CPR page: values coloured against their targets */
+.cprcard.good{border-color:color-mix(in srgb, var(--ok) 55%, var(--line))} .cprcard.good .v{color:var(--ok)}
+.cprcard.mid{border-color:color-mix(in srgb, var(--warn) 55%, var(--line))} .cprcard.mid .v{color:var(--warn)}
+.cprcard.bad{border-color:color-mix(in srgb, var(--crit) 55%, var(--line))} .cprcard.bad .v{color:var(--crit)}
+.cprcard.shock .v{color:#ffc400}
+.cprbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+.cprwin{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.shockkey{color:#ffc400;font-weight:700}
+.cprqualwrap{position:relative}
+.cprdash{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg2);min-height:108px}
+.dashdia{position:relative;width:86px;height:86px;flex:none}
+.dashpct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 15px var(--mono);text-shadow:0 0 3px var(--bg),0 0 6px var(--bg)}
+.dashvals{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end}
+.dashk{font-size:11px;color:var(--dim)} .dashv{font:600 26px/1.1 var(--mono)}
+.dashv.good{color:var(--ok)} .dashv.bad{color:var(--crit)}
+.dashpause{font-size:15px;color:var(--crit)} .dashpause b{font:700 30px var(--mono);margin-left:6px}
+.dashwarn{font-size:11.5px;color:var(--warn);flex-basis:100%}
+.dashnote{flex:1 1 220px;font-size:11.5px;color:var(--dim);line-height:1.4}
+.dashidle{font-size:13px;color:var(--dim)}
+.metaed{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.metarev{font-size:12.5px;display:flex;align-items:center;gap:6px}
+.metatags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.metaAdd{flex:1 1 90px;min-width:90px;font-size:12px;padding:3px 6px}
+.tagchip{display:inline-flex;align-items:center;gap:2px;font-size:11.5px;padding:1px 4px 1px 8px;border-radius:10px;
+  background:color-mix(in srgb, var(--accent) 22%, var(--bg3));border:1px solid var(--line2);margin:1px 3px 1px 0}
+.tagchip.sm{padding:0 7px;font-size:11px}
+.tagx{min-height:0;padding:0 4px;border:0;background:transparent;font-size:13px;line-height:1;color:var(--dim)}
+.tagx:hover{color:var(--crit)}
+.libsub{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.libun{font-size:12px;display:flex;align-items:center;gap:4px;color:var(--dim)}
+tr.unopened td:first-child{font-weight:600}
+.newdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;vertical-align:1px}
+.revcell{color:var(--ok);text-align:center;font-weight:700}
+.featlist{margin:0;padding-left:16px;columns:2 9rem;column-gap:16px;font-size:12.5px;line-height:1.6}
+input.cprnum{width:68px}
+.cprgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:12px}
+.cprpanel{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--bg2)}
+.cprpanel h3{margin:0 0 8px;font-size:12.5px;font-weight:600}
+.cprring{display:flex;flex-direction:column;align-items:center;text-align:center}
+.cprtab{width:100%;border-collapse:collapse;font-size:12.5px}
+.cprtab th{text-align:left;font-weight:400;color:var(--dim);padding:3px 8px 3px 0}
+.cprtab td{text-align:right;font:600 12.5px var(--mono);padding:3px 0}
+.cprtab td.good{color:var(--ok)} .cprtab td.mid{color:var(--warn)} .cprtab td.bad{color:var(--crit)}
+.cprshock td{padding-left:10px}
+.cprsub{color:var(--dim);font-weight:400;font-size:11px}
+.cprnote{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.4}
+.cprbarrow{margin-bottom:10px}
+.cprbartitle{font-size:12px;margin-bottom:3px}
+.cprstack{display:flex;height:12px;border-radius:4px;overflow:hidden;background:var(--bg3)}
+.cprstack span{display:block;height:100%}
+.cprkeys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--dim);margin-top:4px}
+.cprkeys i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.cprkeys b{color:var(--fg);font-weight:600}
+.cprwaves{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px}
+.cprwavelbl{font-size:12px;color:var(--dim);margin-right:2px}
+#cprWaveAdd{font-size:12px}
+.cprmon{display:flex;align-items:flex-start;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cprmon .cprqualwrap{flex:1;min-width:0}
+.cprmon #numerics{align-self:stretch}
+.cprmon #numGrip{align-self:stretch}
+.cprwaves{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px}
+.cprwavelbl{font-size:12px;color:var(--dim);margin-right:2px}
+#cprWaveAdd{font-size:12px}
+.cprtip{position:absolute;z-index:6;pointer-events:none;min-width:210px;max-width:300px;padding:7px 10px;border-radius:7px;
+  background:color-mix(in srgb, var(--bg) 93%, transparent);border:1px solid var(--line2);box-shadow:0 4px 14px rgba(0,0,0,.35);font-size:12px}
+.cprtip .cth{font:600 12px var(--mono);margin-bottom:4px}
+.cprtip .ctr{display:flex;justify-content:space-between;gap:12px;line-height:1.55}
+.cprtip .ctk{color:var(--dim)}
+.cprtip .ctv{font-family:var(--mono);text-align:right}
+.cprtip .ctv.good{color:var(--ok)} .cprtip .ctv.bad{color:var(--crit)}
+.cprtip .ctv.shock{color:#ffb020;font-weight:700}
+.cprtip .ctu{color:var(--dim);font-size:10.5px}
+#cprQual{height:clamp(300px, 48vh, 560px);cursor:grab;touch-action:pan-y}
+.cprjump{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:13px;padding:7px 14px;
+  border:1px solid var(--accent);background:var(--bg2);box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .card .s{font:11px var(--mono);color:var(--dim2);margin-top:2px}
 canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius:8px;background:var(--bg2);margin-bottom:10px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font:11px var(--mono);color:var(--dim);margin:-4px 0 10px 2px}
@@ -581,6 +671,27 @@ canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius
 dialog{background:var(--bg2);color:var(--fg);border:1px solid var(--line2);border-radius:12px;padding:0;width:min(520px,92vw)}
 dialog::backdrop{background:#000a}
 #logDlg{width:min(640px,94vw)}
+#ovDlg{width:min(1500px,96vw);max-width:none}
+#rptDlg{width:min(1200px,96vw);max-width:none}
+.rptbody{max-height:min(82vh,1000px);overflow:auto}
+.rptctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:12.5px}
+.rptctl label{display:flex;align-items:center;gap:6px;margin:0;color:var(--dim)}
+#rptChart{width:100%;height:220px;display:block}
+.rpttab{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:10px}
+.rpttab th,.rpttab td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right;white-space:nowrap}
+.rpttab th:first-child,.rpttab td:first-child{text-align:left}
+.rpttab td.tgt{color:var(--dim);text-align:left}
+.rpttab td.good{color:var(--ok)} .rpttab td.bad{color:var(--crit)} .rpttab td.mid{color:var(--warn)}
+.rptwrap{overflow-x:auto}
+.stjbox{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg2)}
+.stjhead{font-size:13px;margin-bottom:2px}
+.stjtab{margin-top:4px} .stjtab td,.stjtab th{text-align:center} .stjtab td:first-child,.stjtab th:first-child{text-align:left}
+.stjaxes{font-size:12.5px;margin:8px 0 2px;color:var(--dim)} .stjaxes b{color:var(--fg)}
+#ovDlg .ovbody{max-height:min(78vh,900px);overflow:auto;padding:8px 12px 12px}
+#ovCanvas{display:block;width:100%;cursor:pointer}
+.ovrow{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;margin:0}
+.ovlegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--dim);padding:6px 15px 0}
+.ovlegend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .logbody{max-height:min(70vh,640px);overflow:auto}
 .logbody section+section{border-top:1px solid var(--line);padding-top:10px}
 .logbody h3{margin:0 0 6px;font-size:13px;font-weight:600}
@@ -631,6 +742,9 @@ dialog input[type=text]{width:100%}
   #waveArea{display:block}
   #waveCanvasWrap{position:relative;height:44vh;min-height:210px}
   @supports (height:100dvh){ #waveCanvasWrap{height:44dvh} }
+  #numGrip{display:none}
+  .cprmon{flex-direction:column;align-items:stretch}
+  .cprmon #numerics{max-height:none!important}
   #numerics{width:auto;flex:none;max-height:none;border-left:0;
     border-top:1px solid var(--line);
     display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;
@@ -794,7 +908,10 @@ dialog input[type=text]{width:100%}
           <details class="monitor-leads" id="monitorLeadPicker"><summary>Choose monitor waveforms</summary>
             <div class="monitor-lead-list" id="monitorLeadList"></div></details>
           <div id="waveArea">
-            <div id="waveCanvasWrap"><canvas id="waveCanvas"></canvas></div>
+            <div id="waveCanvasWrap"><canvas id="waveCanvas"></canvas>
+              <button type="button" id="inspBack" class="inspback" hidden title="Show values at the playhead again (Esc)">Back to playhead</button></div>
+            <div id="numGrip" role="separator" aria-orientation="vertical" aria-controls="numerics"
+              title="Drag to resize the parameter panel (1, 2 or 3 columns). Double-click to fit automatically."></div>
             <div id="numerics"></div>
           </div>
         </div>
@@ -850,6 +967,7 @@ dialog input[type=text]{width:100%}
             <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
           </fieldset>
           <div class="grp adv">
+            <button id="btnOverview" type="button" aria-haspopup="dialog" title="The whole case's ECG on one page, with CPR, pauses, shocks and alarms; click to jump there (O)">Overview</button>
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -873,6 +991,39 @@ dialog input[type=text]{width:100%}
     </div>
   </main>
 </div>
+
+<dialog id="rptDlg" aria-labelledby="rptDlgTitle">
+  <div class="dh" style="display:flex;align-items:center;gap:10px">
+    <span id="rptDlgTitle" style="flex:1">CPR trend report</span>
+    <button id="rptClose" type="button">Close</button>
+  </div>
+  <div class="db rptbody">
+    <div class="rptctl">
+      <label>Interval <select id="rptInt"><option value="month">Monthly</option><option value="quarter">Quarterly</option><option value="year">Yearly</option></select></label>
+      <label>Tag <select id="rptTag"></select></label>
+      <label>Age group <select id="rptGrp"><option value="">All</option><option value="adult">Adult</option><option value="child">Child</option><option value="infant">Infant</option><option value="newborn">Newborn</option></select></label>
+      <label class="libun"><input type="checkbox" id="rptRev"> Only reviewed cases</label>
+      <span style="flex:1"></span>
+      <button id="rptRunLib" type="button" class="on">Read library folder</button>
+      <button id="rptRunFiles" type="button">Choose files…</button>
+      <input type="file" id="rptFiles" accept=".zol,.zip,.json" multiple class="hide">
+      <button id="rptCsv" type="button" disabled>Export CSV</button>
+    </div>
+    <div id="rptProg" class="note-inline" hidden></div>
+    <div id="rptOut"><div class="emptynote">Read the library folder, or choose case files, to build the report.
+      Every file is read on this computer; results are cached so only new or changed files are read next time.</div></div>
+  </div>
+</dialog>
+
+<dialog id="ovDlg" aria-labelledby="ovDlgTitle">
+  <div class="dh" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span id="ovDlgTitle" style="flex:1">Whole-case ECG</span>
+    <label class="ovrow">Row <select id="ovRow"><option value="60000">1 min</option><option value="120000">2 min</option><option value="300000">5 min</option></select></label>
+    <button id="ovClose" type="button">Close</button>
+  </div>
+  <div class="ovlegend" id="ovLegend"></div>
+  <div class="db ovbody"><canvas id="ovCanvas" title="Click to move the playhead there"></canvas></div>
+</dialog>
 
 <dialog id="logDlg" aria-labelledby="logDlgTitle">
   <div class="dh" style="display:flex;align-items:center;gap:8px">
@@ -1075,6 +1226,7 @@ function setTheme(mode, explicit){
   try{ localStorage.setItem('zollviewer:theme', THEME.mode); }catch(e){}
   if($('#app').classList.contains('live')){
     if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
+    if(APP.view==='cpr') drawNumerics();
     if(APP.view==='trends') renderTrends();
     if(APP.view==='vitals') renderVitals();
     if(APP.view==='analysis') renderAnalysis();
@@ -1107,7 +1259,44 @@ function initTheme(){
    permission has lapsed. Falls back to a plain folder picker where the File System
    Access API is missing (Firefox, Safari). */
 const LIB = { dir:null, dirName:null, files:[], sort:{key:'caseTime', dir:-1},
-  filter:'all', from:null, to:null, q:'', scanning:false, needsPerm:false, opening:null };
+  filter:'all', from:null, to:null, q:'', scanning:false, needsPerm:false, opening:null,
+  tag:'', reviewed:'all', unopened:false };
+/* Per-case notes kept in this browser, keyed by the file's path in the folder:
+   tags, a reviewed mark and when it was last opened. Included in settings backups. */
+const CASE_META_KEY='zollviewer:caseMeta';
+function metaAll(){ try{ return JSON.parse(localStorage.getItem(CASE_META_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function metaGet(key){ return Object.assign({tags:[], reviewed:false, opened:null}, metaAll()[key]||{}); }
+function metaSet(key, patch){
+  if(!key) return;
+  const all=metaAll(); all[key]=Object.assign(metaGet(key), patch);
+  try{ localStorage.setItem(CASE_META_KEY, JSON.stringify(all)); }catch(e){ toast('Could not save (storage blocked)'); }
+}
+function metaTagsAll(){
+  const set=new Set(); for(const m of Object.values(metaAll())) for(const t of (m.tags||[])) set.add(t);
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+const libKey = r => r ? (r.path||r.name) : null;
+/* the tags-and-reviewed editor, used in the library preview and in Case details */
+function metaEditorHtml(key){
+  const m=metaGet(key);
+  return '<div class="metaed" data-key="'+esc(key)+'">'+
+    '<label class="metarev"><input type="checkbox" class="metaReviewed"'+(m.reviewed?' checked':'')+'> Reviewed</label>'+
+    '<div class="metatags">'+m.tags.map(t=>'<span class="tagchip">'+esc(t)+
+      '<button type="button" class="tagx" data-tag="'+esc(t)+'" aria-label="Remove tag '+esc(t)+'">×</button></span>').join('')+
+      '<input type="text" class="metaAdd" list="metaTagList" placeholder="Add tag…" maxlength="40"></div>'+
+    '<datalist id="metaTagList">'+metaTagsAll().map(t=>'<option value="'+esc(t)+'">').join('')+'</datalist></div>';
+}
+function wireMetaEditor(root, after){
+  const ed=root && root.querySelector('.metaed'); if(!ed) return;
+  const key=ed.dataset.key;
+  ed.querySelector('.metaReviewed').onchange=e=>{ metaSet(key,{reviewed:e.target.checked}); after&&after(); };
+  ed.querySelectorAll('.tagx').forEach(b=> b.onclick=()=>{ const m=metaGet(key);
+    metaSet(key,{tags:m.tags.filter(t=>t!==b.dataset.tag)}); after&&after(); });
+  const inp=ed.querySelector('.metaAdd');
+  inp.onkeydown=e=>{ if(e.key!=='Enter') return; e.preventDefault(); e.stopPropagation();
+    const t=inp.value.trim(); if(!t) return; const m=metaGet(key);
+    if(!m.tags.includes(t)) metaSet(key,{tags:m.tags.concat(t)}); after&&after(); };
+}
 
 function idbOpen(){
   return new Promise((res,rej)=>{
@@ -1236,9 +1425,19 @@ function recentAdd(entry){
 /* ---- filtering and sorting ---- */
 function libRows(){
   let rows=LIB.files.slice();
-  const q=LIB.q.toLowerCase();
-  if(q) rows=rows.filter(r=>r.path.toLowerCase().includes(q) ||
-    (r.serial||'').toLowerCase().includes(q));
+  const q=LIB.q.toLowerCase(), meta=metaAll();
+  const mOf=r=>meta[libKey(r)]||{};
+  /* search the name and serial, the tags, and whatever the preview has already read
+     from the file (patient ID, unit, agency) */
+  if(q) rows=rows.filter(r=>{
+    const pv=PREVIEW.cache[r.path||r.name]||{};
+    return [r.path, r.serial, (mOf(r).tags||[]).join(' '), pv.patientId, pv.unit, pv.dept, pv.caseId]
+      .some(x=>x && String(x).toLowerCase().includes(q)); });
+  if(LIB.tag) rows=rows.filter(r=>(mOf(r).tags||[]).includes(LIB.tag));
+  if(LIB.reviewed==='yes') rows=rows.filter(r=>mOf(r).reviewed);
+  if(LIB.reviewed==='no') rows=rows.filter(r=>!mOf(r).reviewed);
+  if(LIB.unopened){ const rec=new Set(recentGet().map(x=>x.path||x.name));
+    rows=rows.filter(r=>!mOf(r).opened && !rec.has(r.path) && !rec.has(r.name)); }
   /* case times are device wall clock (see devTime), so compare in that frame */
   const now=localAsDev(Date.now());
   const startOfDay=ms=>{ const x=new Date(ms); x.setUTCHours(0,0,0,0); return x.getTime(); };
@@ -1292,12 +1491,12 @@ function renderLibrary(){
     head='<div class="libhead"><div><b>'+esc(LIB.dirName||'folder')+'</b>'+
       '<span class="libdim"> · '+LIB.files.length+' case file'+(LIB.files.length===1?'':'s')+
       (LIB.scanning?' · scanning…':'')+'</span></div>'+
-      '<div class="libbtns"><button id="libRescan">Rescan</button>'+
+      '<div class="libbtns"><button id="libReport">CPR trend report</button><button id="libRescan">Rescan</button>'+
       '<button id="libChange">Change folder…</button></div></div>';
   } else if(LIB.dir && LIB.needsPerm){
     head='<div class="libhead"><div><b>'+esc(LIB.dirName||'folder')+'</b>'+
       '<span class="libdim"> · the browser needs permission again after a reload</span></div>'+
-      '<div class="libbtns"><button id="libReopen" class="on">Reopen folder</button>'+
+      '<div class="libbtns"><button id="libReopen" class="on">Reopen folder</button><button id="libReport">CPR trend report</button>'+
       '<button id="libChange">Change folder…</button></div></div>';
   } else {
     head='<div class="libhead"><div><b>No folder yet</b><span class="libdim"> · '+
@@ -1305,11 +1504,11 @@ function renderLibrary(){
                  : 'this browser cannot remember a folder — use Choose files, or drop a file')+
       '</span></div><div class="libbtns">'+
       (supported?'<button id="libChange" class="on">Choose folder…</button>':'')+
-      '<button id="libFiles">Choose files…</button></div></div>';
+      '<button id="libFiles">Choose files…</button><button id="libReport">CPR trend report</button></div></div>';
   }
 
   const controls = (LIB.dir && !LIB.needsPerm) ? '<div class="libctl">'+
-    '<input type="text" id="libQ" placeholder="Filter by name or serial…" value="'+esc(LIB.q)+'">'+
+    '<input type="text" id="libQ" placeholder="Search name, serial, tag, patient ID…" value="'+esc(LIB.q)+'">'+
     ['all','today','7','30','range'].map(f=>'<button class="chip'+(LIB.filter===f?' on':'')+
       '" data-filter="'+f+'">'+({all:'All',today:'Today','7':'Last 7 days','30':'Last 30 days',
         range:'Date range'})[f]+'</button>').join('')+
@@ -1317,21 +1516,31 @@ function renderLibrary(){
       ? '<span class="librange"><input type="date" id="libFrom" value="'+esc(LIB.from||'')+'">'+
         '<span class="libdim">to</span><input type="date" id="libTo" value="'+esc(LIB.to||'')+'"></span>'
       : '')+
+    '<span class="libsub">'+
+      '<select id="libTag" aria-label="Filter by tag"><option value="">All tags</option>'+metaTagsAll().map(t=>
+        '<option value="'+esc(t)+'"'+(LIB.tag===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
+      '<select id="libRev" aria-label="Filter by review"><option value="all"'+(LIB.reviewed==='all'?' selected':'')+'>Reviewed or not</option>'+
+        '<option value="yes"'+(LIB.reviewed==='yes'?' selected':'')+'>Reviewed</option>'+
+        '<option value="no"'+(LIB.reviewed==='no'?' selected':'')+'>Not reviewed</option></select>'+
+      '<label class="libun"><input type="checkbox" id="libUnopened"'+(LIB.unopened?' checked':'')+'> Only unopened</label></span>'+
     '<span style="flex:1"></span><span class="libdim">'+rows.length+' shown</span></div>' : '';
 
   const table = (LIB.dir && !LIB.needsPerm) ? (rows.length
     ? '<div class="libtable"><table class="grid">'+
       '<thead><tr>'+sortable('path','Case')+sortable('caseTime','Case date')+
       sortable('serial','Device')+sortable('size','Size',' style="text-align:right"')+
-      sortable('modified','File modified')+'<th></th></tr></thead><tbody>'+
-      rows.map((r,i)=>'<tr data-i="'+LIB.files.indexOf(r)+'"'+
-        (PREVIEW.selected===r?' class="sel"':'')+'>'+
-        '<td>'+esc(r.path)+'</td>'+
+      sortable('modified','File modified')+'<th>Tags</th><th title="Reviewed">✓</th><th></th></tr></thead><tbody>'+
+      rows.map((r,i)=>{ const m=metaGet(libKey(r)), rec=recentGet().some(x=>(x.path||x.name)===r.path||x.name===r.name);
+        const unopened=!m.opened && !rec;
+        return '<tr data-i="'+LIB.files.indexOf(r)+'" class="'+(PREVIEW.selected===r?'sel ':'')+(unopened?'unopened':'')+'">'+
+        '<td>'+(unopened?'<span class="newdot" title="Not opened yet"></span>':'')+esc(r.path)+'</td>'+
         '<td>'+(r.caseTime!=null?fmtDevDateTime(r.caseTime):'<span class="libdim">—</span>')+'</td>'+
         '<td>'+esc(r.serial||'')+'</td>'+
         '<td style="text-align:right">'+fmtSize(r.size)+'</td>'+
         '<td>'+fmtWhen(r.modified)+'</td>'+
-        '<td style="text-align:right"><button class="libopen">Open</button></td></tr>').join('')+
+        '<td>'+m.tags.map(t=>'<span class="tagchip sm">'+esc(t)+'</span>').join('')+'</td>'+
+        '<td class="revcell">'+(m.reviewed?'<span title="Reviewed">✓</span>':'')+'</td>'+
+        '<td style="text-align:right"><button class="libopen">Open</button></td></tr>'; }).join('')+
       '</tbody></table></div>'
     : '<div class="emptynote">No case files match. '+
       (LIB.files.length?'Try a wider date filter.':'The folder holds no .zol or .zip files.')+
@@ -1359,9 +1568,13 @@ function renderLibrary(){
   on('#libChange','click',libPickFolder);
   on('#libReopen','click',libReopen);
   on('#libRescan','click',libRescan);
+  on('#libReport','click',openReport);
   on('#libFiles','click',()=>$('#libFallback').click());
   on('#libQ','input',e=>{ LIB.q=e.target.value; renderLibrary(); $('#libQ').focus(); });
   on('#libFrom','change',e=>{ LIB.from=e.target.value; renderLibrary(); });
+  on('#libTag','change',e=>{ LIB.tag=e.target.value; renderLibrary(); });
+  on('#libRev','change',e=>{ LIB.reviewed=e.target.value; renderLibrary(); });
+  on('#libUnopened','change',e=>{ LIB.unopened=e.target.checked; renderLibrary(); });
   on('#libTo','change',e=>{ LIB.to=e.target.value; renderLibrary(); });
   $$('#libBody [data-filter]').forEach(b=> b.onclick=()=>{
     LIB.filter=b.dataset.filter; renderLibrary();
@@ -1577,7 +1790,9 @@ function renderPreview(){
       esc(p.uniqueId||p.caseId||'')+'</span>')+
     row('File', '<span style="word-break:break-all">'+esc(p.path||p.name)+'</span><br>'+
       '<span class="libdim">'+esc(size)+'</span>')+
+    '<div class="pvsec">Your notes</div>'+metaEditorHtml(libKey(sel))+
     '<button id="pvOpen" class="on" style="width:100%;margin-top:10px">Open this case</button>';
+  wireMetaEditor(box, ()=>{ renderLibrary(); });
   const b=$('#pvOpen');
   if(b) b.onclick=()=>libOpenIndex(LIB.files.indexOf(sel));
 }
@@ -5418,11 +5633,75 @@ function qrsBounds(ch, tR){
   for(let t=tR-60;t<=tR+60;t+=dt){ const e=env(t); if(e===e && e>peakSlope) peakSlope=e; }
   if(!(peakSlope>0)) return null;
   const thr=peakSlope*0.12;
+  /* The slope is momentarily zero at the bottom of a Q or S wave, so a single quiet
+     sample is not the end of the QRS: it has to stay quiet for 16 ms. Without this
+     the offset landed on the S-wave nadir, which shortened QRS duration and put the
+     J point inside the S wave of V1-V3. */
+  const HOLD=16;
+  const quiet=(t,dir)=>{ for(let u=0;u<=HOLD;u+=dt){ const e=env(t+dir*u); if(!(e===e) || e>=thr) return false; } return true; };
   let on=null, off=null;
-  for(let t=tR-10;t>tR-140;t-=dt){ const e=env(t); if(e===e && e<thr){ on=t; break; } }
-  for(let t=tR+10;t<tR+160;t+=dt){ const e=env(t); if(e===e && e<thr){ off=t; break; } }
+  for(let t=tR-10;t>tR-140;t-=dt){ if(quiet(t,-1)){ on=t; break; } }
+  for(let t=tR+10;t<tR+160;t+=dt){ if(quiet(t,1)){ off=t; break; } }
   if(on==null||off==null||off<=on) return null;
   return {on, off, dur:off-on};
+}
+/* ---- 12-lead measurements made here ----
+   Beats are found on lead II; for each, QRS onset and offset come from lead II's slope
+   envelope. ST-J in every lead is the level at the J point (QRS offset) above the PR
+   segment, in mm at 10 mm/mV, taken as the median over the beats. Frontal axes come
+   from the net area of the P wave, QRS and T wave in leads I and aVF. */
+function twelveMeasure(snap){
+  const tr=l=>snap.traces.find(t=>t.lead===l);
+  const II=tr('II'), I=tr('I'); if(!II || !I) return null;
+  const mk=t=>({hz:t.hz, segs:[{t0:0, n:t.data.length, data:t.data}]});
+  const chII=mk(II), chI=mk(I);
+  let aVF=tr('aVF'); const chF = aVF ? mk(aVF) : {hz:II.hz, segs:[{t0:0, n:II.data.length, data:Float32Array.from(II.data,(v,i)=>v-I.data[i]/2)}]};
+  const beats=beatsFromEcg(chII).map(b=>b.t).filter(t=>t>300 && t<II.data.length*1000/II.hz-500);
+  if(beats.length<2) return null;
+  const st={}, ax={P:[],QRS:[],T:[]};
+  const leads=snap.traces.filter(t=>t.lead);
+  const area=(ch,a,b,base)=>{ let s=0; const dt=1000/ch.hz; for(let t=a;t<=b;t+=dt){ const v=sampleAt(ch,t); if(v===v) s+=v-base; } return s; };
+  const angle=(i,f)=> Math.atan2(f, i)*180/Math.PI;
+  beats.forEach((tR,k)=>{
+    const q=qrsBounds(chII, tR); if(!q) return;
+    /* the J point is where the QRS ends in all leads, not just lead II: in V1-V3 a deep
+       S wave can run on well after lead II's QRS has finished */
+    let jT=q.off;
+    for(const L of leads){ const qb=qrsBounds(mk(L), tR); if(qb && qb.off>jT && qb.off<q.on+180) jT=qb.off; }
+    for(const L of leads){
+      const ch=mk(L), base=prBaseline(ch, q.on), j=sampleAt(ch, jT);
+      if(base==null || !(j===j)) continue;
+      (st[L.lead]=st[L.lead]||[]).push((j-base)*10);
+    }
+    const bI=prBaseline(chI,q.on), bF=prBaseline(chF,q.on); if(bI==null||bF==null) return;
+    ax.QRS.push(angle(area(chI,q.on,q.off,bI), area(chF,q.on,q.off,bF)));
+    const nextR=beats[k+1], q2=nextR!=null?qrsBounds(chII,nextR):null;
+    const t=tWave(chII, q.off, q2?q2.on:null, q.on);
+    if(t && t.off) ax.T.push(angle(area(chI,q.off+40,t.off,bI), area(chF,q.off+40,t.off,bF)));
+    const p=pWave(chII, q.on, null, null);
+    if(p) ax.P.push(angle(area(chI,p.on,p.off,bI), area(chF,p.on,p.off,bF)));
+  });
+  const med=a=>{ if(!a.length) return null; const s=a.slice().sort((x,y)=>x-y); return s[s.length>>1]; };
+  const stj={}; for(const L of LEAD_ORDER) if(st[L]) stj[L]=med(st[L]);
+  return {stj, axes:{P:med(ax.P), QRS:med(ax.QRS), T:med(ax.T)}, beats:beats.length};
+}
+/* the usual thresholds: elevation of 1 mm (2 mm in V2-V3), depression of 0.5 mm */
+function stjClass(lead, mm){
+  if(mm==null) return '';
+  const up=/^V[23]$/.test(lead) ? 2 : 1;
+  return mm>=up ? 'bad' : mm<=-0.5 ? 'mid' : '';
+}
+function twelveMeasureHtml(snap){
+  const m=twelveMeasure(snap); if(!m) return '';
+  const leads=LEAD_ORDER.filter(l=>m.stj[l]!=null);
+  const f=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1);
+  const a=v=>v==null?'—':Math.round(v)+'°';
+  return '<div class="stjbox"><div class="stjhead"><b>Measured here</b> <span class="libdim">'+m.beats+' beats · not the monitor’s interpretation</span></div>'+
+    '<div class="rptwrap"><table class="rpttab stjtab"><thead><tr><th>ST-J (mm)</th>'+leads.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr></thead>'+
+    '<tbody><tr><td class="tgt">J point vs PR segment</td>'+leads.map(l=>'<td class="'+stjClass(l,m.stj[l])+'">'+f(m.stj[l])+'</td>').join('')+'</tr></tbody></table></div>'+
+    '<div class="stjaxes">Axes &nbsp; P <b>'+a(m.axes.P)+'</b> &nbsp; QRS <b>'+a(m.axes.QRS)+'</b> &nbsp; T <b>'+a(m.axes.T)+'</b></div>'+
+    '<div class="note-inline">ST-J is measured at the end of the QRS against the PR segment, median over the beats, at 10 mm/mV. '+
+    'Red: elevation of 1 mm or more (2 mm in V2–V3); amber: depression of 0.5 mm or more. A measurement to check, not a diagnosis.</div></div>';
 }
 /* P wave: largest deflection in the PR search window before QRS onset */
 /* the isoelectric reference for a beat: the PR segment just before QRS onset */
@@ -6278,6 +6557,7 @@ const PHYS_SECTIONS=[
 ];
 const AN_SECTIONS=[
   {id:'case',      label:'Case',                  group:'Overview'},
+  {id:'features',  label:'Case features',         group:'Overview'},
   {id:'glance',    label:'At a glance',           group:'Overview'},
   {id:'coverage',  label:'Monitoring coverage',   group:'Overview'},
   {id:'channels',  label:'Recorded channels',     group:'Overview'},
@@ -6621,6 +6901,48 @@ function anCoverage(){
     '<table class="grid lefty"><tr><th>Channel</th><th>Coverage</th><th>First</th>'+
     '<th>Last</th><th>Total</th></tr>'+rows.join('')+'</table>';
 }
+/* what this case contains, at a glance: vitals and waveforms recorded, the treatment
+   events, and which parameters alarmed in which direction */
+function caseFeatures(){
+  const vitals=(M.params||[]).filter(p=>p.origin==='device' && (p.sub
+      ? Object.values(p.sub).some(a=>a.some(q=>q.v!=null)) : (p.pts||[]).some(q=>q.v!=null)))
+    .map(p=>p.label+(shortSub(p)?' '+shortSub(p):''));
+  const waves=Object.values(M.channels).filter(c=>c.nValid>0 && !c.captureOnly).map(c=>shortName(c.name));
+  const ev=M.events.concat(M.deviceLog||[]);
+  const C=M.cpr||{};
+  const events=[
+    ['CPR', C.comps && C.comps.length || (C.periods||[]).length ? 'Yes' : 'No'],
+    ['Shocks delivered', String((C.shocks||[]).length || M.summary.shocks || 0)],
+    ['Shock advised', String(ev.filter(e=>e.kind==='aed' && /shock advised/i.test(e.name) && !/no shock/i.test(e.name)).length)],
+    ['No shock advised', String(ev.filter(e=>e.kind==='aed' && /no shock advised/i.test(e.name)).length)],
+    ['12-leads', String(M.snapshots.filter(s=>s.is12).length)],
+    ['Snapshots', String(M.snapshots.filter(s=>!s.is12).length)],
+    ['Pacing', M.summary.pacerTime ? fmtEl(M.summary.pacerTime*1000) : (M.pace.length ? M.pace.length+' pulses' : 'No')],
+    ['ROSC', (C.rosc||[]).length ? 'Yes, '+fmtClock(M.t0Wall+C.rosc[0].t0) : 'No']
+  ];
+  const al={};
+  for(const e of M.events){
+    if(e.kind!=='alarm') continue;
+    const L=e.limits||{}, v=+e.value;
+    const dir = isFinite(v) && L.HighLimVal!=null && v>+L.HighLimVal ? 'High' : isFinite(v) && L.LowLimVal!=null && v<+L.LowLimVal ? 'Low'
+      : /high/i.test(e.name) ? 'High' : /low/i.test(e.name) ? 'Low' : '';
+    const what=e.name.replace(/^Alarm:\s*/,'').replace(/\s+(high limit|low limit|event \d+)$/i,'');
+    const label={'heart rate':'HR','invasive pressure':'Invasive pressure','pressure':'NIBP','SpO2':'SpO₂'}[what] || what;
+    const k=label+'|'+dir; al[k]=(al[k]||0)+1;
+  }
+  const alarms=Object.entries(al).map(([k,n])=>{ const [l,d]=k.split('|'); return [l, (d||'Alarm')+(n>1?' ×'+n:'')]; });
+  return {vitals, waves, events, alarms};
+}
+function anFeatures(){
+  const F=caseFeatures();
+  const list=(title, items)=>'<div class="cprpanel"><h3>'+title+'</h3>'+(items.length
+    ? '<ul class="featlist">'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>' : '<div class="cprnote">None recorded.</div>')+'</div>';
+  const table=(title, rows, cls)=>'<div class="cprpanel"><h3>'+title+'</h3>'+(rows.length
+    ? '<table class="cprtab">'+rows.map(([k,v])=>'<tr><th>'+esc(k)+'</th><td'+(cls?' class="'+cls(k,v)+'"':'')+'>'+esc(v)+'</td></tr>').join('')+'</table>'
+    : '<div class="cprnote">None.</div>')+'</div>';
+  return '<div class="cprgrid">'+list('Vitals', F.vitals)+list('Waveforms', F.waves)+
+    table('Events', F.events)+table('Alarms', F.alarms, (k,v)=>'bad')+'</div>';
+}
 function anGlance(){
   const W=wholeCase();
   const S=wholeCaseSig();
@@ -6671,6 +6993,7 @@ function renderAnalysis(){
   const legacy=legacyAnalysisSections();
   const html={
     case: legacy.case,
+    features: anFeatures(),
     glance: anGlance(),
     coverage: anCoverage(),
     channels: legacy.channels,
@@ -6722,7 +7045,8 @@ function layoutReviewPane(root){
     side.style.setProperty('--asideHeight',Math.max(120,view.clientHeight-top-16)+'px');
   }
 }
-const CASE_INPUT_UI={open:false};
+/* open by default so people find it; closing it is remembered */
+const CASE_INPUT_UI={open:true};
 function renderCaseInputs(){
   const lines=hemoLines(), art=!!lines.art;
   const hasSpo2=M.trends.some(r=>Number.isFinite(r.spo2));
@@ -6766,7 +7090,7 @@ function refreshCaseInputResults(){
 function wireCaseInputs(){
   const details=$('#caseInputs'), form=$('#caseInputsForm');
   if(!form) return;
-  details.ontoggle=()=>{ CASE_INPUT_UI.open=details.open; };
+  details.ontoggle=()=>{ CASE_INPUT_UI.open=details.open; if(CFG.caseInputsOpen!==details.open){ CFG.caseInputsOpen=details.open; cfgSave(); } };
   form.onsubmit=e=>{
     e.preventDefault();
     const draft={};
@@ -7177,6 +7501,7 @@ function drawMonitor(){
 
   if(APP.inspect && APP.inspect.t>=t0 && APP.inspect.t<=t1){
     const ix=Math.round(X(APP.inspect.t))+0.5;
+    geo.inspectX=ix;
     g.save(); g.strokeStyle=T0.cursor; g.globalAlpha=APP.inspect.pinned?.85:.55;
     g.setLineDash(APP.inspect.pinned?[6,3]:[3,4]); g.lineWidth=1;
     g.beginPath(); g.moveTo(ix,0); g.lineTo(ix,plotH); g.stroke();
@@ -7204,6 +7529,21 @@ function drawMonitor(){
   g.fillStyle=T0.dim;
   if(showRange) g.fillText('+'+fmtEl(t0)+'  →  +'+fmtEl(t1), 5, plotH+14);
   drawPlayheadTag(g, cx, plotH, T0);
+  if(geo.inspectX!=null) drawInspectTag(g, geo.inspectX, plotH, T0, cx);
+}
+/* outlined tag on the time axis for the time the panel is reading: the pointer, or
+   the pinned point. Kept clear of the playhead's own tag. */
+function drawInspectTag(g, x, plotH, T0, cx){
+  const ins=APP.inspect; if(!ins) return;
+  const txt=(ins.pinned?'PIN ':'')+fmtClock(M.t0Wall+ins.t);
+  g.save(); g.font='600 10px ui-monospace,monospace';
+  const w=Math.ceil(g.measureText(txt).width)+12, h=15, y=plotH+3;
+  if(Math.abs(x-cx) < w) { g.restore(); return; }
+  const bx=Math.round(x-w/2);
+  g.fillStyle=T0.bg; g.fillRect(bx,y,w,h);
+  g.strokeStyle=T0.cursor; g.lineWidth=1; g.setLineDash(ins.pinned?[]:[3,2]); g.strokeRect(bx+0.5,y+0.5,w-1,h-1);
+  g.fillStyle=T0.cursor; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt, x, y+h/2+0.5);
+  g.restore();
 }
 /* The playhead is the moment everything else on the page is read at, so it is
    labelled as such: a notch at the top of the strip, and a tag on the time axis
@@ -7330,7 +7670,7 @@ function selToggle(id, on){
   selSave(); refreshParamViews();
 }
 function refreshParamViews(){
-  if(APP.view==='monitor') drawNumerics();
+  if(APP.view==='monitor' || APP.view==='cpr') drawNumerics();
   if(APP.view==='trends') renderTrends();
   if(APP.view==='vitals') renderVitals();
   const d=$('#paramDlg'); if(d && d.open) renderParamChooser();
@@ -7678,6 +8018,7 @@ function setInspect(t, pinned){
   APP.inspect = t==null ? null : {t:clamp(t,0,M.durMs), pinned:!!pinned};
   if(!was && !APP.inspect) return;
   if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
+  else if(APP.view==='cpr') drawNumerics();
 }
 /* ---------------- parameter alarm state ----------------
    The file does not say what colour the monitor painted an alarm, so the panel uses
@@ -7788,8 +8129,98 @@ function syncAlarmFlash(){
   const b=$('#btnAlmFlash'); if(b){ b.classList.toggle('on', !!CFG.alarmFlash); b.setAttribute('aria-pressed', !!CFG.alarmFlash); }
   const n=$('#numerics'); if(n) n.classList.toggle('almflash', !!CFG.alarmFlash);
 }
+/* ---------------- parameter panel width ----------------
+   One, two or three columns. Fitted automatically to the fewest columns that show
+   every chosen parameter without scrolling (and never more than half the strip), or
+   set by dragging the panel's left edge, which switches columns as it passes each
+   width. Double-clicking the edge returns to automatic. Related parameters start a
+   new row, so the heart rates sit together and the pulse rates together. */
+const NUM_COL = 196, NUM_PAD = 12, NUM_GAP = 6;
+const numWidthFor = c => c*NUM_COL + (c-1)*NUM_GAP + NUM_PAD;
+const numColsFor = w => Math.max(1, Math.min(3, Math.floor((w - NUM_PAD + NUM_GAP)/(160 + NUM_GAP))));
+function numRowKey(p){
+  if(/^hr_(art|pleth)$/.test(p.id)) return 'Pulse rate';
+  return p.group || p.id;
+}
+function numMaxWidth(){
+  const box=$('#numerics'), wa=(box && box.parentElement) || $('#waveArea');
+  const w=wa ? wa.getBoundingClientRect().width/((CFG.uiScale||100)/100) : 900;
+  return Math.max(numWidthFor(1), Math.min(numWidthFor(3), Math.round(w*0.5)));
+}
+function setNumWidth(w, cols){
+  const box=$('#numerics'); if(!box) return false;
+  const was=box.style.getPropertyValue('--numW');
+  box.style.setProperty('--numW', Math.round(w)+'px');
+  box.style.setProperty('--numCols', cols);
+  return was !== Math.round(w)+'px';
+}
+function fitNumerics(){
+  const box=$('#numerics'); if(!box || !box.offsetParent) return;
+  if(window.matchMedia && matchMedia('(max-width: 900px)').matches) return;
+  const max=numMaxWidth();
+  let changed;
+  if(CFG.numW){
+    const w=Math.max(numWidthFor(1)*0.8, Math.min(max, CFG.numW));
+    changed=setNumWidth(w, numColsFor(w));
+  } else {
+    /* columns may narrow to 160 px to fit within half the strip */
+    const widthFor=c=>Math.min(numWidthFor(c), max);
+    const fits=c=>(widthFor(c) - NUM_PAD - (c-1)*NUM_GAP)/c >= 160;
+    let c=1;
+    for(; c<=3; c++){
+      if(c>1 && !fits(c)){ c--; break; }
+      setNumWidth(widthFor(c), c);
+      if(box.scrollHeight <= box.clientHeight + 1) break;
+    }
+    c=Math.max(1, Math.min(3, c));
+    changed=setNumWidth(widthFor(c), c);
+  }
+  if(changed) redrawBesideNumerics();
+}
+function redrawBesideNumerics(){
+  if(APP.view==='monitor') drawMonitor();
+  else if(APP.view==='cpr'){ const q=$('#cprQual'); if(q) drawCprQuality(q); }
+}
+/* The CPR page shows the same parameter panel as the Monitor, beside its graph: the
+   one panel moves between the two pages, so the choice of parameters, the
+   Parameters… button, the alarm boxes and the column width are shared. */
+function mountNumerics(where){
+  const grip=$('#numGrip'), box=$('#numerics'); if(!grip || !box) return;
+  const host = where==='cpr' ? $('#cprMon') : $('#waveArea');
+  if(!host || box.parentElement===host) return;
+  host.appendChild(grip); host.appendChild(box);
+  box.style.maxHeight='';
+  requestAnimationFrame(()=>{ fitNumerics(); drawNumerics();
+    if(where==='cpr'){ const q=$('#cprQual'); if(q) drawCprQuality(q); } });
+}
+function wireNumGrip(){
+  const grip=$('#numGrip'), box=$('#numerics');
+  if(!grip || !box || grip._wired) return;
+  grip._wired=true;
+  let x0=0, w0=0, on=false;
+  grip.addEventListener('pointerdown', ev=>{
+    ev.preventDefault(); grip.setPointerCapture(ev.pointerId); on=true; grip.classList.add('drag');
+    x0=ev.clientX; w0=box.getBoundingClientRect().width/((CFG.uiScale||100)/100);
+  });
+  grip.addEventListener('pointermove', ev=>{
+    if(!on) return;
+    const z=(CFG.uiScale||100)/100;
+    const w=Math.max(numWidthFor(1)*0.8, Math.min(numMaxWidth(), w0 - (ev.clientX-x0)/z));
+    if(setNumWidth(w, numColsFor(w))) redrawBesideNumerics();
+    CFG.numW=Math.round(w);
+  });
+  const stop=()=>{ if(!on) return; on=false; grip.classList.remove('drag'); cfgSave(); };
+  grip.addEventListener('pointerup', stop);
+  grip.addEventListener('pointercancel', stop);
+  grip.addEventListener('dblclick', ()=>{ CFG.numW=null; cfgSave(); fitNumerics(); toast('Parameter panel fits automatically'); });
+  if(typeof ResizeObserver!=='undefined'){
+    let raf=0;
+    new ResizeObserver(()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; fitNumerics(); }); }).observe($('#waveArea'));
+  }
+}
 function drawNumerics(){
   const box = $('#numerics'); if(!box) return;
+  wireNumGrip();
   const t = inspectTime(), staleMs = +CFG.staleMs||30000;
   const ps = selected();
   const data = ps.map(p=>{
@@ -7820,16 +8251,12 @@ function drawNumerics(){
   }
   const live=$('#numLive'), ins=APP.inspect;
   const rrNote = M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id));
-  const key = ps.map(p=>p.id+':'+p.label+':'+p.color).join('|')+'#'+(ins?(ins.pinned?'pin':'hover'):'')+'#'+(rrNote?1:0);
+  const key = ps.map(p=>p.id+':'+p.label+':'+p.color).join('|')+'#'+(rrNote?1:0);
   if(live._key!==key){
     live._key=key;
     live.innerHTML =
-      (ins ? '<div class="numat'+(ins.pinned?' pinned':'')+'" role="status">'+
-        '<span>'+(ins.pinned?'Pinned at ':'Pointer at ')+'<b></b></span>'+
-        (ins.pinned ? '<button type="button" id="numBack" title="Show values at the playhead again (Esc)">Back to playhead</button>'
-                    : '<span class="numhint">click to pin</span>')+'</div>' : '') +
-      (ps.length ? ps.map(p=>
-        '<div class="num" data-id="'+esc(p.id)+'" style="border-color:'+traceCol(p.color)+'55">'+
+      (ps.length ? ps.map((p,i)=>
+        '<div class="num'+(i===0 || numRowKey(ps[i-1])!==numRowKey(p) ? ' grpstart' : '')+'" data-id="'+esc(p.id)+'" style="border-color:'+traceCol(p.color)+'55">'+
           '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+infoBtn(p.id)+'</span>'+
             '<span>'+esc(p.unit||'')+'</span></div>'+
           '<div class="val" style="color:'+traceCol(p.color)+'"></div>'+
@@ -7837,9 +8264,15 @@ function drawNumerics(){
           '<div class="alarm-setting" hidden></div>'+
         '</div>').join('') : '<div class="emptynote">No parameters selected.</div>')+
       (rrNote ? '<div class="note-inline">Respiratory rate unavailable: this export has no valid device RR; its ventilation timestamps are not individual breaths.</div>' : '');
-    if($('#numBack')) $('#numBack').onclick = ()=> setInspect(null);
+    requestAnimationFrame(fitNumerics);
   }
-  if(ins){ const b=live.querySelector('.numat b'), txt=fmtClock(M.t0Wall+ins.t); if(b && b.textContent!==txt) b.textContent=txt; }
+  /* reading at the pointer is shown by an outline on the panel and a time tag on the
+     strip's time axis, so nothing in the panel moves */
+  box.classList.toggle('inspecting', !!ins);
+  box.classList.toggle('pinned', !!(ins && ins.pinned));
+  box.title = ins ? (ins.pinned ? 'Values pinned at '+fmtClock(M.t0Wall+ins.t)+'. Esc or play returns to the playhead.'
+                               : 'Values at the pointer, '+fmtClock(M.t0Wall+ins.t)+'. Click the strip to pin.') : '';
+  const back=$('#inspBack'); if(back) back.hidden = !(ins && ins.pinned);
   const cells = live.querySelectorAll('.num');
   data.forEach((d,i)=>{
     const el=cells[i]; if(!el) return;
@@ -8447,6 +8880,47 @@ function attachChartHover(cv, redraw){
    Periods (CPR / pause / ROSC / AutoPulse / ResQPump) and ventilation marks come from
    the CaseReview XML, which is where the device publishes its own parsed values. */
 
+/* CPR targets. The live values below are set from Settings by syncCprTargets();
+   depths are stored and compared in inches whatever unit is displayed. */
+/* Defaults from the 2025 AHA guidelines (ACLS, PALS, NRP). Children and infants have a
+   single "about" depth (about 2 in / 5 cm and 1.5 in / 4 cm, one-third of chest depth), given
+   here as a band of 0.2 in either side; newborn compressions are 90 a minute at 3:1 with
+   ventilation, to one-third of chest depth (no absolute figure: the band is approximate).
+   Interruptions under 10 s, compression fraction at least 60%. */
+const CPR_DEFAULTS = {unit:'in', group:'auto',
+  adult:[2.0,2.4], child:[1.8,2.2], infant:[1.3,1.7], newborn:[1.0,1.4],
+  rate:[100,120], nbRate:[85,95], relVel:400, pre:10, post:10, pauseMin:2, quality:60, fraction:60};
+function cprConfig(){ return Object.assign({}, CPR_DEFAULTS, CFG.cprT||{}); }
+/* The monitor's patient mode when CPR began: a "Patient Mode …" event logged before the
+   first compression wins over the mode in the patient record. The X Series has only Adult
+   and Pediatric modes, so a pediatric case is split by recorded age: under 1 month a
+   newborn, under 1 year an infant, otherwise a child. */
+function cprDetectedGroup(){
+  const C=M.cpr, t0=C && C.comps && C.comps.length ? C.comps[0].t : Infinity;
+  let mode=String((M.patient&&M.patient.PatientMode)||'');
+  for(const e of M.events){ if(e.t>t0) break; const m=/^Patient Mode (\w+)/i.exec(e.name||''); if(m) mode=m[1]; }
+  if(!/ped|child|infant|neonat|newborn/i.test(mode)) return 'adult';
+  const age=parseFloat(M.patient && M.patient.Age);
+  if(isFinite(age) && age < 1/12) return 'newborn';
+  if(isFinite(age) && age < 1) return 'infant';
+  return 'child';
+}
+function cprGroup(){
+  const c=cprConfig();
+  return c.group!=='auto' ? c.group : cprDetectedGroup();
+}
+function syncCprTargets(){
+  const c=cprConfig(), g=cprGroup(), d=c[g]||c.adult, rt=g==='newborn' ? (c.nbRate||CPR_DEFAULTS.nbRate) : c.rate;
+  Object.assign(CPR_TARGET, {depthLo:+d[0], depthHi:+d[1], rateLo:+rt[0], rateHi:+rt[1], relVel:+c.relVel,
+    pre:+c.pre, post:+c.post, pauseMin:+c.pauseMin, quality:+c.quality, fraction:+c.fraction, unit:c.unit, group:g});
+}
+const CPR_GROUP_NAME = {adult:'Adult (ACLS)', child:'Child (PALS)', infant:'Infant (PALS)', newborn:'Newborn (NRP)'};
+/* depth in the chosen display unit */
+const cprDU = v => v==null ? null : (CPR_TARGET.unit==='cm' ? v*2.54 : v);
+const cprDUnit = () => CPR_TARGET.unit==='cm' ? 'cm' : 'in';
+const cprDFmt = (v,d) => v==null ? '—' : cprDU(v).toFixed(CPR_TARGET.unit==='cm' ? Math.max(0,(d||2)-1) : (d==null?2:d))+' '+cprDUnit();
+/* a goal met is green, within 15 points amber, further off red */
+const cprGoalGrade = (v, goal) => v==null ? '' : v>=goal ? 'good' : v>=goal-15 ? 'mid' : 'bad';
 const CPR_TARGET = {
   depthLo:2.0, depthHi:2.4,      /* inches, adult */
   rateLo:100,  rateHi:120,       /* compressions per minute */
@@ -8685,7 +9159,9 @@ function cprSpan(){
   const C=M.cpr;
   let lo=Infinity, hi=-Infinity;
   const eat=(t)=>{ if(t<lo) lo=t; if(t>hi) hi=t; };
-  for(const p of C.periods.concat(C.pauses,C.rosc,C.autopulse,C.resq)){ eat(p.t0); eat(p.t1); }
+  for(const p of C.periods.concat(C.pauses,C.autopulse,C.resq)){ eat(p.t0); eat(p.t1); }
+  /* ROSC usually lasts to the end of the case: only its start belongs in the CPR view */
+  for(const p of C.rosc) eat(p.t0);
   for(const c of C.comps) eat(c.t);
   for(const s of C.shocks) eat(s.t);
   if(!isFinite(lo)) return {t0:0, t1:M.durMs};
@@ -8694,38 +9170,63 @@ function cprSpan(){
 }
 
 /* ---- shared drawing pieces for the CPR views ---- */
-function cprBands(g, X, top, h, span){
-  const C=M.cpr;
-  const band=(list,col,alpha)=>{
-    g.globalAlpha=alpha; g.fillStyle=traceCol(col);
+/* CPR colours mean something: green is in target, red is not, amber is half way
+   (one of rate and depth in target). Periods are tinted by what they are for the
+   patient: pauses red, ROSC green; CPR time itself stays neutral. */
+const CPR_GOOD='#3fd68b', CPR_BAD='#ff4d4d', CPR_MID='#ffb020', CPR_SHOCK='#ffc400', CPR_VENT='#6fa8ff';
+const cprRateOk = r => r!=null && r>=CPR_TARGET.rateLo && r<=CPR_TARGET.rateHi;
+const cprDepthOk = d => d!=null && d>=CPR_TARGET.depthLo && d<=CPR_TARGET.depthHi;
+function cprCompColor(c){
+  const a=cprRateOk(c.rate), b=cprDepthOk(c.depth);
+  return traceCol(a&&b ? CPR_GOOD : (a||b) ? CPR_MID : CPR_BAD);
+}
+function cprBands(g, X, top, h, span, labels){
+  const C=M.cpr, TC=TH();
+  const band=(list,col,alpha,label)=>{
     for(const p of list){
       const x0=X(Math.max(p.t0,span.t0)), x1=X(Math.min(p.t1,span.t1));
-      if(x1>x0) g.fillRect(x0, top, x1-x0, h);
+      if(!(x1>x0)) continue;
+      g.globalAlpha=alpha; g.fillStyle=traceCol(col); g.fillRect(x0, top, x1-x0, h);
+      g.globalAlpha=1;
+      if(labels && label && x1-x0>34){
+        g.fillStyle=traceCol(col); g.font='600 10px system-ui,sans-serif'; g.textAlign='center';
+        g.fillText(label, (x0+x1)/2, top+h-6); g.textAlign='left';
+      }
     }
-    g.globalAlpha=1;
   };
-  band(C.periods, CPR_COL.cpr, .55);
-  band(C.autopulse, CPR_COL.autopulse, .5);
-  band(C.resq, CPR_COL.resq, .5);
-  band(C.pauses, CPR_COL.pause, .75);
-  band(C.rosc, CPR_COL.rosc, .55);
+  band(C.periods, TC.fg||'#e8eaec', .05, null);
+  band(C.autopulse, CPR_COL.autopulse, .18, 'AUTOPULSE');
+  band(C.resq, CPR_COL.resq, .18, 'RESQPUMP');
+  band(C.pauses, CPR_BAD, .16, 'PAUSE');
+  band(C.rosc, CPR_GOOD, .13, 'ROSC');
 }
+/* ventilations: short ticks along the top edge, not full-height bars */
 function cprVents(g, X, top, h, span){
-  g.globalAlpha=.45; g.fillStyle=traceCol(CPR_COL.vent);
+  g.strokeStyle=traceCol(CPR_VENT); g.lineWidth=2;
   for(const t of M.cpr.vents){
     if(t<span.t0||t>span.t1) continue;
-    g.fillRect(Math.round(X(t))-1, top, 3, h);
+    const x=Math.round(X(t))+0.5;
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+Math.min(10, h*0.12)); g.stroke();
   }
-  g.globalAlpha=1;
 }
-function cprShocks(g, X, y, span){
-  g.font='15px system-ui,sans-serif'; g.textAlign='center';
+/* shocks: a thick amber line through the whole plot and a badge at the top */
+function cprShocks(g, X, top, h, span, small){
   for(const s of M.cpr.shocks){
     if(s.t<span.t0||s.t>span.t1) continue;
-    g.fillStyle='#e6a800';
-    g.fillText('⚡', X(s.t), y);
+    const x=Math.round(X(s.t));
+    g.save();
+    g.fillStyle=traceCol(CPR_SHOCK); g.globalAlpha=.9; g.fillRect(x-1.5, top, 3, h); g.globalAlpha=1;
+    if(!small){
+      const txt='⚡ SHOCK'; g.font='700 11px system-ui,sans-serif';
+      const w=g.measureText(txt).width+12;
+      g.fillStyle=traceCol(CPR_SHOCK); g.fillRect(x-w/2, top+1, w, 17);
+      g.fillStyle='#111'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt, x, top+10);
+    } else {
+      g.font='700 12px system-ui,sans-serif'; g.textAlign='center'; g.fillStyle=traceCol(CPR_SHOCK);
+      g.fillText('⚡', x, top+11);
+    }
+    g.restore();
   }
-  g.textAlign='left';
 }
 function cprAxis(g, X, yBase, span, w, L, R){
   const TC=TH();
@@ -8739,84 +9240,725 @@ function cprAxis(g, X, yBase, span, w, L, R){
   g.textAlign='left';
 }
 
-/* ---- the combined quality graph: rate above, depth hanging below ---- */
+/* the waveforms stacked above the CPR quality graph, on its time scale. CFG.cprWaves
+   is the list chosen (channel names, in order); until one is chosen it is the ECG on
+   the pads (or the monitor's ECG when the pads weren't recorded) and CO2 when recorded. */
+const CPR_WAVE_H=58, CPR_WAVE_GAP=6;
+function cprWaveChoices(){
+  const ecgOrder=c=> c.kind==='pads' ? 0 : c.isEcg ? 1+['I','II','III','aVR','aVL','aVF'].indexOf(c.lead)+(c.lead?0:9) : 20;
+  return Object.values(M.channels).filter(c=>!c.captureOnly && c.nValid>0 && c.kind!=='imp')
+    .sort((a,b)=>ecgOrder(a)-ecgOrder(b))
+    .map(c=>({name:c.name, label:cprWaveLabel(c)}));
+}
+function cprWaveLabel(c){
+  if(c.kind==='pads') return 'ECG pads';
+  if(c.isEcg) return 'ECG '+shortName(c.name);
+  if(c.kind==='spo2') return 'SpO₂ pleth';
+  return shortName(c.name);
+}
+function cprWaveDefault(){
+  const live=c=>c && !c.captureOnly && c.nValid>0;
+  const all=Object.values(M.channels);
+  const ecg=all.find(c=>live(c) && c.isEcg && c.kind==='pads') || (live(M.chEcg) ? M.chEcg : null) || all.find(c=>live(c) && c.isEcg);
+  const co2=all.find(c=>live(c) && c.kind==='co2');
+  return [ecg, co2].filter(Boolean).map(c=>c.name);
+}
+function cprWaveNames(){
+  if(Array.isArray(CFG.cprWaves)) return CFG.cprWaves.slice();
+  /* an older single choice */
+  if(CFG.cprWave==='') return [];
+  if(CFG.cprWave && CFG.cprWave!=='auto') return [CFG.cprWave];
+  return cprWaveDefault();
+}
+function cprWaveChannels(){
+  return cprWaveNames().map(n=>M.channels[n]).filter(c=>c && c.nValid>0);
+}
+function cprWavesSet(names){ CFG.cprWaves=names; CFG.cprWave=null; cfgSave(); }
+function cprWaveCtlHtml(){
+  const shown=cprWaveChannels(), names=new Set(shown.map(c=>c.name));
+  const rest=cprWaveChoices().filter(o=>!names.has(o.name));
+  return '<span class="cprwavelbl">Waveforms</span>'+
+    shown.map(c=>'<span class="tagchip">'+esc(cprWaveLabel(c))+
+      '<button type="button" class="tagx" data-wave="'+esc(c.name)+'" aria-label="Remove '+esc(cprWaveLabel(c))+'">×</button></span>').join('')+
+    (rest.length ? '<select id="cprWaveAdd" aria-label="Add a waveform"><option value="">Add waveform…</option>'+
+      rest.map(o=>'<option value="'+esc(o.name)+'">'+esc(o.label)+'</option>').join('')+'</select>' : '');
+}
+function wireCprWaveCtl(){
+  const box=$('#cprWaves'); if(!box) return;
+  const redo=()=>{ box.innerHTML=cprWaveCtlHtml(); wireCprWaveCtl(); drawCprQuality($('#cprQual')); };
+  box.querySelectorAll('[data-wave]').forEach(b=> b.onclick=()=>{
+    cprWavesSet(cprWaveChannels().map(c=>c.name).filter(n=>n!==b.dataset.wave)); redo(); });
+  const add=$('#cprWaveAdd');
+  if(add) add.onchange=()=>{ if(!add.value) return;
+    cprWavesSet(cprWaveChannels().map(c=>c.name).concat(add.value)); redo(); };
+}
+function drawCprWave(g, ch, X, span, x0, x1, top, h, TC){
+  const cols=Math.max(10, Math.round(x1-x0));
+  const [lo,hi]=rowScale(ch, span.t0, span.t1, cols);
+  const Y=v=>top+h-2-(v-lo)/(hi-lo)*(h-4);
+  g.save();
+  g.fillStyle=TC.panel||TC.bg; g.globalAlpha=.5; g.fillRect(x0, top, x1-x0, h); g.globalAlpha=1;
+  const {mn,mx}=envelope(ch, span.t0, span.t1, cols);
+  g.strokeStyle=traceCol(ch.color||'#9aa7b4'); g.lineWidth=1.2; g.beginPath();
+  let pen=false;
+  for(let i=0;i<cols;i++){
+    if(!(mn[i]===mn[i])){ pen=false; continue; }
+    const xa=x0+i, ya=clamp(Y(mx[i]),top+1,top+h-1), yb=clamp(Y(mn[i]),top+1,top+h-1);
+    if(!pen){ g.moveTo(xa,ya); pen=true; } else g.lineTo(xa,ya);
+    if(yb!==ya) g.lineTo(xa,yb);
+  }
+  g.stroke();
+  g.fillStyle=traceCol(ch.color||'#9aa7b4'); g.font='600 10px ui-monospace,monospace';
+  g.fillText(cprWaveLabel(ch).replace(/^ECG /,''), 4, top+11);
+  g.fillStyle=TC.dim; g.font='10px ui-monospace,monospace';
+  g.fillText(fmtNum(hi), 4, top+24); g.fillText(fmtNum(lo), 4, top+h-3);
+  g.restore();
+}
+
+/* ---- the combined quality graph: rate above, depth hanging below ----
+   Like the Monitor it shows a window of time that follows the playhead (which sits
+   three quarters of the way across), can be dragged or wheeled through time, and the
+   window size is chosen above it ("whole" shows the entire resuscitation). */
+const CPR_WINS=[['30000','30 s'],['60000','1 min'],['120000','2 min'],['300000','5 min'],['all','Whole']];
+function cprView(){
+  const whole=cprSpan(), w=CFG.cprWin||'60000';
+  if(w==='all') return {t0:whole.t0, t1:whole.t1, whole:true};
+  const W=+w, t1=APP.cursor+W*0.25;
+  return {t0:t1-W, t1, whole:false};
+}
 function drawCprQuality(cv){
+  const waves=cprWaveChannels();
+  /* each waveform row adds to the graph's height rather than squeezing rate and depth */
+  const wantH='calc(clamp(300px, 48vh, 560px) + '+(waves.length*(CPR_WAVE_H+CPR_WAVE_GAP))+'px)';
+  if(cv.style.height!==wantH) cv.style.height=wantH;
+  const nb=$('#cprMon #numerics'); if(nb && nb.style.maxHeight!==wantH) nb.style.maxHeight=wantH;
   const {g,w,h}=fitCanvas(cv);
   const TC=TH();
   g.clearRect(0,0,w,h);
   g.fillStyle=TC.bg==='#000000'?'#0b0f14':TC.bg; g.fillRect(0,0,w,h);
-  const C=M.cpr, span=cprSpan();
-  const L=52,R=12,T=10,B=26;
-  const mid=Math.round((h-T-B)*0.42)+T;      /* rate above, depth below */
+  const C=M.cpr, span=cprView();
+  const L=52,R=12,T0=22,B=26;
+  /* the waveform rows above the rate panel, on the same time scale */
+  const T=T0+waves.length*(CPR_WAVE_H+CPR_WAVE_GAP)+(waves.length?4:0);
+  const mid=Math.round((h-T-B)*0.48)+T;      /* rate above, depth below */
   const X=t=>L+(t-span.t0)/(span.t1-span.t0)*(w-L-R);
-  cv._cprGeom={L,R,T,B,w,h,mid,span,X:null};
+  cv._cprGeom={L,R,span};
 
-  cprBands(g,X,T,h-T-B,span);
-  cprVents(g,X,T,h-T-B,span);          /* ventilations run the full height, as on the device */
+  cprBands(g,X,T0,h-T0-B,span,true);
+  cprVents(g,X,T0,h-T0-B,span);
+  waves.forEach((ch,i)=> drawCprWave(g, ch, X, span, L, w-R, T0+2+i*(CPR_WAVE_H+CPR_WAVE_GAP), CPR_WAVE_H, TC));
 
   /* rate panel */
-  const rLo=0,rHi=140;
-  const RY=v=>mid-4-(clamp(v,rLo,rHi)-rLo)/(rHi-rLo)*(mid-T-4);
-  g.fillStyle=traceCol('#4aa3ff'); g.globalAlpha=.16;
+  const rLo=60,rHi=160;
+  const RY=v=>mid-6-(clamp(v,rLo,rHi)-rLo)/(rHi-rLo)*(mid-T-8);
+  g.fillStyle=traceCol(CPR_GOOD); g.globalAlpha=.12;
   g.fillRect(L, RY(CPR_TARGET.rateHi), w-L-R, RY(CPR_TARGET.rateLo)-RY(CPR_TARGET.rateHi));
   g.globalAlpha=1;
   g.strokeStyle=TC.chartGrid; g.lineWidth=1;
   g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
-  const rStep = (mid-T) < 150 ? 40 : 20;
-  for(let v=0;v<=140;v+=rStep){
+  for(const v of [60,80,100,120,140,160]){
     const y=Math.round(RY(v))+0.5;
+    g.strokeStyle = (v===CPR_TARGET.rateLo||v===CPR_TARGET.rateHi) ? traceCol(CPR_GOOD) : TC.chartGrid;
     g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke();
-    g.fillText(String(v), 6, y+3);
+    g.fillText(String(v), 22, y+3);
   }
+  const dotR = span.whole ? 2.4 : 3.6;
   for(const c of C.comps){
     if(c.rate==null || c.t<span.t0 || c.t>span.t1) continue;
-    const inT = c.rate>=CPR_TARGET.rateLo && c.rate<=CPR_TARGET.rateHi;
-    g.fillStyle = inT ? traceCol('#2f7fd4') : traceCol('#8a97a4');
-    g.beginPath(); g.arc(X(c.t), RY(c.rate), 2.1, 0, 7); g.fill();
+    g.fillStyle = traceCol(cprRateOk(c.rate) ? CPR_GOOD : CPR_BAD);
+    g.beginPath(); g.arc(X(c.t), RY(c.rate), dotR, 0, 7); g.fill();
   }
-  g.save(); g.translate(13, (T+mid)/2); g.rotate(-Math.PI/2);
+  g.save(); g.translate(11, (T+mid)/2); g.rotate(-Math.PI/2);
   g.fillStyle=TC.dim; g.font='11px system-ui,sans-serif'; g.textAlign='center';
-  g.fillText('Rate',0,0); g.restore(); g.textAlign='left';
+  g.fillText('Rate /min',0,0); g.restore(); g.textAlign='left';
 
-  /* depth panel — bars grow downward, matching the printed convention */
+  /* depth panel: bars grow downward, matching the printed convention */
   const dTop=mid+6, dBot=h-B;
-  const dMax=4;
+  const dMax=3;
   const DY=v=>dTop+(clamp(v,0,dMax)/dMax)*(dBot-dTop);
-  g.fillStyle=traceCol('#4aa3ff'); g.globalAlpha=.16;
+  g.fillStyle=traceCol(CPR_GOOD); g.globalAlpha=.12;
   g.fillRect(L, DY(CPR_TARGET.depthLo), w-L-R, DY(CPR_TARGET.depthHi)-DY(CPR_TARGET.depthLo));
   g.globalAlpha=1;
-  g.strokeStyle=TC.chartGrid;
   g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
-  for(let v=0;v<=dMax;v+=2){
+  for(const v of [1, CPR_TARGET.depthLo, CPR_TARGET.depthHi, 3]){
     const y=Math.round(DY(v))+0.5;
+    g.strokeStyle = (v===CPR_TARGET.depthLo||v===CPR_TARGET.depthHi) ? traceCol(CPR_GOOD) : TC.chartGrid;
     g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke();
-    g.fillText(String(v), 6, y+3);
+    g.fillText(cprDU(v).toFixed(CPR_TARGET.unit==='cm'?1:(v%1?1:0)), 18, y+3);
   }
+  const bw = span.whole ? 1.5 : Math.max(2, Math.min(7, (w-L-R)/((span.t1-span.t0)/1000*2.2)));
   for(const c of C.comps){
     if(c.depth==null || c.t<span.t0 || c.t>span.t1) continue;
-    const inT = c.depth>=CPR_TARGET.depthLo && c.depth<=CPR_TARGET.depthHi;
-    g.strokeStyle = inT ? traceCol('#2f7fd4') : traceCol('#8a97a4');
-    g.lineWidth=1;
-    const x=Math.round(X(c.t))+0.5;
-    g.beginPath(); g.moveTo(x,dTop); g.lineTo(x,DY(c.depth)); g.stroke();
+    g.fillStyle = traceCol(cprDepthOk(c.depth) ? CPR_GOOD : CPR_BAD);
+    const x=X(c.t);
+    g.fillRect(x-bw/2, dTop, bw, DY(c.depth)-dTop);
   }
-  g.save(); g.translate(13,(dTop+dBot)/2); g.rotate(-Math.PI/2);
+  g.save(); g.translate(11,(dTop+dBot)/2); g.rotate(-Math.PI/2);
   g.fillStyle=TC.dim; g.font='11px system-ui,sans-serif'; g.textAlign='center';
-  g.fillText('Depth',0,0); g.restore(); g.textAlign='left';
+  g.fillText('Depth '+cprDUnit(),0,0); g.restore(); g.textAlign='left';
 
-  cprShocks(g,X,mid+2,span);
+  cprShocks(g,X,T0,h-T0-B,span);
   cprAxis(g,X,h-B+4,span,w,L,R);
 
-  /* cursor */
+  /* playhead, tagged the way the Monitor tags it */
   if(APP.cursor>=span.t0 && APP.cursor<=span.t1){
     const x=Math.round(X(APP.cursor))+0.5;
-    g.strokeStyle=TC.cursor; g.globalAlpha=.8; g.lineWidth=1;
-    g.beginPath(); g.moveTo(x,T); g.lineTo(x,h-B); g.stroke(); g.globalAlpha=1;
+    g.strokeStyle=TC.cursor; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,T0); g.lineTo(x,h-B); g.stroke();
+    drawPlayheadTag(g, x, h-B, TC);
   }
-  cv._cprSpan=span; cv._cprX=X;
+  /* the pointer's time */
+  if(cv._hoverT!=null && cv._hoverT>=span.t0 && cv._hoverT<=span.t1){
+    const x=Math.round(X(cv._hoverT))+0.5;
+    g.save(); g.strokeStyle=TC.dim; g.setLineDash([3,3]); g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,T0); g.lineTo(x,h-B); g.stroke(); g.restore();
+  }
+  const whole=cprSpan();
+  cv._outside = APP.cursor < whole.t0 || APP.cursor > whole.t1;
+  const jb=$('#cprJump'); if(jb) jb.hidden = span.whole || !cv._outside;
 }
 
-/* ---- the stacked performance strips ---- */
+/* ---- summary figures used in resuscitation review ----
+   Pauses are gaps of more than 2 s between compressions inside the arrest (CPR and
+   pause periods, or first to last compression when there are none), less ROSC.
+   Peri-shock pauses: last compression before a shock to the shock, and the shock to
+   the next compression. */
+function cprSummary(){
+  const C=M.cpr, comps=C.comps;
+  const first=comps.length?comps[0].t:null, last=comps.length?comps[comps.length-1].t:null;
+  const inRosc=t=>C.rosc.some(p=>t>=p.t0 && t<p.t1);
+  const pauses=[];
+  for(let i=0;i<comps.length-1;i++){
+    const a=comps[i].t, b=comps[i+1].t, d=b-a;
+    if(d>(CPR_TARGET.pauseMin||2)*1000 && !inRosc(a)) pauses.push({t0:a, t1:b, ms:d});
+  }
+  const shocks=C.shocks.map(s=>{
+    let pre=null, post=null;
+    for(const c of comps){ if(c.t<=s.t) pre=c.t; else { post=c.t; break; } }
+    return {t:s.t, label:s.label, pre: pre!=null && s.t-pre<120000 ? s.t-pre : null,
+      post: post!=null && post-s.t<120000 ? post-s.t : null};
+  });
+  const pads=M.events.find(e=>/pad contact/i.test(e.name||''));
+  const periodMs=C.periods.concat(C.pauses).reduce((n,p)=>n+(p.t1-p.t0),0);
+  const share=(f)=>{ const n=comps.filter(c=>c.depth!=null||c.rate!=null).length; return n?100*comps.filter(f).length/n:null; };
+  const dN=comps.filter(c=>c.depth!=null).length, rN=comps.filter(c=>c.rate!=null).length;
+  const dPct=f=>dN?100*comps.filter(c=>c.depth!=null && f(c.depth)).length/dN:null;
+  const rPct=f=>rN?100*comps.filter(c=>c.rate!=null && f(c.rate)).length/rN:null;
+  return {
+    pads: pads ? pads.t : null, first, firstShock: C.shocks.length ? C.shocks[0].t : null,
+    cprMs: periodMs || (first!=null ? last-first : 0),
+    pauses, shocks,
+    pauseBins: [pauses.filter(p=>p.ms<5000).length, pauses.filter(p=>p.ms>=5000 && p.ms<=10000).length, pauses.filter(p=>p.ms>10000).length],
+    depth: [dPct(v=>v<CPR_TARGET.depthLo), dPct(v=>v>=CPR_TARGET.depthLo && v<=CPR_TARGET.depthHi), dPct(v=>v>CPR_TARGET.depthHi)],
+    rate:  [rPct(v=>v<CPR_TARGET.rateLo),  rPct(v=>v>=CPR_TARGET.rateLo && v<=CPR_TARGET.rateHi),  rPct(v=>v>CPR_TARGET.rateHi)]
+  };
+}
+function cprSummaryHtml(m){
+  const S=cprSummary(), sec=ms=>ms==null?'—':(ms/1000).toFixed(1)+' s';
+  const since=t=>t==null?'—':fmtEl(t)+' <span class="cprsub">'+fmtClock(M.t0Wall+t)+'</span>';
+  const row=(k,v,cls)=>'<tr><th>'+k+'</th><td class="'+(cls||'')+'">'+v+'</td></tr>';
+  const times='<div class="cprpanel"><h3>CPR times</h3><table class="cprtab">'+
+    row('Case start', fmtClock(M.t0Wall))+
+    row('Pads on (impedance)', since(S.pads))+
+    row('First compression', since(S.first))+
+    row('First shock', since(S.firstShock))+
+    row('Time in CPR', fmtEl(S.cprMs))+
+    '</table><div class="cprnote">Times are from case start; the clock time follows.</div></div>';
+  /* compression fraction as a ring */
+  const f=m.ccf==null?0:clamp(m.ccf,0,100), R=46, Cc=2*Math.PI*R;
+  const fg=cprGoalGrade(m.ccf, CPR_TARGET.fraction);
+  const fcol=m.ccf==null?'var(--dim)':fg==='good'?'var(--ok)':fg==='mid'?'var(--warn)':'var(--crit)';
+  const ring='<div class="cprpanel cprring"><h3>Compression fraction</h3>'+
+    '<svg viewBox="0 0 120 120" width="150" height="150" role="img" aria-label="Compression fraction '+(m.ccf==null?'unknown':Math.round(m.ccf)+'%')+'">'+
+      '<circle cx="60" cy="60" r="'+R+'" fill="none" stroke="var(--crit)" stroke-opacity=".35" stroke-width="16"/>'+
+      '<circle cx="60" cy="60" r="'+R+'" fill="none" stroke="'+fcol+'" stroke-width="16" stroke-dasharray="'+(Cc*f/100).toFixed(1)+' '+Cc.toFixed(1)+'" transform="rotate(-90 60 60)"/>'+
+      '<text x="60" y="58" text-anchor="middle" font-size="22" font-weight="700" fill="'+fcol+'">'+(m.ccf==null?'—':Math.round(m.ccf)+'%')+'</text>'+
+      '<text x="60" y="76" text-anchor="middle" font-size="10" fill="var(--dim)">compressing</text></svg>'+
+    '<div class="cprnote">'+fmtEl(m.compMs)+' compressing, '+fmtEl(Math.max(0,m.total-m.compMs))+' not. Goal '+CPR_TARGET.fraction+'% or more.</div></div>';
+  /* three-way bars */
+  const bar=(title, parts)=>'<div class="cprbarrow"><div class="cprbartitle">'+title+'</div><div class="cprstack">'+
+    parts.map(([lab,v,col])=>v?'<span style="width:'+v.toFixed(2)+'%;background:'+col+'" title="'+lab+' '+v.toFixed(1)+'%"></span>':'').join('')+
+    '</div><div class="cprkeys">'+parts.map(([lab,v,col])=>'<span><i style="background:'+col+'"></i>'+lab+' <b>'+(v==null?'—':v.toFixed(1)+'%')+'</b></span>').join('')+'</div></div>';
+  const nP=S.pauses.length||1;
+  const varp='<div class="cprpanel"><h3>Variability and pauses</h3>'+
+    bar('Depth', [['Too shallow',S.depth[0],'var(--crit)'],['In target',S.depth[1],'var(--ok)'],['Too deep',S.depth[2],'var(--warn)']])+
+    bar('Rate', [['Too slow',S.rate[0],'var(--crit)'],['In target',S.rate[1],'var(--ok)'],['Too fast',S.rate[2],'var(--warn)']])+
+    bar('Pauses ('+S.pauses.length+')', [['Under 5 s',100*S.pauseBins[0]/nP,'var(--ok)'],['5–10 s',100*S.pauseBins[1]/nP,'var(--warn)'],['Over 10 s',100*S.pauseBins[2]/nP,'var(--crit)']].map(x=>[x[0],S.pauses.length?x[1]:null,x[2]]))+
+    '</div>';
+  const shkCls=(ms,tgt)=> ms==null ? '' : ms<=tgt*1000 ? 'good' : ms<=tgt*2000 ? 'mid' : 'bad';
+  const longest=S.pauses.slice().sort((a,b)=>b.ms-a.ms).slice(0,5);
+  const pauseCls=ms=>ms<5000?'good':ms<=10000?'mid':'bad';
+  const lp='<div class="cprpanel"><h3>Longest pauses</h3>'+(longest.length?
+    '<table class="cprtab">'+longest.map(p=>'<tr><th>'+fmtClock(M.t0Wall+p.t0)+'</th><td class="'+pauseCls(p.ms)+'">'+sec(p.ms)+'</td></tr>').join('')+'</table>'
+    : '<div class="cprnote">No pauses over '+CPR_TARGET.pauseMin+' s.</div>')+'</div>';
+  const shk='<div class="cprpanel"><h3>Shock pauses</h3>'+(S.shocks.length?
+    '<table class="cprtab cprshock"><tr><th></th><td class="cprsub">before</td><td class="cprsub">after</td></tr>'+
+      S.shocks.map((x,i)=>'<tr><th>⚡ '+(i+1)+' · '+fmtClock(M.t0Wall+x.t)+'</th>'+
+        '<td class="'+shkCls(x.pre, CPR_TARGET.pre)+'">'+sec(x.pre)+'</td>'+
+        '<td class="'+shkCls(x.post, CPR_TARGET.post)+'">'+sec(x.post)+'</td></tr>').join('')+'</table>'+
+      '<div class="cprnote">Last compression to shock, and shock to next compression. Targets '+CPR_TARGET.pre+' s before and '+CPR_TARGET.post+' s after: within target green, up to twice it amber, more red.</div>'
+    : '<div class="cprnote">No shocks recorded.</div>')+'</div>';
+  return '<div class="cprgrid">'+times+ring+varp+lp+shk+'</div>';
+}
+
+/* ---- CPR trend report across cases ----
+   Each case file is parsed in turn (the open case's model is set aside and put back
+   afterwards), its CPR measured against the current targets, and the results grouped
+   by month, quarter or year. Per-file results are cached by path, size and date plus
+   the target settings, so a re-run reads only new or changed files. */
+const RPT={cases:[], running:false, cancel:false};
+const RPT_CACHE='zollviewer:rptCache';
+function rptCacheGet(){ try{ return JSON.parse(localStorage.getItem(RPT_CACHE)||'{}')||{}; }catch(e){ return {}; } }
+function rptCachePut(c){ try{ localStorage.setItem(RPT_CACHE, JSON.stringify(c)); }catch(e){} }
+function rptSig(){ return JSON.stringify(cprConfig()); }
+/* the CPR figures of the case currently in M */
+function rptMeasure(){
+  const C=M.cpr||{};
+  const arrest=!!((C.comps&&C.comps.length) || (C.periods&&C.periods.length));
+  const out={caseTime:M.t0Wall, caseId:M.caseId, arrest, rosc:!!(C.rosc&&C.rosc.length), group:cprGroup()};
+  if(!arrest) return out;
+  syncCprTargets();
+  const m=cprMetrics(), S=cprSummary();
+  const mean=a=>{ const v=a.filter(x=>x!=null&&isFinite(x)); return v.length?v.reduce((x,y)=>x+y,0)/v.length:null; };
+  Object.assign(out, {comps:m.n, quality:m.bothPct, depth:m.depth, rate:m.rate, relVel:m.relVel, ccf:m.ccf,
+    pre:mean(S.shocks.map(x=>x.pre==null?null:x.pre/1000)), post:mean(S.shocks.map(x=>x.post==null?null:x.post/1000)),
+    shocks:(C.shocks||[]).length});
+  return out;
+}
+async function rptParseFile(file){
+  let buf=await readCaseFile(file), name=file.name;
+  if(/\.zip$/i.test(name)){ const r=await unzipFirstMatch(buf, /\.(zol|json)$/i); buf=r.buf; name=r.name; }
+  const {json,xml}=splitZol(buf);
+  const saved={}; for(const k of Object.keys(M)) saved[k]=M[k];
+  try{ buildModel(json, xml, name); return rptMeasure(); }
+  finally{ for(const k of Object.keys(M)) if(!(k in saved)) delete M[k]; Object.assign(M, saved); syncCprTargets(); }
+}
+async function rptRun(entries){
+  if(RPT.running) return;
+  RPT.running=true; RPT.cancel=false;
+  const prog=$('#rptProg'); prog.hidden=false;
+  const cache=rptCacheGet(), sig=rptSig(), out=[];
+  try{
+    for(let i=0;i<entries.length;i++){
+      if(RPT.cancel) break;
+      const e=entries[i], key=e.key+'|'+e.size+'|'+(e.modified||'');
+      prog.textContent='Reading '+(i+1)+' of '+entries.length+': '+e.key+'…';
+      await nextFrame();
+      let r = cache[key] && cache[key].sig===sig ? cache[key].r : null;
+      if(!r){
+        try{ const f=await e.getFile(); r=await rptParseFile(f); cache[key]={sig, r}; }
+        catch(err){ r={error:String(err&&err.message||err)}; }
+      }
+      out.push(Object.assign({key:e.key}, r));
+    }
+  } finally {
+    rptCachePut(cache); RPT.running=false;
+  }
+  RPT.cases=out;
+  const errs=out.filter(c=>c.error).length;
+  prog.textContent=out.length+' case file'+(out.length===1?'':'s')+' read'+(errs?', '+errs+' could not be read':'')+
+    (RPT.cancel?' (stopped early)':'')+'.';
+  renderReport();
+}
+/* group per-case results into periods; averages are of per-case values */
+function rptPeriodKey(t, interval){
+  const d=new Date(t), y=d.getUTCFullYear(), mo=d.getUTCMonth();
+  return interval==='year' ? String(y) : interval==='quarter' ? y+' Q'+(Math.floor(mo/3)+1) : y+'-'+String(mo+1).padStart(2,'0');
+}
+function rptAggregate(cases, interval){
+  const per=new Map();
+  for(const c of cases){
+    if(c.error || c.caseTime==null) continue;
+    const k=rptPeriodKey(c.caseTime, interval);
+    if(!per.has(k)) per.set(k, []);
+    per.get(k).push(c);
+  }
+  const mean=(list,f)=>{ const v=list.map(f).filter(x=>x!=null&&isFinite(x)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; };
+  return [...per.keys()].sort().map(k=>{ const list=per.get(k), ar=list.filter(c=>c.arrest);
+    return {period:k, cases:list.length, arrests:ar.length, rosc:ar.filter(c=>c.rosc).length,
+      quality:mean(ar,c=>c.quality), depth:mean(ar,c=>c.depth), rate:mean(ar,c=>c.rate), relVel:mean(ar,c=>c.relVel),
+      ccf:mean(ar,c=>c.ccf), pre:mean(ar,c=>c.pre), post:mean(ar,c=>c.post)}; });
+}
+function rptFiltered(){
+  const tag=$('#rptTag').value, grp=$('#rptGrp').value, rev=$('#rptRev').checked;
+  return RPT.cases.filter(c=>{ const m=metaGet(c.key);
+    return (!tag || m.tags.includes(tag)) && (!grp || c.group===grp) && (!rev || m.reviewed); });
+}
+function renderReport(){
+  const out=$('#rptOut'); if(!out) return;
+  if(!RPT.cases.length){ $('#rptCsv').disabled=true; return; }
+  syncCprTargets();
+  const rows=rptAggregate(rptFiltered(), $('#rptInt').value);
+  $('#rptCsv').disabled=!rows.length;
+  if(!rows.length){ out.innerHTML='<div class="emptynote">No cases match these filters.</div>'; return; }
+  const T=CPR_TARGET, f=(v,d)=>v==null?'—':v.toFixed(d);
+  const lines=[
+    ['Compressions in target', 'at least '+T.quality+'%', r=>f(r.quality,1)+(r.quality==null?'':'%'), r=>r.quality==null?'':cprGoalGrade(+r.quality.toFixed(1),T.quality)],
+    ['Average depth', cprDFmt(T.depthLo,1).split(' ')[0]+'–'+cprDFmt(T.depthHi,1)+' ('+(CPR_GROUP_NAME[T.group]||'adult').split(' ')[0].toLowerCase()+')', r=>r.depth==null?'—':cprDFmt(r.depth,2), r=>r.depth==null?'':(cprDepthOk(+r.depth.toFixed(2))?'good':'bad')],
+    ['Average rate', T.rateLo+'–'+T.rateHi+' /min', r=>f(r.rate,1), r=>r.rate==null?'':(cprRateOk(+r.rate.toFixed(1))?'good':'bad')],
+    ['Average release velocity', 'at least '+T.relVel+' mm/s', r=>f(r.relVel,0), r=>r.relVel==null?'':(Math.round(r.relVel)>=T.relVel?'good':'bad')],
+    ['Compression fraction', 'at least '+T.fraction+'%', r=>f(r.ccf,1)+(r.ccf==null?'':'%'), r=>r.ccf==null?'':cprGoalGrade(+r.ccf.toFixed(1),T.fraction)],
+    ['Pre-shock pause', 'at most '+T.pre+' s', r=>f(r.pre,1)+(r.pre==null?'':' s'), r=>r.pre==null?'':(+r.pre.toFixed(1)<=T.pre?'good':'bad')],
+    ['Post-shock pause', 'at most '+T.post+' s', r=>f(r.post,1)+(r.post==null?'':' s'), r=>r.post==null?'':(+r.post.toFixed(1)<=T.post?'good':'bad')]
+  ];
+  out.innerHTML='<canvas id="rptChart"></canvas>'+
+    '<div class="rptwrap"><table class="rpttab"><thead><tr><th></th><th style="text-align:left">Target</th>'+rows.map(r=>'<th>'+esc(r.period)+'</th>').join('')+'</tr></thead><tbody>'+
+    '<tr><td>Cases</td><td class="tgt"></td>'+rows.map(r=>'<td>'+r.cases+'</td>').join('')+'</tr>'+
+    '<tr><td>Arrests (CPR)</td><td class="tgt"></td>'+rows.map(r=>'<td>'+r.arrests+'</td>').join('')+'</tr>'+
+    '<tr><td>ROSC</td><td class="tgt"></td>'+rows.map(r=>'<td>'+r.rosc+(r.arrests?' <span class="libdim">('+Math.round(100*r.rosc/r.arrests)+'%)</span>':'')+'</td>').join('')+'</tr>'+
+    lines.map(([name,tgt,val,cls])=>'<tr><td>'+esc(name)+'</td><td class="tgt">'+esc(tgt)+'</td>'+rows.map(r=>'<td class="'+cls(r)+'">'+esc(val(r))+'</td>').join('')+'</tr>').join('')+
+    '</tbody></table></div>'+
+    '<div class="note-inline">Averages are of each case’s own figures. Coloured against the current CPR targets (Settings › CPR targets); depth targets for the age group shown. '+
+    'Arrests are cases with recorded compressions or CPR periods.</div>';
+  drawReportChart(rows);
+  RPT.rows=rows; RPT.lines=lines;
+}
+function drawReportChart(rows){
+  const cv=$('#rptChart'); if(!cv) return;
+  const {g,w,h}=fitCanvas(cv), TC=TH();
+  g.fillStyle=TC.bg; g.fillRect(0,0,w,h);
+  const L=40,R=12,T=14,B=34, n=rows.length, max=Math.max(1,...rows.map(r=>r.arrests));
+  const X=i=>L+(n===1?0.5:i/(n-1))*(w-L-R)*(n===1?1:1), Y=v=>h-B-v/max*(h-T-B);
+  g.strokeStyle=TC.chartGrid; g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
+  const step=Math.max(1,Math.ceil(max/5));
+  for(let v=0; v<=max; v+=step){ const y=Math.round(Y(v))+0.5; g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.fillText(String(v),8,y+3); }
+  g.textAlign='center';
+  rows.forEach((r,i)=>g.fillText(r.period, n===1?(L+w-R)/2:X(i), h-B+16));
+  g.textAlign='left';
+  const line=(key,col)=>{ g.strokeStyle=traceCol(col); g.fillStyle=traceCol(col); g.lineWidth=2; g.beginPath();
+    rows.forEach((r,i)=>{ const x=n===1?(L+w-R)/2:X(i), y=Y(r[key]); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke();
+    rows.forEach((r,i)=>{ const x=n===1?(L+w-R)/2:X(i); g.beginPath(); g.arc(x,Y(r[key]),3.5,0,7); g.fill(); }); };
+  line('arrests','#6fa8ff'); line('rosc',CPR_GOOD);
+  g.font='11px system-ui,sans-serif'; g.fillStyle=traceCol('#6fa8ff'); g.fillText('● Arrests', L+6, T+4);
+  g.fillStyle=traceCol(CPR_GOOD); g.fillText('● ROSC', L+80, T+4);
+}
+function rptCsv(){
+  if(!RPT.rows) return;
+  const head=['measure','target'].concat(RPT.rows.map(r=>r.period));
+  const rows=[head, ['cases',''].concat(RPT.rows.map(r=>r.cases)), ['arrests',''].concat(RPT.rows.map(r=>r.arrests)),
+    ['rosc',''].concat(RPT.rows.map(r=>r.rosc))].concat(RPT.lines.map(([n,t,val])=>[n,t].concat(RPT.rows.map(val))));
+  download('cpr-trend-report.csv', new Blob([toCSV(rows)],{type:'text/csv'}));
+}
+function openReport(){
+  const d=$('#rptDlg'); if(!d) return;
+  $('#rptTag').innerHTML='<option value="">All</option>'+metaTagsAll().map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+  $('#rptRunLib').disabled=!(LIB.files && LIB.files.length);
+  d.showModal(); renderReport();
+}
+function wireReport(){
+  $('#rptClose').onclick=()=>{ RPT.cancel=true; $('#rptDlg').close(); };
+  for(const id of ['#rptInt','#rptTag','#rptGrp','#rptRev']) $(id).onchange=renderReport;
+  $('#rptCsv').onclick=rptCsv;
+  $('#rptRunLib').onclick=async()=>{
+    if(!(await fsPerm(LIB.dir,true))){ toast('Permission to read the folder was declined'); return; }
+    rptRun(LIB.files.map(r=>({key:libKey(r), size:r.size, modified:r.modified, getFile:()=>r.handle.getFile()})));
+  };
+  $('#rptRunFiles').onclick=()=>$('#rptFiles').click();
+  $('#rptFiles').onchange=e=>{ const fs=[...e.target.files]; e.target.value='';
+    rptRun(fs.map(f=>({key:f.name, size:f.size, modified:f.lastModified, getFile:async()=>f}))); };
+}
+
+/* ---- whole-case ECG overview ----
+   The entire recording folded into rows like a long printed strip. Each column of
+   pixels shows the ECG's range there, from the best lead recorded at that moment
+   (lead II first), so the strip carries on across a lead switch. CPR, pauses, ROSC,
+   shocks and alarms are marked; unrecorded stretches are hatched. */
+function ovChannels(){
+  const order=['II','I','III'];
+  const ecg=Object.values(M.channels).filter(c=>c.isEcg && !c.captureOnly && c.nValid>0);
+  ecg.sort((a,b)=>{ const ia=order.indexOf(a.lead), ib=order.indexOf(b.lead);
+    return (ia<0?9:ia)-(ib<0?9:ib) || (a.kind==='pads')-(b.kind==='pads'); });
+  return ecg;
+}
+function drawOverview(){
+  const cv=$('#ovCanvas'); if(!cv || !M.durMs) return;
+  const rowMs=+CFG.ovRow||120000, rows=Math.ceil(M.durMs/rowMs);
+  const RH=58, GAP=6, L=64, T=4;
+  cv.style.height=(rows*(RH+GAP)+T+4)+'px';
+  const {g,w,h}=fitCanvas(cv);
+  const TC=TH();
+  g.fillStyle=TC.bg; g.fillRect(0,0,w,h);
+  const plotW=Math.max(50, w-L-8), chans=ovChannels();
+  cv._ov={rowMs, RH, GAP, L, T, plotW, rows};
+  const C=M.cpr||{periods:[],pauses:[],rosc:[],shocks:[]};
+  for(let r=0;r<rows;r++){
+    const t0=r*rowMs, t1=t0+rowMs, y=T+r*(RH+GAP), mid=y+RH/2;
+    const X=t=>L+(t-t0)/rowMs*plotW;
+    g.fillStyle=TC.panel||TC.bg; g.fillRect(L,y,plotW,RH);
+    const band=(list,col,a)=>{ for(const p of list){ const a0=Math.max(p.t0,t0), a1=Math.min(p.t1,t1); if(a1<=a0) continue;
+      g.globalAlpha=a; g.fillStyle=traceCol(col); g.fillRect(X(a0),y,X(a1)-X(a0),RH); g.globalAlpha=1; } };
+    band(C.periods, '#ffd166', .10); band(C.pauses, CPR_BAD, .18); band(C.rosc, CPR_GOOD, .12);
+    if(t0>=M.durMs){ continue; }
+    /* the ECG envelope, best lead per column */
+    const cols=Math.round(plotW), mn=new Float32Array(cols).fill(NaN), mx=new Float32Array(cols).fill(NaN);
+    for(const ch of chans){
+      const e=envelope(ch, t0, t1, cols);
+      for(let i=0;i<cols;i++) if(!(mn[i]===mn[i]) && e.mn[i]===e.mn[i]){ mn[i]=e.mn[i]; mx[i]=e.mx[i]; }
+    }
+    const scale=(RH-8)/3;   /* 3 mV fills the row */
+    g.strokeStyle=traceCol('#3fd68b'); g.lineWidth=1; g.beginPath();
+    let pen=false;
+    for(let i=0;i<cols;i++){
+      const tt=t0+i/cols*rowMs; if(tt>M.durMs) break;
+      if(!(mn[i]===mn[i])){ pen=false;
+        g.save(); g.fillStyle=TC.dim; g.globalAlpha=.12; g.fillRect(L+i,y,1,RH); g.restore(); continue; }
+      const ya=clamp(mid-mx[i]*scale, y+1, y+RH-1), yb=clamp(mid-mn[i]*scale, y+1, y+RH-1);
+      if(!pen){ g.moveTo(L+i,ya); pen=true; } else g.lineTo(L+i,ya);
+      if(yb!==ya) g.lineTo(L+i,yb);
+    }
+    g.stroke();
+    /* alarms: a small red flag at the top */
+    for(const e of M.events){
+      if(e.t<t0 || e.t>=t1) continue;
+      if(e.kind==='alarm'){ const x=X(e.t); g.fillStyle=traceCol(CPR_BAD);
+        g.beginPath(); g.moveTo(x,y); g.lineTo(x+7,y+4); g.lineTo(x,y+8); g.closePath(); g.fill(); g.fillRect(x-0.5,y,1,12); }
+    }
+    for(const s of C.shocks){
+      if(s.t<t0 || s.t>=t1) continue;
+      const x=X(s.t); g.fillStyle=traceCol(CPR_SHOCK); g.fillRect(x-1.5,y,3,RH);
+      g.font='700 13px system-ui,sans-serif'; g.textAlign='center'; g.fillText('⚡', x+9, y+14); g.textAlign='left';
+    }
+    if(APP.cursor>=t0 && APP.cursor<t1){ const x=Math.round(X(APP.cursor))+0.5;
+      g.strokeStyle=TC.cursor; g.lineWidth=1.5; g.beginPath(); g.moveTo(x,y-2); g.lineTo(x,y+RH+2); g.stroke(); }
+    g.fillStyle=TC.chartText||TC.dim; g.font='10px ui-monospace,monospace';
+    g.fillText(fmtClock(M.t0Wall+t0), 4, y+14);
+    g.fillStyle=TC.dim; g.fillText('+'+fmtEl(t0), 4, y+28);
+  }
+}
+function openOverview(){
+  const d=$('#ovDlg'); if(!d || !M.durMs) return;
+  $('#ovRow').value=String(CFG.ovRow||120000);
+  $('#ovLegend').innerHTML=
+    '<span><i style="background:'+traceCol('#3fd68b')+'"></i>ECG (best lead)</span>'+
+    '<span><i style="background:'+traceCol('#ffd166')+';opacity:.5"></i>CPR</span>'+
+    '<span><i style="background:'+traceCol(CPR_BAD)+';opacity:.55"></i>Pause</span>'+
+    '<span><i style="background:'+traceCol(CPR_GOOD)+';opacity:.5"></i>ROSC</span>'+
+    '<span style="color:'+traceCol(CPR_SHOCK)+';font-weight:700">⚡ Shock</span>'+
+    '<span><i style="background:'+traceCol(CPR_BAD)+'"></i>Alarm</span>'+
+    '<span><i style="background:var(--dim);opacity:.4"></i>Not recorded</span>';
+  d.showModal();
+  requestAnimationFrame(()=>{ drawOverview();
+    const r=Math.floor(APP.cursor/(+CFG.ovRow||120000)), body=d.querySelector('.ovbody');
+    body.scrollTop=Math.max(0, r*(58+6)-120); });
+}
+
+/* ---- live CPR dashboard at the playhead ----
+   Like the monitor's CPR display: the rate, depth and release velocity of the last few
+   compressions, a diamond that fills as those compressions meet both the rate and the
+   depth target, and a pause timer once compressions stop. The diamond is this viewer's
+   own measure (the monitor's formula is not published): each of the last 6
+   compressions scores 1 when rate and depth are both in target, falling to 0 as the
+   further-off of the two moves 30 /min or 0.6 in outside its band; the fill is the mean. */
+/* ---- what is under the pointer on the quality graph ---- */
+function cprHoverHtml(t){
+  const C=M.cpr, rows=[];
+  const row=(k,v,cls)=>rows.push('<div class="ctr"><span class="ctk">'+k+'</span><span class="ctv'+(cls?' '+cls:'')+'">'+v+'</span></div>');
+  const ok=b=> b==null ? '' : b ? 'good' : 'bad';
+  let best=null;
+  for(const c of C.comps){ if(c.t>t+1500) break; const d=Math.abs(c.t-t); if(d<=1500 && (!best || d<Math.abs(best.t-t))) best=c; }
+  const pause=C.pauses.find(p=>t>=p.t0 && t<=p.t1), rosc=(C.rosc||[]).find(p=>t>=p.t0 && t<=p.t1);
+  const shock=C.shocks.find(x=>Math.abs(x.t-t)<=1500);
+  if(shock) row('Shock', esc(shock.label||'Shock')+' at '+fmtClock(M.t0Wall+shock.t), 'shock');
+  if(pause) row('Pause', ((pause.t1-pause.t0)/1000).toFixed(1)+' s, '+fmtClock(M.t0Wall+pause.t0)+'–'+fmtClock(M.t0Wall+pause.t1), 'bad');
+  if(rosc) row('ROSC', 'from '+fmtClock(M.t0Wall+rosc.t0), 'good');
+  if(best){
+    if(best.rate!=null) row('Rate', Math.round(best.rate)+' /min', ok(cprRateOk(Math.round(best.rate))));
+    if(best.depth!=null) row('Depth', cprDFmt(best.depth,1), ok(cprDepthOk(+best.depth.toFixed(1))));
+    if(best.relVel!=null) row('Release', Math.round(best.relVel)+' mm/s', ok(Math.round(best.relVel)>=CPR_TARGET.relVel));
+  } else if(!pause){
+    let prev=null; for(const c of C.comps){ if(c.t>t) break; prev=c; }
+    if(prev && t-prev.t<60000) row('No compression', 'for '+((t-prev.t)/1000).toFixed(1)+' s');
+  }
+  const win=C.comps.filter(c=>c.t>t-10000 && c.t<=t);
+  if(win.length){
+    const inT=win.filter(c=>c.rate!=null && c.depth!=null && cprRateOk(Math.round(c.rate)) && cprDepthOk(+c.depth.toFixed(1))).length;
+    row('Last 10 s', win.length+' compressions, '+Math.round(inT/win.length*100)+'% in target',
+      inT/win.length*100>=CPR_TARGET.qualityGoal ? 'good' : 'bad');
+  }
+  if((C.vents||[]).length) row('Ventilations', C.vents.filter(x=>x>t-60000 && x<=t).length+' in the last minute');
+  row('Perfusion proxy (model)', Math.round(cprPerfAt(t)*100)+'%');
+  return '<div class="cth">'+fmtClock(M.t0Wall+t)+' <span class="ctu">+'+fmtEl(t)+'</span></div>'+rows.join('')+
+    '<div class="ctu" style="margin-top:4px">The parameter panel shows this moment too.</div>';
+}
+
+/* ---- the perfusion proxy behind the diamond ----
+   A derived model, not a measurement: a dimensionless 0..1 state reconstructed from
+   compression timing, depth, rate and release. It is not coronary perfusion pressure,
+   blood flow, EtCO2 or a chance of ROSC, and it is never shown in mmHg.
+
+   First-order state P:
+     while compressions continue   P -> q with time constant TB   P = q-(q-P)e^(-dt/TB)
+     in a pause                    P decays to 0 with TD          P = P e^(-dt/TD)
+   Each compression "continues" for its own interval (60/rate, 0.4-1 s) plus HYST, a
+   display hysteresis so ordinary beat-to-beat jitter isn't counted as a pause; after
+   that the state decays. A shock is not a reset: the state decays through the
+   hands-off time around it, which is what the evidence ties to harm.
+
+   q = depth x rate x release, each 0..1:
+     depth    1 at or above the target's lower bound (deeper earns no more), falling
+              to 0 at 0.6 in short of it
+     rate     1 inside the target, falling to 0 at 30 /min outside it
+     release  1 at or above the release-velocity target, down to 0.65 at 0; anchored to
+              the ~35% CPP fall with 75% recoil in pigs (an assumption: release velocity
+              is not recoil fraction)
+
+   Constants and where their scale comes from (engineering choices, not physiological
+   constants; a literature review, sources not all individually checked here):
+     TD 3.6 s   exponential fit to swine CPP 23.4 -> 7.6 mmHg over a median 4.1 s
+                pre-shock pause (Mader 2009, doi 10.1080/10903120903144916)
+     TB 5 s     between human arterial pressure recovering in ~2 compressions after a
+                pause (Yin 2024, doi 10.1016/j.resuscitation.2024.110311) and swine CPP
+                rebuilding over a 15-compression cycle (Berg 2001, doi 10.1161/HC4501.098926)
+     recoil     Yannopoulos 2005, doi 10.1016/j.resuscitation.2004.10.009
+   The model is adult-derived; child, infant and newborn cases are flagged.          */
+const CPR_PERF = {TB:5000, TD:3600, HYST:500};
+function cprCompScore(c){
+  let q=1, any=false;
+  if(c.depth!=null && isFinite(c.depth)){ any=true;
+    q*=Math.max(0, Math.min(1, 1-(CPR_TARGET.depthLo-c.depth)/0.6)); }
+  if(c.rate!=null && isFinite(c.rate)){ any=true;
+    const off=c.rate<CPR_TARGET.rateLo ? CPR_TARGET.rateLo-c.rate : c.rate>CPR_TARGET.rateHi ? c.rate-CPR_TARGET.rateHi : 0;
+    q*=Math.max(0, 1-off/30); }
+  if(c.relVel!=null && isFinite(c.relVel) && CPR_TARGET.relVel>0)
+    q*=Math.max(0.65, Math.min(1, 0.65+0.35*c.relVel/CPR_TARGET.relVel));
+  return any ? q : null;
+}
+/* how long one compression "continues" before the state starts to fall */
+function cprCompSpan(c){
+  const r=c.rate!=null && isFinite(c.rate) ? clamp(c.rate,60,150) : 110;
+  return clamp(60000/r, 400, 1000)+CPR_PERF.HYST;
+}
+/* the state ms after compression e, which left the state at e.p0 when it started */
+function cprPerfAfter(e, ms){
+  const build=Math.min(ms, e.span), q=e.q;
+  let P = q - (q - e.p0)*Math.exp(-build/CPR_PERF.TB);
+  if(ms>e.span) P *= Math.exp(-(ms-e.span)/CPR_PERF.TD);
+  return clamp(P, 0, 1);
+}
+function cprPerfTrack(){
+  const C=M.cpr; if(!C) return null;
+  const key=[CPR_TARGET.rateLo,CPR_TARGET.rateHi,CPR_TARGET.depthLo,CPR_TARGET.relVel,C.comps.length].join();
+  if(C._perf && C._perf.key===key) return C._perf;
+  const ev=[]; let P=0, last=null;
+  for(const c of C.comps){
+    if(last) P=cprPerfAfter(last, c.t-last.t);
+    const q=cprCompScore(c);
+    last={t:c.t, q:q==null?0:q, p0:P, span:cprCompSpan(c)};
+    ev.push(last);
+  }
+  C._perf={key, ev, ts:ev.map(e=>e.t)};
+  return C._perf;
+}
+function cprPerfAt(t){
+  const P=cprPerfTrack(); if(!P || !P.ev.length) return 0;
+  const k=lowerBound(P.ts, t+1)-1;
+  return k<0 ? 0 : cprPerfAfter(P.ev[k], t-P.ev[k].t);
+}
+function cprLiveAt(t){
+  const C=M.cpr; if(!C || !C.comps.length) return null;
+  const k=lowerBound(C.comps.map(c=>c.t), t+1) - 1;
+  if(k<0) return {none:true};
+  const last=C.comps[k], since=t-last.t;
+  const inCpr=C.periods.concat(C.pauses).some(p=>t>=p.t0 && t<=p.t1) || since<10000;
+  const recent=C.comps.slice(Math.max(0,k-5), k+1).filter(c=>t-c.t<15000);
+  const mean=a=>{ const v=a.filter(x=>x!=null&&isFinite(x)); return v.length?v.reduce((x,y)=>x+y,0)/v.length:null; };
+  const paused = since>2000;
+  return {rate:mean(recent.map(c=>c.rate)), depth:mean(recent.map(c=>c.depth)), relVel:mean(recent.map(c=>c.relVel)),
+    fill: cprPerfAt(t), paused, pauseS: since/1000, inCpr, n:recent.length};
+}
+function drawCprDash(){
+  const box=$('#cprDash'); if(!box) return;
+  const L=cprLiveAt(APP.cursor);
+  if(!L || L.none || !L.inCpr){
+    box.innerHTML='<div class="dashidle">'+(L&&!L.none&&!L.inCpr?'No CPR at the playhead.':'Move the playhead into the resuscitation to see live CPR quality.')+'</div>';
+    return;
+  }
+  const f=L.fill, col = f>=0.8 ? 'var(--ok)' : f>=0.5 ? 'var(--warn)' : 'var(--crit)';
+  /* the diamond, filled from the bottom */
+  const H=86, W=86, y=H*(1-f);
+  const diamond='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Perfusion proxy '+Math.round(f*100)+'%">'+
+    '<defs><clipPath id="dashClip"><polygon points="'+(W/2)+',2 '+(W-2)+','+(H/2)+' '+(W/2)+','+(H-2)+' 2,'+(H/2)+'"/></clipPath></defs>'+
+    '<rect x="0" y="'+y.toFixed(1)+'" width="'+W+'" height="'+(H-y).toFixed(1)+'" fill="'+col+'" clip-path="url(#dashClip)"/>'+
+    '<polygon points="'+(W/2)+',2 '+(W-2)+','+(H/2)+' '+(W/2)+','+(H-2)+' 2,'+(H/2)+'" fill="none" stroke="var(--fg)" stroke-width="2"/></svg>';
+  const val=(label, txt, ok)=>'<div class="dashval"><div class="dashk">'+label+'</div><div class="dashv '+(ok==null?'':ok?'good':'bad')+'">'+txt+'</div></div>';
+  box.innerHTML='<div class="dashdia">'+diamond+'<div class="dashpct" style="color:'+col+'">'+Math.round(f*100)+'%</div></div>'+
+    '<div class="dashvals">'+
+      (L.paused
+        ? '<div class="dashpause">Pause <b>'+L.pauseS.toFixed(0)+' s</b></div>'
+        : val('Rate', L.rate==null?'—':Math.round(L.rate)+' /min', L.rate==null?null:cprRateOk(Math.round(L.rate)))+
+          val('Depth', L.depth==null?'—':cprDFmt(L.depth,1), L.depth==null?null:cprDepthOk(+L.depth.toFixed(1)))+
+          val('Release', L.relVel==null?'—':Math.round(L.relVel)+' mm/s', L.relVel==null?null:Math.round(L.relVel)>=CPR_TARGET.relVel))+
+    '</div>'+
+    (CPR_TARGET.group && CPR_TARGET.group!=='adult' ? '<div class="dashwarn">Adult-derived model: no child, infant or newborn values have been validated.</div>' : '')+
+    '<div class="dashnote">Rate, depth and release: the last '+L.n+' compressions. The diamond is a <b>perfusion proxy</b>, a model reconstructed from compression depth, rate, release and pauses: it climbs toward the quality being delivered (most of the way in about 10 s of good compressions) and falls quickly in a pause (about a quarter left after 5 s). A shock doesn’t reset it; the hands-off time around it does the damage. Not a measured pressure, not coronary perfusion pressure, and not the monitor’s indicator.</div>';
+}
+
+/* ---- cascade: one row per minute of CPR, every compression a bar ---- */
+function cprCascadeRows(){
+  const C=M.cpr;
+  const starts=C.periods.map(p=>p.t0).concat(C.comps.length?[C.comps[0].t]:[]);
+  const ends=C.periods.map(p=>p.t1).concat(C.pauses.map(p=>p.t1)).concat(C.comps.length?[C.comps[C.comps.length-1].t]:[]);
+  if(!starts.length) return [];
+  const t0=Math.min(...starts), t1=Math.max(...ends);
+  const rows=[];
+  for(let a=t0; a<t1; a+=60000) rows.push({t0:a, t1:Math.min(a+60000, t1)});
+  return rows;
+}
+function drawCprCascade(cv){
+  const rows=cprCascadeRows();
+  const RH=30, GAP=4, L=58, RW=210, T=4;
+  cv.style.height=(Math.max(1,rows.length)*(RH+GAP)+T+6)+'px';
+  const {g,w,h}=fitCanvas(cv);
+  const TC=TH();
+  g.clearRect(0,0,w,h); g.fillStyle=TC.bg==='#000000'?'#0b0f14':TC.bg; g.fillRect(0,0,w,h);
+  const C=M.cpr, plotW=w-L-RW;
+  cv._casc={rows, RH, GAP, L, plotW, T};
+  rows.forEach((row,i)=>{
+    const y=T+i*(RH+GAP);
+    const X=t=>L+(t-row.t0)/60000*plotW;
+    /* row frame and the minute it covers */
+    g.fillStyle=TC.panel||'#181b1e'; g.fillRect(L, y, plotW, RH);
+    const span={t0:row.t0, t1:row.t1};
+    cprBands(g,X,y,RH,span,false);
+    g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
+    g.fillText('min '+(i+1), 6, y+12);
+    g.fillStyle=TC.dim; g.fillText(fmtClock(M.t0Wall+row.t0).slice(0,8), 6, y+25);
+    /* compressions: bar height is depth (full row = 3 in), colour is quality */
+    const cs=C.comps.filter(c=>c.t>=row.t0 && c.t<row.t1);
+    const bw=Math.max(1.5, plotW/60/2.4);
+    for(const c of cs){
+      const d=c.depth==null?1.5:clamp(c.depth,0,3), bh=d/3*(RH-4);
+      g.fillStyle=cprCompColor(c);
+      g.fillRect(X(c.t)-bw/2, y+RH-2-bh, bw, bh);
+    }
+    /* target depth band edges, faint, so short bars read as short */
+    g.strokeStyle=traceCol(CPR_GOOD); g.globalAlpha=.35; g.lineWidth=1;
+    for(const v of [CPR_TARGET.depthLo, CPR_TARGET.depthHi]){
+      const yy=Math.round(y+RH-2-v/3*(RH-4))+0.5;
+      g.beginPath(); g.moveTo(L,yy); g.lineTo(L+plotW,yy); g.stroke();
+    }
+    g.globalAlpha=1;
+    cprVents(g,X,y,RH,span);
+    cprShocks(g,X,y,RH,span,true);
+    if(APP.cursor>=row.t0 && APP.cursor<row.t1){
+      const x=Math.round(X(APP.cursor))+0.5;
+      g.strokeStyle=TC.cursor; g.lineWidth=1.5; g.beginPath(); g.moveTo(x,y-1); g.lineTo(x,y+RH+1); g.stroke();
+    }
+    /* per-minute figures, each coloured against its target */
+    const mean=a=>a.length?a.reduce((x,z)=>x+z,0)/a.length:null;
+    const rate=mean(cs.map(c=>c.rate).filter(v=>v!=null)), depth=mean(cs.map(c=>c.depth).filter(v=>v!=null));
+    const inT=cs.length?100*cs.filter(c=>cprRateOk(c.rate)&&cprDepthOk(c.depth)).length/cs.length:null;
+    let x=L+plotW+10; g.font='600 11px ui-monospace,monospace';
+    const put=(txt,col)=>{ g.fillStyle=col; g.fillText(txt, x, y+19); x+=g.measureText(txt).width+12; };
+    if(!cs.length){ put('no compressions', traceCol(CPR_BAD)); return; }
+    put(rate==null?'—':Math.round(rate)+'/min', traceCol(cprRateOk(rate)?CPR_GOOD:CPR_BAD));
+    put(cprDFmt(depth,1), traceCol(cprDepthOk(depth)?CPR_GOOD:CPR_BAD));
+    const qg=cprGoalGrade(inT, CPR_TARGET.quality);
+    put(inT==null?'—':Math.round(inT)+'%', traceCol(qg==='good'?CPR_GOOD:qg==='mid'?CPR_MID:CPR_BAD));
+  });
+}
+
+/* ---- the stacked performance strips (whole resuscitation) ---- */
 function drawCprStrip(cv, kind){
   const {g,w,h}=fitCanvas(cv);
   const TC=TH();
@@ -8828,31 +9970,31 @@ function drawCprStrip(cv, kind){
   const plotH=h-T-B;
 
   if(kind==='summary'){
-    cprBands(g,X,T,plotH,span);
-    cprShocks(g,X,T+plotH*0.62,span);
+    cprBands(g,X,T,plotH,span,true);
+    cprVents(g,X,T,plotH,span);
+    cprShocks(g,X,T,plotH,span);
     cprAxis(g,X,h-B+4,span,w,L,R);
     return;
   }
-  cprBands(g,X,T,plotH,span);
+  cprBands(g,X,T,plotH,span,false);
 
   if(kind==='depth'){
-    const dMax=4, DY=v=>T+(clamp(v,0,dMax)/dMax)*plotH;
-    g.fillStyle=traceCol('#4aa3ff'); g.globalAlpha=.18;
+    const dMax=3, DY=v=>T+(clamp(v,0,dMax)/dMax)*plotH;
+    g.fillStyle=traceCol(CPR_GOOD); g.globalAlpha=.12;
     g.fillRect(L,DY(CPR_TARGET.depthLo),w-L-R,DY(CPR_TARGET.depthHi)-DY(CPR_TARGET.depthLo));
     g.globalAlpha=1;
     g.strokeStyle=TC.chartGrid; g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
-    for(let v=0;v<=dMax;v+=2){ const y=Math.round(DY(v))+0.5;
-      g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.fillText(String(v),6,y+3); }
+    for(const v of [1,2,3]){ const y=Math.round(DY(v))+0.5;
+      g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.fillText(cprDU(v).toFixed(CPR_TARGET.unit==='cm'?1:0),6,y+3); }
     for(const c of C.comps){
       if(c.depth==null||c.t<span.t0||c.t>span.t1) continue;
-      const inT=c.depth>=CPR_TARGET.depthLo && c.depth<=CPR_TARGET.depthHi;
-      g.strokeStyle=inT?traceCol('#2f7fd4'):traceCol('#8a97a4'); g.lineWidth=1;
+      g.strokeStyle=traceCol(cprDepthOk(c.depth)?CPR_GOOD:CPR_BAD); g.lineWidth=1.2;
       const x=Math.round(X(c.t))+0.5;
       g.beginPath(); g.moveTo(x,T); g.lineTo(x,DY(c.depth)); g.stroke();
     }
   } else if(kind==='rate'){
     const rLo=60,rHi=170, RY=v=>T+plotH-(clamp(v,rLo,rHi)-rLo)/(rHi-rLo)*plotH;
-    g.fillStyle=traceCol('#4aa3ff'); g.globalAlpha=.18;
+    g.fillStyle=traceCol(CPR_GOOD); g.globalAlpha=.12;
     g.fillRect(L,RY(CPR_TARGET.rateHi),w-L-R,RY(CPR_TARGET.rateLo)-RY(CPR_TARGET.rateHi));
     g.globalAlpha=1;
     g.strokeStyle=TC.chartGrid; g.fillStyle=TC.chartText; g.font='10px ui-monospace,monospace';
@@ -8860,37 +10002,33 @@ function drawCprStrip(cv, kind){
       g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.fillText(String(v),6,y+3); }
     for(const c of C.comps){
       if(c.rate==null||c.t<span.t0||c.t>span.t1) continue;
-      const inT=c.rate>=CPR_TARGET.rateLo && c.rate<=CPR_TARGET.rateHi;
-      g.fillStyle=inT?traceCol('#2f7fd4'):traceCol('#8a97a4');
-      g.beginPath(); g.arc(X(c.t),RY(c.rate),2.1,0,7); g.fill();
+      g.fillStyle=traceCol(cprRateOk(c.rate)?CPR_GOOD:CPR_BAD);
+      g.beginPath(); g.arc(X(c.t),RY(c.rate),2.2,0,7); g.fill();
     }
   } else if(kind==='intarget'){
     for(const c of C.comps){
       if(c.t<span.t0||c.t>span.t1) continue;
-      const ok = c.depth!=null && c.depth>=CPR_TARGET.depthLo && c.depth<=CPR_TARGET.depthHi &&
-                 c.rate!=null  && c.rate >=CPR_TARGET.rateLo  && c.rate <=CPR_TARGET.rateHi;
-      if(!ok) continue;
-      g.fillStyle=traceCol('#2f7fd4');
-      g.fillRect(Math.round(X(c.t)), T+plotH*0.15, 2, plotH*0.7);
+      g.fillStyle=cprCompColor(c);
+      g.fillRect(Math.round(X(c.t)), T+plotH*0.12, 2, plotH*0.76);
     }
   } else if(kind==='relvel'){
     const bands=[['FAST',CPR_TARGET.relVel,900],['MEDIUM',200,CPR_TARGET.relVel],['SLOW',0,200]];
     const VY=v=>T+plotH-(clamp(v,0,900)/900)*plotH;
-    g.fillStyle=traceCol('#4aa3ff'); g.globalAlpha=.18;
+    g.fillStyle=traceCol(CPR_GOOD); g.globalAlpha=.12;
     g.fillRect(L,VY(900),w-L-R,VY(CPR_TARGET.relVel)-VY(900)); g.globalAlpha=1;
     g.fillStyle=TC.chartText; g.font='9px ui-monospace,monospace';
     for(const b of bands) g.fillText(b[0], 4, VY((b[1]+b[2])/2)+3);
     for(const c of C.comps){
       if(c.relVel==null||c.t<span.t0||c.t>span.t1) continue;
-      const ok=c.relVel>=CPR_TARGET.relVel;
-      g.fillStyle=ok?traceCol('#2f7fd4'):traceCol('#9aa7b4');
-      g.beginPath(); g.arc(X(c.t),VY(c.relVel),2,0,7); g.fill();
+      g.fillStyle=traceCol(c.relVel>=CPR_TARGET.relVel?CPR_GOOD:CPR_BAD);
+      g.beginPath(); g.arc(X(c.t),VY(c.relVel),2.2,0,7); g.fill();
     }
   }
+  cprShocks(g,X,T,plotH,span,true);
   cprAxis(g,X,h-B+4,span,w,L,R);
   if(APP.cursor>=span.t0 && APP.cursor<=span.t1){
     const x=Math.round(X(APP.cursor))+0.5;
-    g.strokeStyle=TC.cursor; g.globalAlpha=.7; g.lineWidth=1;
+    g.strokeStyle=TC.cursor; g.globalAlpha=.8; g.lineWidth=1;
     g.beginPath(); g.moveTo(x,T); g.lineTo(x,h-B); g.stroke(); g.globalAlpha=1;
   }
 }
@@ -8899,9 +10037,15 @@ function drawCprStrip(cv, kind){
 function redrawCpr(){
   const q=$('#cprQual');
   if(q) drawCprQuality(q);
+  if(APP.view==='cpr' && $('#cprMon #numerics')) drawNumerics();
+  drawCprDash();
+  const c=$('#cprCascade'); if(c) drawCprCascade(c);
   $$('#cprBody canvas[data-cpr]').forEach(cv=> drawCprStrip(cv, cv.dataset.cpr));
 }
 function renderCprPane(){
+  /* the page is rebuilt below; take the shared panel out of it first */
+  mountNumerics('monitor');
+  syncCprTargets();
   const b=$('#cprBody');
   const C=M.cpr;
   if(!C || !C.present){
@@ -8922,36 +10066,60 @@ function renderCprPane(){
   const m=cprMetrics();
   const pct=v=>v==null?'—':v.toFixed(0)+'%';
   const num=(v,d,u)=>v==null?'—':v.toFixed(d)+(u?' '+u:'');
-  const card=(k,v,s)=>'<div class="card"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+
+  const grade=(ok,mid)=> ok ? 'good' : mid ? 'mid' : 'bad';
+  const pctGrade=v=> cprGoalGrade(v, CPR_TARGET.quality);
+  const card=(k,v,s,cls)=>'<div class="card cprcard '+(cls||'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+
     (s?'<div class="s">'+s+'</div>':'')+'</div>';
+  const win=CFG.cprWin||'60000';
 
   b.innerHTML =
+    '<div class="note-inline" style="margin:0 0 8px">Targets: '+esc(CPR_GROUP_NAME[CPR_TARGET.group]||'Adult')+' depth '+
+      cprDFmt(CPR_TARGET.depthLo,1).split(' ')[0]+'–'+cprDFmt(CPR_TARGET.depthHi,1)+', rate '+CPR_TARGET.rateLo+'–'+CPR_TARGET.rateHi+
+      '/min, release '+CPR_TARGET.relVel+'+ mm/s, shock pauses '+CPR_TARGET.pre+' s / '+CPR_TARGET.post+' s. Change them in Settings › CPR targets.</div>'+
     '<h2 class="sec">CPR quality graph'+
       '<span class="expandhint">'+esc(C.source||'')+'</span></h2>'+
-    '<div class="legend">'+
-      '<span><i style="background:'+traceCol(CPR_COL.vent)+'"></i>Ventilations</span>'+
-      '<span><i style="background:'+traceCol(CPR_COL.cpr)+'"></i>CPR period</span>'+
-      '<span><i style="background:'+traceCol(CPR_COL.pause)+'"></i>Pause period</span>'+
-      '<span><i style="background:'+traceCol(CPR_COL.rosc)+'"></i>ROSC period</span>'+
-      (C.autopulse.length?'<span><i style="background:'+traceCol(CPR_COL.autopulse)+'"></i>AutoPulse</span>':'')+
-      '<span style="color:#e6a800">⚡ shock</span>'+
+    '<div class="cprbar">'+
+      '<div class="legend" style="margin:0">'+
+        '<span><i style="background:'+traceCol(CPR_GOOD)+'"></i>In target</span>'+
+        '<span><i style="background:'+traceCol(CPR_MID)+'"></i>Rate or depth off</span>'+
+        '<span><i style="background:'+traceCol(CPR_BAD)+'"></i>Out of target</span>'+
+        '<span><i style="background:'+traceCol(CPR_VENT)+'"></i>Ventilation</span>'+
+        '<span><i style="background:'+traceCol(CPR_BAD)+';opacity:.45"></i>Pause</span>'+
+        '<span><i style="background:'+traceCol(CPR_GOOD)+';opacity:.45"></i>ROSC</span>'+
+        '<span class="shockkey">⚡ Shock</span>'+
+      '</div>'+
+      '<button type="button" id="cprOverview" title="The whole case\'s ECG on one page">Whole-case ECG</button>'+
+      '<span id="cprWaves" class="cprwaves">'+cprWaveCtlHtml()+'</span>'+
+      '<label class="cprwin">Window <select id="cprWin">'+CPR_WINS.map(([v,l])=>
+        '<option value="'+v+'"'+(v===win?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+
     '</div>'+
-    '<canvas class="chart" id="cprQual" style="height:340px;cursor:crosshair"></canvas>'+
+    '<div id="cprMon" class="cprmon"><div class="cprqualwrap"><canvas id="cprQual" class="chart" title="Drag or scroll to move through the recording; click to put the playhead there"></canvas>'+
+      '<button type="button" id="cprJump" class="cprjump" hidden>Playhead is outside the resuscitation — jump to CPR start</button>'+
+      '<div id="cprTip" class="cprtip" hidden role="status"></div></div></div>'+
+    '<div id="cprDash" class="cprdash" aria-live="off"></div>'+
 
     '<h2 class="sec">Case metrics</h2><div class="cards">'+
       card('Chest compression fraction', pct(m.ccf),
-        fmtEl(m.compMs)+' compressing of '+fmtEl(m.total))+
+        fmtEl(m.compMs)+' compressing of '+fmtEl(m.total)+' · goal '+CPR_TARGET.fraction+'%', cprGoalGrade(m.ccf, CPR_TARGET.fraction))+
       card('Compressions', m.n.toLocaleString(), 'detected in the resuscitation window')+
-      card('Average rate', num(m.rate,1,'cpm'), pct(m.ratePct)+' in '+CPR_TARGET.rateLo+'–'+CPR_TARGET.rateHi)+
-      card('Average depth', num(m.depth,2,'in'), pct(m.depthPct)+' in '+CPR_TARGET.depthLo+'–'+CPR_TARGET.depthHi)+
-      card('Average release velocity', num(m.relVel,0,'mm/s'), pct(m.relVelPct)+' at '+CPR_TARGET.relVel+'+')+
-      card('Compressions in target', pct(m.bothPct), 'rate and depth both in range')+
+      card('Average rate', num(m.rate,1,'cpm'), pct(m.ratePct)+' in '+CPR_TARGET.rateLo+'–'+CPR_TARGET.rateHi,
+        m.rate==null?'':grade(cprRateOk(+m.rate.toFixed(1))))+
+      card('Average depth', cprDFmt(m.depth,2), pct(m.depthPct)+' in '+cprDFmt(CPR_TARGET.depthLo,1).split(' ')[0]+'–'+cprDFmt(CPR_TARGET.depthHi,1),
+        m.depth==null?'':grade(cprDepthOk(+m.depth.toFixed(2))))+
+      card('Average release velocity', num(m.relVel,0,'mm/s'), pct(m.relVelPct)+' at '+CPR_TARGET.relVel+'+',
+        m.relVel==null?'':grade(Math.round(m.relVel)>=CPR_TARGET.relVel))+
+      card('Compressions in target', pct(m.bothPct), 'rate and depth both in range · goal '+CPR_TARGET.quality+'%', pctGrade(m.bothPct))+
+      card('Shocks', String(C.shocks.length), C.shocks.map(s=>fmtClock(M.t0Wall+s.t)).join(', ')||'none recorded', C.shocks.length?'shock':'')+
     '</div>'+
 
+    '<h2 class="sec">Summary</h2>'+cprSummaryHtml(m)+
+    '<h2 class="sec">Cascade, one row per minute<span class="expandhint">bar height = depth · colour = quality · right: rate, depth, % in target</span></h2>'+
+    '<canvas id="cprCascade" class="chart" style="cursor:pointer" title="Click to put the playhead there"></canvas>'+
+
     '<h2 class="sec">CPR performance</h2>'+
-    strip('CPR event summary','', '', 'summary', 46)+
-    strip('Depth', 'Adult target ('+CPR_TARGET.depthLo+'–'+CPR_TARGET.depthHi+' in)',
-      pct(m.depthPct)+' in target · average '+num(m.depth,2,'in'), 'depth', 110)+
+    strip('CPR event summary','', '', 'summary', 52)+
+    strip('Depth', (CPR_GROUP_NAME[CPR_TARGET.group]||'Adult')+' target ('+cprDFmt(CPR_TARGET.depthLo,1).split(' ')[0]+'–'+cprDFmt(CPR_TARGET.depthHi,1)+')',
+      pct(m.depthPct)+' in target · average '+cprDFmt(m.depth,2), 'depth', 110)+
     strip('Rate', 'Target ('+CPR_TARGET.rateLo+'–'+CPR_TARGET.rateHi+' cpm)',
       pct(m.ratePct)+' in target · average '+num(m.rate,0,'cpm'), 'rate', 110)+
     strip('Compressions in target','', pct(m.bothPct)+' in target', 'intarget', 56)+
@@ -8963,7 +10131,7 @@ function renderCprPane(){
       'Rate, depth and release velocity are '+
       (C.source&&/^waveform/.test(C.source)?'detected here from the compression waveform'
         :'read from the per-compression records')+
-      ' — measurement, not a scored interpretation.</div>'+
+      ' — measurement, not a scored interpretation. Colours compare each value with the AHA adult targets.</div>'+
     '<div class="note-inline srclist">Targets from: '+sourcesHtml(['cprAha','cprRelease'])+
       '. EtCO₂ during CPR: '+sourcesHtml('capnoCpr')+'.</div>';
 
@@ -8973,20 +10141,78 @@ function renderCprPane(){
       '<span style="font-size:12.5px;font-weight:600">'+esc(title)+
         (target?' <span style="font-weight:400;color:var(--dim)">'+esc(target)+'</span>':'')+'</span>'+
       '<span style="font-size:11.5px;color:var(--dim)" class="mono">'+esc(right)+'</span></div>'+
-      '<canvas class="chart" data-cpr="'+kind+'" style="height:'+hpx+'px;margin:0"></canvas></div>';
+      '<canvas class="chart" data-cpr="'+kind+'" title="Click to move the playhead here" style="height:'+hpx+'px;margin:0"></canvas></div>';
   }
-  drawCprQuality($('#cprQual'));
-  $$('#cprBody canvas[data-cpr]').forEach(cv=> drawCprStrip(cv, cv.dataset.cpr));
+  redrawCpr();
 
-  /* click either view to move the cursor there */
+  $('#cprOverview').onclick = openOverview;
+  wireCprWaveCtl();
+  if(APP.view==='cpr') mountNumerics('cpr');
+  if(typeof ResizeObserver!=='undefined' && $('#cprMon')){
+    let raf=0;
+    new ResizeObserver(()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0;
+      if(APP.view==='cpr'){ fitNumerics(); drawCprQuality($('#cprQual')); } }); }).observe($('#cprMon'));
+  }
+  $('#cprWin').onchange = e=>{ CFG.cprWin=e.target.value; cfgSave(); drawCprQuality($('#cprQual')); };
+  $('#cprJump').onclick = ()=>{ const s=cprSpan(); const W=CFG.cprWin==='all'?0:+(CFG.cprWin||60000);
+    seek(Math.min(s.t1, s.t0 + 15000 + W*0.75)); };
+
+  /* the quality graph: drag or wheel to move through time; a click without a drag
+     puts the playhead where you clicked */
+  const q=$('#cprQual');
+  const tAt=ev=>{ const g=q._cprGeom, r=q.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
+    const x=(ev.clientX-r.left)/z, wpx=r.width/z;
+    return g.span.t0+(x-g.L)/(wpx-g.L-g.R)*(g.span.t1-g.span.t0); };
+  let pan=null;
+  q.onpointerdown=ev=>{ if(ev.button>0) return; ev.preventDefault(); q.setPointerCapture(ev.pointerId);
+    if(APP.playing) setPlaying(false);
+    pan={x0:ev.clientX, c0:APP.cursor, moved:false}; };
+  /* hovering: statistics for the moment under the pointer, and the parameter panel
+     shows that moment, as on the Monitor */
+  const tip=$('#cprTip');
+  let hoverRaf=0;
+  const hoverOff=()=>{ if(q._hoverT==null && tip.hidden) return; q._hoverT=null; tip.hidden=true;
+    if(APP.inspect && !APP.inspect.pinned) setInspect(null); drawCprQuality(q); };
+  const hover=ev=>{
+    const g=q._cprGeom; if(!g || !M.cpr) return;
+    const r=q.getBoundingClientRect(), z=(CFG.uiScale||100)/100, x=(ev.clientX-r.left)/z, wpx=r.width/z;
+    if(x<g.L || x>wpx-g.R){ hoverOff(); return; }
+    q._hoverT=clamp(tAt(ev), 0, M.durMs);
+    tip.innerHTML=cprHoverHtml(q._hoverT); tip.hidden=false;
+    const tw=tip.offsetWidth, th=tip.offsetHeight, y=(ev.clientY-r.top)/z;
+    tip.style.left=(x+16+tw > wpx ? x-16-tw : x+16)+'px';
+    tip.style.top=clamp(y-th/2, 0, Math.max(0, r.height/z-th))+'px';
+    if(!hoverRaf) hoverRaf=requestAnimationFrame(()=>{ hoverRaf=0; if(q._hoverT==null) return;
+      setInspect(q._hoverT, false); drawCprQuality(q); });
+  };
+  q.onpointerleave=hoverOff;
+  q.onpointermove=ev=>{ if(!pan){ if(ev.pointerType!=='touch') hover(ev); return; }
+    tip.hidden=true; const g=q._cprGeom; if(g.span.whole) return;
+    const z=(CFG.uiScale||100)/100, dx=(ev.clientX-pan.x0)/z, r=q.getBoundingClientRect();
+    if(Math.abs(dx)>3) pan.moved=true;
+    if(pan.moved) seek(pan.c0 - dx/((r.width/z)-g.L-g.R)*(g.span.t1-g.span.t0), true); };
+  q.onpointerup=ev=>{ if(pan && !pan.moved) seek(clamp(tAt(ev), 0, M.durMs)); pan=null; };
+  q.onpointercancel=()=>{ pan=null; };
+  q.addEventListener('wheel', ev=>{
+    const g=q._cprGeom; if(!g || g.span.whole) return;
+    ev.preventDefault(); if(APP.playing) setPlaying(false);
+    const d=Math.abs(ev.deltaY)>=Math.abs(ev.deltaX)?ev.deltaY:ev.deltaX;
+    seek(APP.cursor + d/100*(g.span.t1-g.span.t0)*0.15, true);
+  }, {passive:false});
+
+  /* the cascade: click a row to put the playhead there */
+  const cc=$('#cprCascade');
+  cc.onclick=ev=>{ const k=cc._casc; if(!k) return; const r=cc.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
+    const x=(ev.clientX-r.left)/z, y=(ev.clientY-r.top)/z;
+    const i=Math.floor((y-k.T)/(k.RH+k.GAP)); const row=k.rows[i]; if(!row) return;
+    seek(clamp(row.t0+(x-k.L)/k.plotW*60000, row.t0, row.t1)); };
+
+  /* the overview strips: click to move the playhead there */
   const seekFrom = cv => ev=>{
     const span=cprSpan(), r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
-    const x=(ev.clientX-r.left)/z, L=cv.dataset.cpr?44:52, R=cv.dataset.cpr?10:12;
-    const wpx=r.width/z;
-    const t=span.t0+(x-L)/(wpx-L-R)*(span.t1-span.t0);
-    seek(clamp(t,span.t0,span.t1));
+    const x=(ev.clientX-r.left)/z, L=44, R=10, wpx=r.width/z;
+    seek(clamp(span.t0+(x-L)/(wpx-L-R)*(span.t1-span.t0), span.t0, span.t1));
   };
-  const q=$('#cprQual'); q.onclick=seekFrom(q);
   $$('#cprBody canvas[data-cpr]').forEach(cv=> cv.onclick=seekFrom(cv));
 }
 
@@ -10036,6 +11262,7 @@ function renderEcgPane(){
       '<button type="button" id="leadAll">All leads</button>'+
     '</div>'+
     '<details class="ecg-interpretation hide" id="ecgInterpretation"></details>'+
+    '<div id="ecgMeasure"></div>'+
     '<h2 class="sec">Strip from continuous recording</h2>'+
     '<div class="paperctl">'+
       '<span style="color:var(--dim);font-size:12px">at cursor '+fmtClock(M.t0Wall+APP.cursor)+'</span>'+
@@ -10103,6 +11330,7 @@ function renderEcgPane(){
         (nums.length?'<div class="measurements">'+esc(nums.join(' · '))+'</div>':'')+
         '<div class="note-inline">Recorded by the monitor for this acquisition; not a clinician review.</div>';
     }
+    $('#ecgMeasure').innerHTML = s.is12 ? twelveMeasureHtml(s) : '';
     if(s.is12){
       $('#leadChoices').innerHTML=s.traces.filter(t=>t.lead).map(t=>
         '<label><input type="checkbox" value="'+esc(t.lead)+'" checked>'+esc(t.lead)+'</label>').join('');
@@ -10344,7 +11572,7 @@ const CFG_DEFAULT = {
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true,
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, cprWave:null, cprWaves:null, caseInputsOpen:true,
   /* remembered between runs: the last setup of each view */
   peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
@@ -10383,7 +11611,7 @@ function applyCaseInputDraft(draft){
   for(const key of ['heightCm','weightKg','svK','assumedCvp','bsaFormula']) HEMO[key]=CFG[key];
 }
 function loadCaseInputs(){
-  CASE_INPUT_UI.open=false;
+  CASE_INPUT_UI.open = CFG.caseInputsOpen!==false;
   CFG.bsaFormula=CFG_DEFAULT.bsaFormula;
   for(const k of CASE_INPUT_KEYS) CFG[k]=null;
   try{
@@ -10464,6 +11692,51 @@ function applyCfgToSession(){
   tog('#btnGrid',APP.showGrid); tog('#btnBeats',APP.showBeats); tog('#btnVent',APP.showVents);
   tog('#btnPace',APP.showPace);
 }
+function cprSettingsHtml(row, sel){
+  const c=cprConfig(), U=c.unit==='cm'?2.54:1, f=v=>(v*U).toFixed(c.unit==='cm'?1:1);
+  const n=(id,v,step,min,max)=>'<input type="number" class="cprnum" id="'+id+'" value="'+v+'" step="'+step+'" min="'+min+'" max="'+max+'">';
+  const pair=(k)=>n('cprT_'+k+'0',f(c[k][0]),0.1,0,10)+' – '+n('cprT_'+k+'1',f(c[k][1]),0.1,0,10)+' '+(c.unit==='cm'?'cm':'in');
+  return '<h2 class="sec">CPR targets</h2><div class="setgrid">'+
+    row('Depth unit', sel('cprT_unit',[['in','Inches'],['cm','Centimetres']],c.unit))+
+    row('Patient age group', sel('cprT_group',[['auto','From the monitor'],['adult','Adult (ACLS)'],['child','Child (PALS)'],['infant','Infant (PALS)'],['newborn','Newborn (NRP)']],c.group),
+      'Automatic uses the monitor’s Adult or Pediatric mode when CPR began; a pediatric case is split by recorded age (under 1 month newborn, under 1 year infant).'+
+      (M.cpr ? ' This case: <b>'+esc(CPR_GROUP_NAME[cprDetectedGroup()])+'</b>.' : ''))+
+    row('Depth target, adult', pair('adult'))+
+    row('Depth target, child', pair('child'), 'About 2 in (5 cm), at least one-third of chest depth.')+
+    row('Depth target, infant', pair('infant'), 'About 1.5 in (4 cm), one-third of chest depth.')+
+    row('Depth target, newborn', pair('newborn'), 'One-third of chest depth; the guideline gives no absolute figure.')+
+    row('Rate target', n('cprT_rate0',c.rate[0],1,40,200)+' – '+n('cprT_rate1',c.rate[1],1,40,200)+' /min', 'Adults, children and infants.')+
+    row('Rate target, newborn', n('cprT_nbRate0',(c.nbRate||CPR_DEFAULTS.nbRate)[0],1,40,200)+' – '+n('cprT_nbRate1',(c.nbRate||CPR_DEFAULTS.nbRate)[1],1,40,200)+' /min',
+      '90 compressions a minute, 3:1 with ventilation.')+
+    row('Release velocity target', n('cprT_relVel',c.relVel,10,0,1000)+' mm/s or more')+
+    row('Pre-shock pause target', n('cprT_pre',c.pre,1,0,60)+' s')+
+    row('Post-shock pause target', n('cprT_post',c.post,1,0,60)+' s')+
+    row('Count a pause after', n('cprT_pauseMin',c.pauseMin,0.5,0.5,30)+' s without a compression')+
+    row('Compressions-in-target goal', n('cprT_quality',c.quality,1,0,100)+' %',
+      'Share of compressions with both rate and depth in target. At or above the goal is green, within 15 points amber, further off red.')+
+    row('Compression fraction goal', n('cprT_fraction',c.fraction,1,0,100)+' %')+
+    row('', '<button id="cprT_reset" type="button">Restore CPR defaults</button>',
+      'Defaults follow the 2025 AHA guidelines (ACLS, PALS, NRP): interruptions under 10 s, compression fraction at least 60%. Check them against your own protocol.')+
+  '</div>';
+}
+function wireCprSettings(){
+  const val=id=>{ const e=$('#'+id); return e ? +e.value : null; };
+  const save=()=>{
+    const c=cprConfig(), unitNow=$('#cprT_unit').value, U=c.unit==='cm'?2.54:1;
+    const pr=k=>[val('cprT_'+k+'0')/U, val('cprT_'+k+'1')/U].map(x=>+x.toFixed(3));
+    const t={unit:c.unit, group:$('#cprT_group').value, adult:pr('adult'), child:pr('child'), infant:pr('infant'), newborn:pr('newborn'),
+      rate:[val('cprT_rate0'), val('cprT_rate1')], nbRate:[val('cprT_nbRate0'), val('cprT_nbRate1')], relVel:val('cprT_relVel'), pre:val('cprT_pre'), post:val('cprT_post'),
+      pauseMin:val('cprT_pauseMin'), quality:val('cprT_quality'), fraction:val('cprT_fraction')};
+    const bad=Object.entries(t).some(([k,v])=>Array.isArray(v) ? v.some(x=>!isFinite(x)) : (typeof v==='number' && !isFinite(v)));
+    if(bad){ toast('Enter a number in each CPR target'); return; }
+    for(const k of ['adult','child','infant','newborn','rate','nbRate']) if(t[k][0]>t[k][1]) t[k].reverse();
+    const unitChanged = unitNow!==c.unit; t.unit=unitNow;
+    CFG.cprT=t; cfgSave(); syncCprTargets();
+    if(unitChanged) renderSettings();
+  };
+  $$('#settingsBody [id^="cprT_"]').forEach(e=>{ if(e.id!=='cprT_reset') e.addEventListener('change', save); });
+  const r=$('#cprT_reset'); if(r) r.onclick=()=>{ CFG.cprT=null; cfgSave(); syncCprTargets(); renderSettings(); toast('CPR targets restored to defaults'); };
+}
 function renderSettings(){
   const b=$('#settingsBody');
   const row=(label,ctl,hint)=>'<div class="setrow"><div><label>'+esc(label)+'</label>'+
@@ -10502,6 +11775,7 @@ function renderSettings(){
         'Intermittent values such as NIBP are never greyed out.')+
     '</div>'+
 
+    cprSettingsHtml(row, sel)+
     '<h2 class="sec">Derived rates</h2><div class="setgrid">'+
       row('Heart-rate averaging window', sel('cfgHrWin',[[4000,'4 s'],[6000,'6 s'],[10000,'10 s'],
         [20000,'20 s'],[30000,'30 s']],CFG.hrWin),
@@ -10578,6 +11852,7 @@ function renderSettings(){
 
   const on=(id,ev,fn)=>{ const e=$(id); if(e) e.addEventListener(ev,fn); };
   const put=(k,v,extra)=>{ CFG[k]=v; cfgSave(); applyCfgToSession(); if(extra) extra(); };
+  wireCprSettings();
 
   on('#cfgTheme','change',e=>{
     CFG.theme=e.target.value; cfgSave();
@@ -10648,11 +11923,28 @@ function renderSettings(){
    backup is those keys and their stored text, as JSON. Recent files and the chosen
    folder name belong to this computer; annotations are opt-in. */
 const SETTINGS_KIND = 'case-viewer-settings';
-const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer:logSeen'];
+const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer:logSeen', 'zollviewer:rptCache'];
 /* What changed in each published update, newest first. Dates are when the update
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'CPR page: waveform rows above the quality graph (pads ECG and CO₂ by default; add ECG leads, pleth or pressures), the Monitor’s parameter panel beside it, and statistics for whatever is under the pointer. The bottom strips no longer show a magnifying glass; clicking them moves the playhead.',
+    'CPR page: a live dashboard under the quality graph, like the monitor’s CPR display: rate, depth and release velocity at the playhead, a diamond showing a perfusion proxy (a model from depth, rate, release and pauses: it climbs toward the quality delivered and falls quickly in a pause; a shock is not a reset), and a pause timer.',
+    'Physiology: the optional case inputs (height, weight, calibration) start open so they are easy to find; closing them is remembered.',
+    'Fixed: QRS onset and offset no longer stop at the bottom of a Q or S wave, which made QRS look short and put the J point inside the S wave.',
+    '12-lead: ST-J level in every lead (J point against the PR segment, in mm, coloured at the usual elevation and depression thresholds) and the P, QRS and T axes, measured here.',
+    'CPR trend report (on the case list): reads every case in the folder, or chosen files, on this computer and reports arrests and ROSC with average CPR quality by month, quarter or year against your targets; filter by tag, age group or reviewed; export CSV.',
+    'Case library: tags and a reviewed mark for each case (set in the library side panel or Case details), filters by tag, reviewed and only-unopened, and search that covers tags and patient ID.',
+    'Analysis: a Case features section listing the vitals and waveforms recorded, CPR, shocks advised and delivered, 12-leads, snapshots, pacing and ROSC, and which parameters alarmed high or low.',
+    'CPR quality graph: a chosen waveform (CO₂ when recorded, or ECG or a pressure) above the rate and depth panels on the same time scale.',
+    'Whole-case ECG overview (Overview on the Monitor, Whole-case ECG on the CPR page, or O): the entire recording in rows of 1, 2 or 5 minutes with CPR, pauses, ROSC, shocks, alarms and unrecorded stretches marked; click to jump there.',
+    'CPR targets in Settings, defaulting to the 2025 AHA guidelines (ACLS, PALS, NRP): depth in inches or cm; adult, child, infant and newborn targets chosen from the monitor’s patient mode and the patient’s age; rate; shock-pause targets; pause threshold; and goals for compressions in target and compression fraction.',
+    'CPR page summary: pads on, first compression and first shock times, compression fraction ring, depth and rate split too low / in target / too high, pauses by length, longest pauses, and the pause before and after each shock.',
+    'CPR page: green for in target, red for out, amber for half; pauses and ROSC tinted; the shock is a bold marker on every view; summary values coloured against their targets.',
+    'CPR page: the quality graph follows the playhead like the Monitor, with a window choice, drag and wheel scrolling, and a jump to CPR when the playhead is elsewhere.',
+    'CPR page: a cascade with one row per minute of CPR, each compression a bar coloured by quality, and that minute’s rate, depth and % in target.',
+    'Monitor: the parameter panel fits all chosen parameters in one, two or three columns, with related parameters on the same row; drag its edge to resize (double-click for automatic).',
+    'Monitor: reading values at the pointer no longer adds a box to the panel; the time is tagged on the time axis, and a pinned point has a Back to playhead button over the strip.',
     'Fixed: the arterial fast-flush (damping) test now works on the monitor’s paired pressure samples; it was missing flushes entirely.',
     'Fixed: PR no longer mistakes the previous T wave for the P wave at faster rates, and QT no longer runs into the next P wave; both use the PR segment as baseline.',
     'Copy buttons beside PNG put the Monitor strip, an ECG strip or a 12-lead on the clipboard as an image, ready to paste.',
@@ -10823,7 +12115,8 @@ function deferRender(sel, fn, label){
   requestAnimationFrame(()=>requestAnimationFrame(run));
   setTimeout(run, 60);
 }
-const NO_TRANSPORT_VIEWS = new Set(['vitals','cpr','analysis','settings','formulas']);
+/* the CPR page follows the playhead, so it keeps the playback bar */
+const NO_TRANSPORT_VIEWS = new Set(['vitals','analysis','settings','formulas']);
 function setView(v){
   APP.view = v;
   if(CFG.lastView!==v){ CFG.lastView=v; cfgSave(); }
@@ -10838,7 +12131,7 @@ function setView(v){
   const hadTransport = !document.body.classList.contains('no-transport');
   document.body.classList.toggle('no-transport', NO_TRANSPORT_VIEWS.has(v));
   if(!hadTransport && !NO_TRANSPORT_VIEWS.has(v)) requestAnimationFrame(()=>drawTimeline());
-  if(v==='monitor'){ renderMonitorChoices(); drawMonitor(); drawNumerics(); }
+  if(v==='monitor'){ mountNumerics('monitor'); renderMonitorChoices(); drawMonitor(); drawNumerics(); }
   if(v==='trends') renderTrends();
   if(v==='ecg') renderEcgPane();
   if(v==='vitals') renderVitals();
@@ -10898,6 +12191,7 @@ function wire(){
   $('#btnGrid').onclick = e=>{ APP.showGrid=!APP.showGrid; e.target.classList.toggle('on',APP.showGrid); CFG.showGrid=APP.showGrid; cfgSave(); drawMonitor(); };
   $('#btnBeats').onclick = e=>{ APP.showBeats=!APP.showBeats; e.target.classList.toggle('on',APP.showBeats); CFG.showBeats=APP.showBeats; cfgSave(); drawMonitor(); };
   $('#btnVent').onclick = e=>{ APP.showVents=!APP.showVents; e.target.classList.toggle('on',APP.showVents); CFG.showVents=APP.showVents; cfgSave(); drawMonitor(); };
+  $('#inspBack').onclick = ()=> setInspect(null);
   $('#btnAlmFlash').onclick = ()=>{ CFG.alarmFlash=!CFG.alarmFlash; cfgSave(); syncAlarmFlash();
     toast(CFG.alarmFlash ? 'Alarm flashing on' : 'Alarm flashing off: alarming parameters stay boxed'); };
   syncAlarmFlash();
@@ -10949,6 +12243,18 @@ function wire(){
   $('#btnLoad').onclick = goHome;
   if($('#btnHome')) $('#btnHome').onclick = goHome;
   $('#btnLog').onclick = openChangelog;
+  $('#btnOverview').onclick = openOverview;
+  wireReport();
+  $('#ovClose').onclick = ()=> $('#ovDlg').close();
+  $('#ovDlg').addEventListener('click', ev=>{ if(ev.target===$('#ovDlg')) $('#ovDlg').close(); });
+  $('#ovRow').onchange = e=>{ CFG.ovRow=+e.target.value; cfgSave(); drawOverview(); };
+  $('#ovCanvas').onclick = ev=>{
+    const cv=$('#ovCanvas'), k=cv._ov; if(!k) return;
+    const r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100, x=(ev.clientX-r.left)/z, y=(ev.clientY-r.top)/z;
+    const row=Math.floor((y-k.T)/(k.RH+k.GAP)); if(row<0 || row>=k.rows) return;
+    const t=row*k.rowMs + clamp((x-k.L)/k.plotW,0,1)*k.rowMs;
+    seek(clamp(t,0,M.durMs)); $('#ovDlg').close();
+  };
   $('#logClose').onclick = ()=> $('#logDlg').close();
   $('#logDlg').addEventListener('click', ev=>{ if(ev.target===$('#logDlg')) $('#logDlg').close(); });
   syncLogBadge();
@@ -11046,6 +12352,7 @@ function wire(){
       case 'e': case 'E': $('#btnSide').click(); break;
       case 't': case 'T': $('#btnTheme').click(); break;
       case 'c': case 'C': $('#btnCal').click(); break;
+      case 'o': case 'O': openOverview(); break;
       case 'm': case 'M': (APP.view==='ecg' && $('#stripMarch') ? $('#stripMarch') : $('#btnMarch')).click(); break;
       case '+': case '=': zoomStep(0.6); break;
       case '-': case '_': zoomStep(1/0.6); break;
@@ -11097,6 +12404,7 @@ async function loadFile(file){
     recentAdd({id:M.caseId||(from&&from.path)||M.fileName, name:M.fileName,
       path:(from&&from.path)||M.fileName, size:from?from.size:file.size,
       label:M.caseId||M.fileName, caseTime:M.t0Wall, openedAt:Date.now()});
+    M.metaKey=(from&&from.path)||M.fileName; metaSet(M.metaKey, {opened:Date.now()});
     $('#drop').style.display='none';
   }catch(err){
     console.error(err);
@@ -11166,7 +12474,8 @@ function caseDetailsHtml(){
     row('Treatment events', n(sm.treatments))+
     '<div class="pvsec">File</div>'+
     row('Name', '<span style="word-break:break-all">'+esc(M.fileName||'')+'</span>')+
-    row('Read', 'on this computer only');
+    row('Read', 'on this computer only')+
+    '<div class="pvsec">Your notes</div>'+metaEditorHtml(M.metaKey||M.fileName);
 }
 function caseDetailsToggle(force){
   const pn=$('#casePanel'), b=$('#btnInfo'); if(!pn || !b) return;
@@ -11174,6 +12483,9 @@ function caseDetailsToggle(force){
   if(open && !$('#app').classList.contains('live')) return;
   if(open){
     pn.innerHTML=caseDetailsHtml();
+    const rewire=()=>{ pn.innerHTML=caseDetailsHtml(); wireMetaEditor(pn, rewire);
+      pn.querySelector('[data-cpclose]').onclick=()=>{ caseDetailsToggle(false); b.focus(); }; };
+    wireMetaEditor(pn, rewire);
     pn.querySelector('[data-cpclose]').onclick=()=>{ caseDetailsToggle(false); b.focus(); };
   }
   pn.hidden=!open;
