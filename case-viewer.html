@@ -687,7 +687,6 @@ dialog::backdrop{background:#000a}
 .sampbadge{font-size:10.5px;font-weight:500;color:var(--dim);border:1px solid var(--line2);border-radius:8px;padding:0 6px;margin-left:4px;vertical-align:1px}
 .sampbtns{display:flex;gap:6px;flex-wrap:wrap}
 .linkish{background:none;border:0;padding:0;min-height:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:12.5px}
-#ovDlg{width:min(1500px,96vw);max-width:none}
 #rptDlg{width:min(1200px,96vw);max-width:none}
 .rptbody{max-height:min(82vh,1000px);overflow:auto}
 .rptctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:12.5px}
@@ -703,8 +702,25 @@ dialog::backdrop{background:#000a}
 .stjhead{font-size:13px;margin-bottom:2px}
 .stjtab{margin-top:4px} .stjtab td,.stjtab th{text-align:center} .stjtab td:first-child,.stjtab th:first-child{text-align:left}
 .stjaxes{font-size:12.5px;margin:8px 0 2px;color:var(--dim)} .stjaxes b{color:var(--fg)}
-#ovDlg .ovbody{max-height:min(78vh,900px);overflow:auto;padding:8px 12px 12px}
-#ovCanvas{display:block;width:100%;cursor:pointer}
+#transport{position:relative}
+.ovtab{position:absolute;left:14px;bottom:100%;z-index:4;min-height:0;padding:3px 12px 4px;font-size:12px;
+  border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;background:var(--bg2);color:var(--dim)}
+.ovtab:hover{color:var(--fg)}
+.ovtab[aria-expanded="true"]{color:var(--fg)}
+.ovdock{display:flex;flex-direction:column;margin:0 -10px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.ovdock[hidden]{display:none}
+.ovgrip{height:8px;cursor:ns-resize;touch-action:none;position:relative}
+.ovgrip::after{content:"";position:absolute;left:50%;top:2px;transform:translateX(-50%);width:46px;height:3px;border-radius:2px;background:var(--line2)}
+.ovgrip:hover::after,.ovgrip.drag::after{background:var(--accent)}
+.ovdockhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 12px 4px}
+.ovdockhead .ovlegend{flex:1;padding:0}
+.ovbody{position:relative;overflow:auto;height:min(var(--ovH,200px),40vh);flex:0 0 auto;padding:0 10px 6px}
+.ovdock,#transport{flex-shrink:0}
+#ovCanvas{display:block;width:100%;cursor:ew-resize;touch-action:none}
+.ovcursor{position:absolute;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none;box-shadow:0 0 4px var(--accent)}
+.ovtip{position:absolute;transform:translate(-50%,-100%);background:#000d;color:#fff;border:1px solid var(--line2);border-radius:5px;padding:2px 7px;
+  font:11px var(--mono);pointer-events:none;white-space:nowrap;z-index:5}
+@media (max-width:900px){ .ovbody{height:min(var(--ovH,200px),34vh)} }
 .ovrow{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;margin:0}
 .ovlegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--dim);padding:6px 15px 0}
 .ovlegend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
@@ -949,6 +965,20 @@ dialog input[type=text]{width:100%}
       </div>
 
       <div id="transport">
+        <button type="button" id="ovTab" class="ovtab" aria-expanded="false" aria-controls="ovDock"
+          title="The whole case's ECG in rows: click or drag on it to move the playhead (O)">▲ Whole-case ECG<span class="keyhint" aria-hidden="true">(O)</span></button>
+        <section id="ovDock" class="ovdock" hidden aria-label="Whole-case ECG">
+          <div id="ovGrip" class="ovgrip" role="separator" aria-orientation="horizontal" title="Drag to resize · double-click to reset"></div>
+          <div class="ovdockhead">
+            <div class="ovlegend" id="ovLegend"></div>
+            <label class="ovrow">Row <select id="ovRow"><option value="60000">1 min</option><option value="120000">2 min</option><option value="300000">5 min</option></select></label>
+          </div>
+          <div class="ovbody" id="ovBody">
+            <canvas id="ovCanvas"></canvas>
+            <div id="ovCursor" class="ovcursor"></div>
+            <div id="ovTip" class="ovtip" hidden></div>
+          </div>
+        </section>
         <div id="transportGrip" title="Drag to resize the timeline · double-click to reset"></div>
         <div class="tbar">
           <button id="btnPrevEv" title="Previous event (,)">⟨</button>
@@ -989,7 +1019,7 @@ dialog input[type=text]{width:100%}
             <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
           </fieldset>
           <div class="grp adv">
-            <button id="btnOverview" type="button" aria-haspopup="dialog" title="The whole case's ECG on one page, with CPR, pauses, shocks and alarms; click to jump there (O)">Overview</button>
+            <button id="btnOverview" type="button" aria-haspopup="dialog" title="Show or hide the whole case's ECG above the playback bar, with CPR, pauses, shocks and alarms; click or drag on it to move the playhead (O)">Overview</button>
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -1035,16 +1065,6 @@ dialog input[type=text]{width:100%}
     <div id="rptOut"><div class="emptynote">Read the library folder, or choose case files, to build the report.
       Every file is read on this computer; results are cached so only new or changed files are read next time.</div></div>
   </div>
-</dialog>
-
-<dialog id="ovDlg" aria-labelledby="ovDlgTitle">
-  <div class="dh" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <span id="ovDlgTitle" style="flex:1">Whole-case ECG</span>
-    <label class="ovrow">Row <select id="ovRow"><option value="60000">1 min</option><option value="120000">2 min</option><option value="300000">5 min</option></select></label>
-    <button id="ovClose" type="button">Close</button>
-  </div>
-  <div class="ovlegend" id="ovLegend"></div>
-  <div class="db ovbody"><canvas id="ovCanvas" title="Click to move the playhead there"></canvas></div>
 </dialog>
 
 <dialog id="sampDlg" aria-labelledby="sampDlgTitle">
@@ -1271,6 +1291,7 @@ function setTheme(mode, explicit){
   if($('#app').classList.contains('live')){
     if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
     if(APP.view==='cpr') drawNumerics();
+    if(!$('#ovDock').hidden){ ovLegendFill(); drawOverview(); }
     if(APP.view==='trends') renderTrends();
     if(APP.view==='vitals') renderVitals();
     if(APP.view==='analysis') renderAnalysis();
@@ -9754,11 +9775,16 @@ function ovChannels(){
     return (ia<0?9:ia)-(ib<0?9:ib) || (a.kind==='pads')-(b.kind==='pads'); });
   return ecg;
 }
+const OV_RH=46, OV_GAP=5, OV_L=64, OV_T=4;
 function drawOverview(){
-  const cv=$('#ovCanvas'); if(!cv || !M.durMs) return;
+  const cv=$('#ovCanvas'); if(!cv || !M.durMs || !cv.offsetParent) return;
   const rowMs=+CFG.ovRow||120000, rows=Math.ceil(M.durMs/rowMs);
-  const RH=58, GAP=6, L=64, T=4;
+  const RH=OV_RH, GAP=OV_GAP, L=OV_L, T=OV_T;
   cv.style.height=(rows*(RH+GAP)+T+4)+'px';
+  /* drawn once per case, row length, width and theme; only the cursor moves after that */
+  const key=[M.caseId, M.durMs, rowMs, Math.round(cv.getBoundingClientRect().width), THEME.mode].join('|');
+  if(cv._key===key){ updateOvCursor(); return; }
+  cv._key=key;
   const {g,w,h}=fitCanvas(cv);
   const TC=TH();
   g.fillStyle=TC.bg; g.fillRect(0,0,w,h);
@@ -9802,16 +9828,49 @@ function drawOverview(){
       const x=X(s.t); g.fillStyle=traceCol(CPR_SHOCK); g.fillRect(x-1.5,y,3,RH);
       g.font='700 13px system-ui,sans-serif'; g.textAlign='center'; g.fillText('⚡', x+9, y+14); g.textAlign='left';
     }
-    if(APP.cursor>=t0 && APP.cursor<t1){ const x=Math.round(X(APP.cursor))+0.5;
-      g.strokeStyle=TC.cursor; g.lineWidth=1.5; g.beginPath(); g.moveTo(x,y-2); g.lineTo(x,y+RH+2); g.stroke(); }
+    for(const e of (typeof cprTreatments==='function' ? cprTreatments() : [])){
+      if(e.t<t0 || e.t>=t1) continue;
+      const x=Math.round(X(e.t))+0.5; g.save(); g.strokeStyle=traceCol(CPR_TREAT); g.setLineDash([3,2]);
+      g.beginPath(); g.moveTo(x,y); g.lineTo(x,y+RH); g.stroke(); g.restore(); }
     g.fillStyle=TC.chartText||TC.dim; g.font='10px ui-monospace,monospace';
     g.fillText(fmtClock(M.t0Wall+t0), 4, y+14);
     g.fillStyle=TC.dim; g.fillText('+'+fmtEl(t0), 4, y+28);
   }
 }
-function openOverview(){
-  const d=$('#ovDlg'); if(!d || !M.durMs) return;
-  $('#ovRow').value=String(CFG.ovRow||120000);
+/* the time under a point on the panel, from its row and column */
+function ovTimeAt(ev){
+  const cv=$('#ovCanvas'), k=cv && cv._ov; if(!k) return null;
+  const r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100, x=(ev.clientX-r.left)/z, y=(ev.clientY-r.top)/z;
+  const row=clamp(Math.floor((y-k.T)/(k.RH+k.GAP)), 0, k.rows-1);
+  return clamp(row*k.rowMs + clamp((x-k.L)/k.plotW,0,1)*k.rowMs, 0, M.durMs);
+}
+/* the playhead on the panel; during playback (or a jump from elsewhere) the panel scrolls
+   to keep it in view, but not while you are dragging on it */
+function updateOvCursor(){
+  const dock=$('#ovDock'); if(!dock || dock.hidden) return;
+  const cv=$('#ovCanvas'), k=cv._ov, cur=$('#ovCursor'); if(!k || !cur) return;
+  const row=Math.min(k.rows-1, Math.floor(APP.cursor/k.rowMs)), frac=(APP.cursor-row*k.rowMs)/k.rowMs;
+  const top=cv.offsetTop + k.T + row*(k.RH+k.GAP) - 2, left=cv.offsetLeft + k.L + frac*k.plotW;
+  cur.style.top=top+'px'; cur.style.left=left+'px'; cur.style.height=(k.RH+4)+'px';
+  if(!OV.dragging){
+    const body=$('#ovBody'), vis0=body.scrollTop, vis1=vis0+body.clientHeight;
+    if(top<vis0 || top+k.RH>vis1) body.scrollTop=Math.max(0, top-Math.round(body.clientHeight/3));
+  }
+}
+const OV={dragging:false};
+function setOvDock(open){
+  const dock=$('#ovDock'), tab=$('#ovTab'); if(!dock) return;
+  if(open && !M.durMs) return;
+  dock.hidden=!open; tab.setAttribute('aria-expanded', String(!!open));
+  tab.firstChild.textContent=(open?'▼':'▲')+' Whole-case ECG';
+  if(CFG.ovDock!==!!open){ CFG.ovDock=!!open; cfgSave(); }
+  if(open){ ovLegendFill(); $('#ovRow').value=String(CFG.ovRow||120000);
+    $('#ovBody').style.setProperty('--ovH', (CFG.ovH||200)+'px');
+    $('#ovCanvas')._key=null; drawOverview(); updateOvCursor(); }
+  if(APP.view==='monitor') requestAnimationFrame(()=>drawMonitor());
+}
+function openOverview(){ setOvDock($('#ovDock').hidden); }
+function ovLegendFill(){
   $('#ovLegend').innerHTML=
     '<span><i style="background:'+traceCol('#3fd68b')+'"></i>ECG (best lead)</span>'+
     '<span><i style="background:'+traceCol('#ffd166')+';opacity:.5"></i>CPR</span>'+
@@ -9819,11 +9878,9 @@ function openOverview(){
     '<span><i style="background:'+traceCol(CPR_GOOD)+';opacity:.5"></i>ROSC</span>'+
     '<span style="color:'+traceCol(CPR_SHOCK)+';font-weight:700">⚡ Shock</span>'+
     '<span><i style="background:'+traceCol(CPR_BAD)+'"></i>Alarm</span>'+
-    '<span><i style="background:var(--dim);opacity:.4"></i>Not recorded</span>';
-  d.showModal();
-  requestAnimationFrame(()=>{ drawOverview();
-    const r=Math.floor(APP.cursor/(+CFG.ovRow||120000)), body=d.querySelector('.ovbody');
-    body.scrollTop=Math.max(0, r*(58+6)-120); });
+    '<span><i style="background:var(--dim);opacity:.4"></i>Not recorded</span>'+
+    (typeof cprTreatments==='function' && cprTreatments().length ? '<span style="color:'+traceCol(CPR_TREAT)+';font-weight:700">┊ Treatment</span>' : '')+
+    '<span>Click or drag to move the playhead</span>';
 }
 
 /* ---- live CPR dashboard at the playhead ----
@@ -10177,7 +10234,7 @@ function renderCprPane(){
         '<span class="shockkey">⚡ Shock</span>'+
         (cprTreatments().length ? '<span class="treatkey">┊ Treatment</span>' : '')+
       '</div>'+
-      '<button type="button" id="cprOverview" title="The whole case\'s ECG on one page">Whole-case ECG</button>'+
+      '<button type="button" id="cprOverview" title="Show or hide the whole case\'s ECG above the playback bar (O)">Whole-case ECG</button>'+
       '<span id="cprWaves" class="cprwaves">'+cprWaveCtlHtml()+'</span>'+
       '<label class="cprwin">Window <select id="cprWin">'+CPR_WINS.map(([v,l])=>
         '<option value="'+v+'"'+(v===win?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+
@@ -11661,7 +11718,7 @@ const CFG_DEFAULT = {
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, ovDock:false, ovH:200, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
   /* remembered between runs: the last setup of each view */
   peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
@@ -12017,6 +12074,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview, the O key and the CPR page’s button open it too.',
     'Start page: two built-in sample cases (cardiac arrest, neuro critical care), made-up and built on this computer when opened, each with what to look for; Hide puts them away. The light/dark toggle, GitHub and Changelog are on the start page too.',
     'CPR page: treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other …) are marked in purple on the quality graph, strips and cascade, and named in the hover readout.',
     'Light mode: trace and parameter colours are darkened until they read clearly on white; yellow NIBP and cyan SpO₂ were too pale. The parameter panel now redraws in the new colours when the theme changes.',
@@ -12153,6 +12211,7 @@ function seek(t, quiet){
   $('#clock').textContent = fmtClock(M.t0Wall+APP.cursor);
   $('#elapsed').textContent = '+'+fmtElMs(APP.cursor);
   $('#tlCursor').style.left = (APP.cursor/M.durMs*100)+'%';
+  updateOvCursor();
   if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
   if(APP.view==='trends') renderTrendsCursor();
   if(APP.view==='cpr') redrawCpr();
@@ -12344,16 +12403,44 @@ function wire(){
   };
   $('#btnOverview').onclick = openOverview;
   wireReport();
-  $('#ovClose').onclick = ()=> $('#ovDlg').close();
-  $('#ovDlg').addEventListener('click', ev=>{ if(ev.target===$('#ovDlg')) $('#ovDlg').close(); });
+  $('#ovTab').onclick = openOverview;
   $('#ovRow').onchange = e=>{ CFG.ovRow=+e.target.value; cfgSave(); drawOverview(); };
-  $('#ovCanvas').onclick = ev=>{
-    const cv=$('#ovCanvas'), k=cv._ov; if(!k) return;
-    const r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100, x=(ev.clientX-r.left)/z, y=(ev.clientY-r.top)/z;
-    const row=Math.floor((y-k.T)/(k.RH+k.GAP)); if(row<0 || row>=k.rows) return;
-    const t=row*k.rowMs + clamp((x-k.L)/k.plotW,0,1)*k.rowMs;
-    seek(clamp(t,0,M.durMs)); $('#ovDlg').close();
-  };
+  {
+    /* click or drag on the panel to scrub; the playhead follows live */
+    const cv=$('#ovCanvas'), tip=$('#ovTip');
+    const showTip=(ev,t)=>{ const b=$('#ovBody').getBoundingClientRect(), z=(CFG.uiScale||100)/100;
+      tip.hidden=false; tip.textContent=fmtClock(M.t0Wall+t)+'  +'+fmtEl(t);
+      tip.style.left=((ev.clientX-b.left)/z+$('#ovBody').scrollLeft)+'px';
+      tip.style.top=((ev.clientY-b.top)/z+$('#ovBody').scrollTop-8)+'px'; };
+    cv.addEventListener('pointerdown', ev=>{
+      if(ev.button>0) return; const t=ovTimeAt(ev); if(t==null) return;
+      ev.preventDefault(); cv.setPointerCapture(ev.pointerId); OV.dragging=true;
+      if(APP.playing) setPlaying(false);
+      seek(t, true); updateOvCursor(); showTip(ev,t);
+    });
+    cv.addEventListener('pointermove', ev=>{
+      const t=ovTimeAt(ev); if(t==null) return;
+      if(OV.dragging){ seek(t, true); updateOvCursor(); }
+      if(ev.pointerType!=='touch' || OV.dragging) showTip(ev,t);
+    });
+    const end=ev=>{ if(!OV.dragging) return; OV.dragging=false; const t=ovTimeAt(ev); if(t!=null) seek(t); tip.hidden=true; };
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', ()=>{ OV.dragging=false; tip.hidden=true; });
+    cv.addEventListener('pointerleave', ()=>{ if(!OV.dragging) tip.hidden=true; });
+    /* the top edge resizes the panel */
+    const grip=$('#ovGrip'); let y0=0, h0=0, on=false;
+    grip.addEventListener('pointerdown', ev=>{ ev.preventDefault(); grip.setPointerCapture(ev.pointerId); on=true; grip.classList.add('drag');
+      y0=ev.clientY; h0=$('#ovBody').getBoundingClientRect().height/((CFG.uiScale||100)/100); });
+    grip.addEventListener('pointermove', ev=>{ if(!on) return; const z=(CFG.uiScale||100)/100;
+      const hh=Math.round(clamp(h0-(ev.clientY-y0)/z, 90, Math.max(140, innerHeight*0.7)));
+      CFG.ovH=hh; $('#ovBody').style.setProperty('--ovH', hh+'px');
+      if(APP.view==='monitor') drawMonitor(); });
+    const stop=()=>{ if(!on) return; on=false; grip.classList.remove('drag'); cfgSave(); updateOvCursor(); };
+    grip.addEventListener('pointerup', stop); grip.addEventListener('pointercancel', stop);
+    grip.addEventListener('dblclick', ()=>{ CFG.ovH=200; cfgSave(); $('#ovBody').style.setProperty('--ovH','200px'); if(APP.view==='monitor') drawMonitor(); });
+    if(typeof ResizeObserver!=='undefined'){ let raf=0;
+      new ResizeObserver(()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; if(!$('#ovDock').hidden) drawOverview(); }); }).observe($('#ovBody')); }
+  }
   $('#logClose').onclick = ()=> $('#logDlg').close();
   $('#logDlg').addEventListener('click', ev=>{ if(ev.target===$('#logDlg')) $('#logDlg').close(); });
   syncLogBadge();
@@ -13289,6 +13376,7 @@ function startApp(){
   /* reopen on the tab that was open last time */
   const lastView = CFG.lastView;
   setView(lastView && $('#tabs button[data-view="'+lastView+'"]') ? lastView : 'monitor');
+  $('#ovCanvas')._key=null; setOvDock(!!CFG.ovDock);
   wireStripTools();
   wireTransportGrip();
   applyTimelineH();
