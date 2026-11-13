@@ -35,6 +35,12 @@ changelog are under Settings › Project.
 
 ## Case library
 
+**Sample cases.** The start page always offers two made-up cases, *Cardiac arrest* and
+*Neuro critical care*, so you can try every view without a real file. They are built on
+your computer when you open one (nothing is downloaded), and **What to look for** shows
+what the viewer should find in each. **Hide** tucks them away; a link brings them back.
+The start page also has the light/dark toggle, **GitHub** and **Changelog**.
+
 The landing page lists every `.zol`, `.zip` and `.json` in the chosen folder, descending
 two levels so an extracted `…​.zol/` directory is picked up too. Case date and device
 serial are read straight from the filename, so listing a folder never opens an 18 MB file.
@@ -88,7 +94,7 @@ annotations live in that browser's local storage.
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. Under each 12-lead, the viewer's own ST-J level in every lead (red at the usual elevation thresholds, amber at depression) and the P, QRS and T axes. |
 | **Vitals** | Every selected parameter as a table. Opens on the monitor's own NIBP auto cycle when the case records one (each row on that cycle's cuff reading, with P1–P3 alongside), otherwise at a chosen interval. Resizable columns, CSV export and a pop-out window. |
 | **Annotations** | Your sticky notes and annotated time ranges, with import/export. |
-| **CPR** | Resuscitation quality, coloured against the AHA targets (green in target, amber half, red out): a rate/depth quality graph that follows the playhead like the Monitor (window choice, drag or wheel to scroll), case metrics, a **summary** (pads-on, first-compression and first-shock times; compression fraction; depth and rate split too low / in target / too high; pauses by length and the longest; pre- and post-shock pauses), a **cascade** with one row per minute of CPR, and the stacked performance strips. Shocks are marked boldly on every view. Waveform rows sit above the quality graph on the same time scale: the ECG from the pads (or the monitor's ECG lead) and CO₂ by default; add or remove ECG leads, the SpO₂ pleth, pressures and the rest with **Add waveform…**. The Monitor's parameter panel sits beside the graph, with the same **Parameters…** choice. Hover anywhere on the graph for what's under the pointer (the nearest compression's rate, depth and release, any pause, shock or ROSC, the last 10 s in target, ventilations and the perfusion estimate), and the parameter panel shows that moment. A live **dashboard** under the graph shows rate, depth and release velocity at the playhead, a pause timer, and a diamond showing a **perfusion proxy**: a model reconstructed from compression depth, rate, release and pauses that climbs toward the quality being delivered (time constant 5 s) and falls quickly when compressions stop (time constant 3.6 s, about a quarter left after 5 s). A shock doesn't reset it; the hands-off time around the shock is what lowers it. It is not a measured pressure, not coronary perfusion pressure, not a chance of ROSC and not the monitor's own indicator, and it is marked as adult-derived on child, infant and newborn cases. The constants and the studies they were scaled from are listed in the code beside the model. |
+| **CPR** | Resuscitation quality, coloured against the AHA targets (green in target, amber half, red out): a rate/depth quality graph that follows the playhead like the Monitor (window choice, drag or wheel to scroll), case metrics, a **summary** (pads-on, first-compression and first-shock times; compression fraction; depth and rate split too low / in target / too high; pauses by length and the longest; pre- and post-shock pauses), a **cascade** with one row per minute of CPR, and the stacked performance strips. Shocks are marked boldly on every view, and treatments logged on the monitor (Epinephrine, IV Access, Intubation, Other and the rest) as purple markers, labelled on the quality graph. Waveform rows sit above the quality graph on the same time scale: the ECG from the pads (or the monitor's ECG lead) and CO₂ by default; add or remove ECG leads, the SpO₂ pleth, pressures and the rest with **Add waveform…**. The Monitor's parameter panel sits beside the graph, with the same **Parameters…** choice. Hover anywhere on the graph for what's under the pointer (the nearest compression's rate, depth and release, any pause, shock or ROSC, the last 10 s in target, ventilations and the perfusion estimate), and the parameter panel shows that moment. A live **dashboard** under the graph shows rate, depth and release velocity at the playhead, a pause timer, and a diamond showing a **perfusion proxy**: a model reconstructed from compression depth, rate, release and pauses that climbs toward the quality being delivered (time constant 5 s) and falls quickly when compressions stop (time constant 3.6 s, about a quarter left after 5 s). A shock doesn't reset it; the hands-off time around the shock is what lowers it. It is not a measured pressure, not coronary perfusion pressure, not a chance of ROSC and not the monitor's own indicator, and it is marked as adult-derived on child, infant and newborn cases. The constants and the studies they were scaled from are listed in the code beside the model. |
 | **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. **Case features** lists the vitals and waveforms recorded, CPR, shocks advised and delivered, 12-leads, pacing, ROSC, and which parameters alarmed high or low. |
 | **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. **CPR targets** default to the 2025 AHA guidelines (ACLS, PALS, NRP), with the age group taken from the monitor's mode and the patient's age; depth in inches or cm. |
 | **Formulas** | Every measure the viewer calculates or explains, searchable and with an A–Z index (abbreviations included): what it is, how to read it, the formula used, and links to a readable explanation and the original source. The same explanations open from the ⓘ next to a measure anywhere in the viewer. |
@@ -199,7 +205,8 @@ row is stamped with its elapsed time, and 12-leads keep the standard 3×4 layout
 The **T** key and the ☀/🌙 button switch between light and dark, and that choice is
 remembered — the viewer reopens the way you left it. Settings → *Theme* also offers
 **Follow system**, which tracks your OS preference live and is the default until you
-pick a side.
+pick a side. In light mode every trace and parameter colour is darkened until it reads at about 5:1
+against white, so yellows and cyans (NIBP, SpO₂) stay legible.
 
 ## CPR
 
@@ -556,12 +563,16 @@ Synthetic success verifies these scenarios, not accuracy on real clinical record
 
 ## Synthetic test cases
 
+These are the same two cases the start page offers as samples: the generator is
+`synthCase()` inside `case-viewer.html`, and the command-line tool runs that code.
+
 `node tools/make-test-case.cjs` writes `test-cases/synthetic-cardiac.zol`, a made-up
 30-minute case (no real patient or device) that exercises every view and algorithm:
 sinus rhythm with sinus arrhythmia, AF with a pulse deficit, a lead switch, bradycardia
 with a pause, external pacing, VF with CPR, a shock and ROSC, ventilated pulse-pressure
 variation, a desaturation, a bronchospasm-shaped capnogram, apnoea, probe disconnects,
-NIBP readings, alarms, a zeroing and fast-flush test, 12-leads and snapshots. Its lines are
+NIBP readings, alarms, a zeroing and fast-flush test, 12-leads and snapshots, and treatments
+logged during the arrest (IV access, epinephrine, amiodarone, intubation, other). Its lines are
 arterial, **PA** and CVP, with two temperatures. `--neuro` writes `synthetic-neuro.zol`
 instead: arterial, CVP and ICP lines (CPP, and PRx that is negative before the arrest and
 positive after ROSC) and an ECG recorded at diagnostic bandwidth so PR and QT are measured.

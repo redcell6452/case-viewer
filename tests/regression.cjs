@@ -1148,3 +1148,25 @@ test('CPR perfusion proxy: builds toward the quality delivered (tau 5 s), decays
   assert.ok(Math.abs(r.postShock - r.preShock) < 0.01 && r.preShock > 0, 'a shock is not a reset: ' + r.preShock + ' -> ' + r.postShock);
   assert.ok(Math.abs(r.lowRelease - 0.65) < 1e-9 && r.noRelease === 1, 'release factor: ' + r.lowRelease + ' ' + r.noRelease);
 });
+
+test('sample cases: the built-in generator makes a readable, anonymous case, the same every time', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const x=synthCase(false), y=synthCase(false);
+    let same=x.zol.length===y.zol.length; for(let i=0;same && i<x.zol.length;i+=997) same = x.zol[i]===y.zol[i];
+    const {json,xml}=splitZol(x.zol.buffer);
+    buildModel(json, xml, 'synthetic-cardiac.zol');
+    const text=new TextDecoder().decode(x.zol);
+    return JSON.stringify({same, mb:x.zol.length/1048576, caseId:M.caseId, durMin:Math.round(M.durMs/60000),
+      sheet:/what the viewer should find/.test(x.sheet), samples:SAMPLES.length,
+      serial:(()=>{ const all=[...text.matchAll(/"[A-Za-z]*SerialNumber":"([^"]*)"/g)].map(m=>m[1]); return all.length>0 && all.every(v=>v==='SIM00000001'); })(), neuro:synthCase(true).sheet.includes('synthetic-neuro.zol'),
+      treats:cprTreatments().map(e=>e.name)});
+  })()`));
+  assert.equal(r.same, true);
+  assert.ok(r.mb > 15 && r.mb < 25, 'size ' + r.mb);
+  assert.equal(r.caseId, 'SIM-CARDIAC-0001');
+  assert.equal(r.durMin, 30);
+  assert.equal(r.sheet, true); assert.equal(r.samples, 2); assert.equal(r.serial, true); assert.equal(r.neuro, true);
+  /* treatments for the CPR timeline: logged ones only, not device actions */
+  assert.deepEqual(r.treats, ['IV Access', 'Epinephrine', 'Amiodarone', 'Intubation', 'Other']);
+});

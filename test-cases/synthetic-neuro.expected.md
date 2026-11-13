@@ -20,6 +20,7 @@ Case start 2026-03-14 09:00:00 (device local), 30 minutes. Times below are case 
 | 09:18:05–09:20:40 | Compressions ~112/min (faster after 09:20:00), depth ~2.2 in falling late, release ~410 mm/s; pause 09:19:06–09:19:16; ventilations 10/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P2 CVP) |
 | 09:19:02 / 09:19:10 | AED **SHOCK ADVISED**, **Shock Delivered** 200 J | Device rhythm analysis; shock on CPR timeline |
 | 09:19:10–09:20:45 | Organised rhythm 100/min with low pressure (PEA-like) while CPR continues | |
+| 09:18:45, 09:19:35, 09:20:05, 09:19:50, 09:20:20 | Treatments logged: IV Access, Epinephrine, Intubation, Amiodarone, Other | Purple treatment markers on the CPR graph, strips and cascade; Events list |
 | 09:20:45 | **ROSC**: EtCO2 jumps to 48 then settles to 38 | ROSC period; EtCO2 rise |
 | 09:20:45–09:25:00 | Ventilated 12/min; **PPV ~17%**, SPV, pleth variation; pressure 84/50 rising | PPV ~17%, SPV, DPV (regular rhythm, ventilated 12/min), PVI 19; shock index; low NIBP 86/52 at 09:21:10 (alarm, red) |
 | 09:21:40–09:23:20 | SpO2 dips to 83% | SpO2 low alarm (red); hypoxic burden, T90, SpO2/FiO2 with a FiO2 entered |
