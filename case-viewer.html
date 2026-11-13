@@ -262,6 +262,11 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
 .numpick{width:100%;font-size:11px;padding:4px}
 #numLive{display:contents}
+.keyhint{margin-left:5px;font-size:.78em;font-weight:400;color:var(--dim);letter-spacing:0}
+button.on .keyhint{color:inherit;opacity:.7}
+button.sidetoggle .keyhint{margin-left:4px}
+/* no keyboard to press them on a touch screen */
+@media (pointer: coarse){ .keyhint{display:none} }
 .numat{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;
   font:11px var(--mono);color:var(--dim);border:1px dashed var(--line2);border-radius:6px;padding:4px 6px}
 .numat b{color:var(--fg)}
@@ -740,7 +745,7 @@ dialog input[type=text]{width:100%}
         title="Local only: nothing leaves this computer"><svg class="lockicon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor"/></svg><span>Local only</span></button>
       <button id="btnInfo" title="Case details" aria-label="Case details" aria-haspopup="dialog"
         aria-controls="casePanel" aria-expanded="false">ⓘ</button>
-      <button id="btnTheme" title="Light / dark (T)">☀</button>
+      <button id="btnTheme" title="Light / dark (T)" aria-keyshortcuts="T">☀<span class="keyhint" aria-hidden="true">(T)</span></button>
       <button id="btnLoad" title="Load another file">Open…</button>
       <a id="btnRepo" class="btnlink" href="https://github.com/redcell6452/case-viewer"
          target="_blank" rel="noopener noreferrer"
@@ -750,7 +755,7 @@ dialog input[type=text]{width:100%}
     <div id="casePanel" class="casepanel" role="dialog" aria-label="Case details" hidden></div>
     <div class="tabrow">
       <button id="btnSide" class="sidetoggle" type="button" title="Hide event list (E)"
-        aria-label="Hide event list" aria-controls="side" aria-expanded="true"><svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true" focusable="false"><rect x="1" y="1.5" width="16" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect class="sidefill" x="2.2" y="2.7" width="4.6" height="10.6" rx="1" fill="currentColor"/><line x1="7.5" y1="2" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.2"/></svg></button>
+        aria-label="Hide event list" aria-controls="side" aria-keyshortcuts="E" aria-expanded="true"><svg viewBox="0 0 18 16" width="18" height="16" aria-hidden="true" focusable="false"><rect x="1" y="1.5" width="16" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect class="sidefill" x="2.2" y="2.7" width="4.6" height="10.6" rx="1" fill="currentColor"/><line x1="7.5" y1="2" x2="7.5" y2="14" stroke="currentColor" stroke-width="1.2"/></svg><span class="keyhint" aria-hidden="true">(E)</span></button>
     <div class="tabs" id="tabs">
       <button data-view="monitor" class="on">Monitor</button>
       <button data-view="trends">Trends</button>
@@ -805,7 +810,7 @@ dialog input[type=text]{width:100%}
         <div id="transportGrip" title="Drag to resize the timeline · double-click to reset"></div>
         <div class="tbar">
           <button id="btnPrevEv" title="Previous event (,)">⟨</button>
-          <button id="btnPlay" title="Play / pause (Space)">▶</button>
+          <button id="btnPlay" title="Play / pause (Space)" aria-keyshortcuts="Space">▶<span class="keyhint" aria-hidden="true">(Space)</span></button>
           <button id="btnNextEv" title="Next event (.)">⟩</button>
           <span class="elapsed mono" id="elapsed">+00:00</span>
           <button id="btnAdv" title="More controls">⋯</button>
@@ -838,8 +843,8 @@ dialog input[type=text]{width:100%}
             <span class="mono" id="winNow" style="color:var(--dim);min-width:34px"></span>
           </div>
           <div class="grp adv">
-            <button id="btnCal" title="Calipers: drag on a trace to measure (C)">⟺</button>
-            <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false">March</button>
+            <button id="btnCal" title="Calipers: drag on a trace to measure (C)" aria-keyshortcuts="C">⟺<span class="keyhint" aria-hidden="true">(C)</span></button>
+            <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -848,7 +853,7 @@ dialog input[type=text]{width:100%}
             <button id="btnAlmFlash" class="on" aria-pressed="true" title="Flash parameters that are in alarm (red) or have an equipment alert (yellow). Off: boxed but steady.">Flash</button>
           </div>
           <span style="flex:1"></span>
-          <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range.">＋ Annotate</button>
+          <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range." aria-keyshortcuts="A">＋ Annotate<span class="keyhint" aria-hidden="true">(A)</span></button>
           <button id="btnPrintMonitor" title="Print current monitor strip">Print</button>
           <button id="btnPng" title="Save current strip as PNG">PNG</button>
         </div>
@@ -1041,7 +1046,7 @@ function setTheme(mode, explicit){
   document.documentElement.setAttribute('data-theme', THEME.mode);
   const b=$('#btnTheme');
   if(b){
-    b.textContent = THEME.mode==='light' ? '🌙' : '☀';
+    b.innerHTML = (THEME.mode==='light' ? '🌙' : '☀')+keyHint('T');
     b.title = 'Switch to '+(THEME.mode==='light'?'dark':'light')+' mode (T)';
   }
   if(explicit && typeof CFG!=='undefined'){ CFG.theme = THEME.mode; cfgSave(); }
@@ -9988,7 +9993,7 @@ function renderEcgPane(){
         '</select></label>'+
       '<label style="color:var(--dim);font-size:12px"><input type="checkbox" id="stripAll"> include pressure / CO2</label>'+
       '<button id="stripCal" title="Arm the calipers, then drag across the strip">⟺ Calipers</button>'+
-      '<button id="stripMarch" title="March out: repeat the caliper interval along the strip to check regularity (M)" aria-pressed="false">March</button>'+
+      '<button id="stripMarch" title="March out: repeat the caliper interval along the strip to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March'+keyHint('M')+'</button>'+
       '<button id="stripCalClr" title="Clear the caliper (or double-click the strip)">Clear</button>'+
       '<button type="button" id="paperZoomOut" aria-label="Zoom out">−</button>'+
       '<label aria-label="ECG zoom percentage"><input class="zoom-input" type="number" id="paperZoomValue" min="25" max="400" step="5" value="100">%</label>'+
@@ -10585,6 +10590,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'Buttons a key toggles show that key in parentheses: play (Space), Annotate (A), calipers (C), March (M), theme (T) and the event list (E). Hidden on touch screens.',
     'Monitor: when an invasive line was zeroed, the pressure row shows a ZERO flag with the time, a dashed line, and a tick at the 0 mmHg level.',
     'Monitor: a pressure trace that goes past the monitor scale (above 180, a flush, a zero) no longer runs into the row edge; the row widens its scale in round steps and the scale label shows the range in use.',
     'Event list: during playback the playhead marker moves down the list and the list turns the page when it reaches the bottom.',
@@ -10610,6 +10616,8 @@ const CHANGELOG = [
     'First public release (Rev 2): the offline viewer, its documentation and regression tests.'
   ]}
 ];
+/* the key that toggles a button, shown in the button as "(K)" */
+function keyHint(k){ return '<span class="keyhint" aria-hidden="true">('+k+')</span>'; }
 function fmtLogDate(d){
   const t=Date.parse(d+'T00:00:00Z');
   return isFinite(t) ? new Date(t).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}) : d;
@@ -10707,7 +10715,7 @@ function renderTrendsCursor(){ if(APP.view==='trends') renderTrends(); }
 function setPlaying(on){
   APP.playing = on;
   if(on && APP.inspect) setInspect(null);
-  $('#btnPlay').textContent = on ? '❚❚' : '▶';
+  $('#btnPlay').innerHTML = (on ? '❚❚' : '▶')+keyHint('Space');
   $('#btnPlay').classList.toggle('on', on);
   if(on){ APP.lastFrame = performance.now(); requestAnimationFrame(tick); }
   else if(APP.view==='hemo') refreshHemoValues(true);

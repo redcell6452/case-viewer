@@ -125,6 +125,8 @@ shared across all three views. Averaging windows for the derived rates are in Se
 - **Space** play/pause · **← →** step 1 s (**Shift** 10 s) · **Home/End** ends
 - **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **T** theme
 - **E** event list · **+ −** zoom · **1**–**9** switch tabs (Monitor through Settings)
+- Buttons a key toggles show that key in parentheses, e.g. **March (M)**; the hints are
+  hidden on touch screens
 - Speed 0.25×–20×; sweep window 1–60 s; ECG gain 5–40 mm/mV
 - **Drag the strip** left or right to move through the recording, like pulling paper
   (dragging right goes back in time); the **mouse wheel** over the strip does the same
