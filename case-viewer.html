@@ -227,11 +227,15 @@ button.sidetoggle.open .sidefill{opacity:.55}
 #monitorPane.on{display:flex}
 .monitor-display{padding:5px 9px;border-bottom:1px solid var(--line);font:11px var(--mono);color:var(--dim2)}
 .monitor-display strong{color:var(--fg)}
-.monitor-leads{padding:5px 9px;border-bottom:1px solid var(--line);font:11px var(--mono)}
-.monitor-leads summary{cursor:pointer;color:var(--accent)}
-.monitor-lead-list{display:flex;flex-wrap:wrap;gap:5px 12px;padding:7px 0 3px}
-.monitor-lead-list label{white-space:nowrap;cursor:pointer}
-.monitor-lead-list small{color:var(--dim2)}
+.monitor-leads{padding:6px 10px 8px;border-bottom:1px solid var(--line)}
+/* styled like the section headings on the other tabs (Physiology's Waveforms) */
+.monitor-leads summary{cursor:pointer;width:fit-content;font-size:13px;text-transform:uppercase;letter-spacing:1px;
+  color:var(--dim);font-weight:600}
+.monitor-leads summary:hover{color:var(--fg)}
+.monitor-lead-list{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:6px 0 0}
+.monitor-lead-list .hvchk{white-space:nowrap}
+.monitor-lead-list .mlgroup{font-size:11.5px;color:var(--dim);margin:0 2px 0 8px}
+.monitor-lead-list small{flex-basis:100%;font-size:11.5px;color:var(--dim2);margin-top:2px}
 #waveArea{flex:1;display:flex;min-height:0}
 #waveCanvasWrap{flex:1;position:relative;min-width:0}
 #waveCanvas{position:absolute;inset:0;width:100%;height:100%}
@@ -943,7 +947,7 @@ dialog input[type=text]{width:100%}
       <div class="viewwrap">
         <div id="monitorPane" class="pane on">
           <div class="monitor-display" id="monitorDisplay"></div>
-          <details class="monitor-leads" id="monitorLeadPicker"><summary>Choose monitor waveforms</summary>
+          <details class="monitor-leads" id="monitorLeadPicker" open><summary>Waveforms</summary>
             <div class="monitor-lead-list" id="monitorLeadList"></div></details>
           <div id="waveArea">
             <div id="waveCanvasWrap"><canvas id="waveCanvas"></canvas>
@@ -7307,21 +7311,32 @@ const APP = {
   showBeats:false, showVents:false, showPace:true, view:'monitor', calMode:false, caliper:null,
   sel:null, hidden:new Set(), lastFrame:0, selEvent:-1
 };
+/* the key a waveform is shown or hidden by. Leads recorded only during a 12-lead share
+   their name with the continuous lead (both "12-Lead I"), so they get their own key;
+   otherwise hiding the 12-lead copy would also hide the continuous trace. */
+const monKey = c => c.captureOnly ? '12:'+c.name : c.name;
 function visibleChannels(){
   const order = {ecg:0, pads:1, ibp1:2, ibp2:3, ibp3:4, spo2:5, co2:6, imp:7, other:8};
   return Object.values(M.channels).concat(M.monitorExtra||[])
-    .filter(c=>c.nValid>0 && !APP.hidden.has(c.name))
+    .filter(c=>c.nValid>0 && !APP.hidden.has(monKey(c)))
     .sort((a,b)=>(order[a.kind]-order[b.kind]) || a.name.localeCompare(b.name));
 }
 function renderMonitorChoices(){
   const box=$('#monitorLeadList'); if(!box) return;
-  const chans=Object.values(M.channels).concat(M.monitorExtra||[]).filter(c=>c.nValid>0);
-  box.innerHTML=chans.map(c=>'<label><input type="checkbox" data-ch="'+esc(c.name)+'"'+
-    (APP.hidden.has(c.name)?'':' checked')+'>'+esc(shortName(c.name))+'</label>').join('')+
-    '<small>The additional leads were recorded during the 12-lead ECG only. Selecting one opens that interval.</small>';
+  /* the same pills as Physiology's waveform choice: checkbox, colour, name */
+  const pill=c=>'<label class="hvchk"><input type="checkbox" data-ch="'+esc(monKey(c))+'"'+
+    (APP.hidden.has(monKey(c))?'':' checked')+'><i style="background:'+traceCol(c.color||'#9aa7b4')+'"></i>'+
+    esc(cprWaveLabel(c))+'</label>';
+  const order = {pads:0, ecg:1, ibp1:2, ibp2:3, ibp3:4, spo2:5, co2:6, imp:7};
+  const main=Object.values(M.channels).filter(c=>c.nValid>0)
+    .sort((a,b)=>((order[a.kind]??8)-(order[b.kind]??8)) || a.name.localeCompare(b.name));
+  const extra=(M.monitorExtra||[]).filter(c=>c.nValid>0);
+  box.innerHTML=main.map(pill).join('')+
+    (extra.length ? '<span class="mlgroup">12-lead only:</span>'+extra.map(pill).join('')+
+      '<small>These leads were recorded only during the 12-lead ECG. Ticking one jumps to that moment.</small>' : '');
   $$('#monitorLeadList input').forEach(el=>el.onchange=()=>{
     if(el.checked) APP.hidden.delete(el.dataset.ch); else APP.hidden.add(el.dataset.ch);
-    const ch=(M.monitorExtra||[]).find(c=>c.name===el.dataset.ch);
+    const ch=(M.monitorExtra||[]).find(c=>monKey(c)===el.dataset.ch);
     if(el.checked && ch && !ch.segs.some(s=>APP.cursor>=s.t0 && APP.cursor<s.t0+s.n*1000/ch.hz)){
       if(APP.playing) setPlaying(false);
       const s=ch.segs[0];
@@ -11716,7 +11731,7 @@ const CFG_DEFAULT = {
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, ovDock:false, ovH:200, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, ovDock:false, leadPickerOpen:true, ovH:200, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
   /* remembered between runs: the last setup of each view */
   peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
@@ -12071,6 +12086,8 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
 /* What changed in each published update, newest first. Dates are when the update
    went live on the published page. */
 const CHANGELOG = [
+  {date:'2026-11-13', items:[
+    'Monitor: the waveform chooser starts open, so it is easy to find; if you close it, it stays closed. It now looks like the Physiology tab’s: a Waveforms heading and a coloured pill for each trace, with the 12-lead-only leads grouped. Fixed: when a case recorded lead I or III continuously as well as in a 12-lead, the continuous trace started hidden on the Monitor.']},
   {date:'2026-11-12', items:[
     'Whole-case ECG: a tab on top of the playback bar pops up the whole case’s ECG in rows (CPR, pauses, shocks, treatments, alarms marked). Click or drag on it to scrub; drag its top edge to resize. Overview and the O key open it too; the CPR page’s separate Whole-case ECG button is gone.',
     'Start page: two built-in sample cases (cardiac arrest, neuro critical care), made-up and built on this computer when opened, each with what to look for; Hide puts them away. The light/dark toggle, GitHub and Changelog are on the start page too.',
@@ -12400,6 +12417,11 @@ function wire(){
     if(APP.view==='settings') renderSettings();
   };
   $('#btnOverview').onclick = openOverview;
+  /* the waveform chooser starts open so it is easy to find; closing it is remembered */
+  { const lp=$('#monitorLeadPicker');
+    lp.open = CFG.leadPickerOpen!==false;
+    lp.ontoggle=()=>{ if(CFG.leadPickerOpen!==lp.open){ CFG.leadPickerOpen=lp.open; cfgSave(); }
+      if(APP.view==='monitor') requestAnimationFrame(()=>drawMonitor()); }; }
   wireReport();
   $('#ovTab').onclick = openOverview;
   $('#ovRow').onchange = e=>{ CFG.ovRow=+e.target.value; cfgSave(); drawOverview(); };
@@ -13361,7 +13383,7 @@ function startApp(){
   caseDetailsToggle(false);
   $('#app').classList.add('live');
   renderChips(); renderEvents();
-  APP.hidden=new Set(M.monitorExtra.map(c=>c.name));
+  APP.hidden=new Set(M.monitorExtra.map(monKey));
   { const bp=$('#btnPace');
     const inSnaps = M.snapshots.some(s=>s.traces.some(t=>t.pace && t.pace.length));
     if(bp){ bp.hidden=!M.pace.length && !inSnaps;
