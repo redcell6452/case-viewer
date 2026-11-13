@@ -893,3 +893,24 @@ test('sticky notes keep their trace and height through save and import, and bad 
   assert.equal(a.run(`annIsNote(${JSON.stringify(n1)})`), true);
   assert.equal(a.run(`annIsNote(${JSON.stringify(r1)})`), false);
 });
+
+test('parameter alarm boxes: monitor flag or a still-crossed limit is red, a sensor alert is yellow until it recovers', () => {
+  const a = app();
+  assert.deepEqual(JSON.parse(a.run(`JSON.stringify(techAlertTargets('IBP Probe2 Disconnected'))`)).ids, ['ibp2']);
+  assert.ok(JSON.parse(a.run(`JSON.stringify(techAlertTargets('SPO2 Check Probe').ids)`)).includes('spo2'));
+  assert.equal(a.run(`techAlertTargets('NIBP Reading Started')`), null);
+  const st = JSON.parse(a.run(`(()=>{
+    const pts=(arr)=>arr.map(([t,v])=>({t,v}));
+    const spo2={id:'spo2', pts:pts([[0,97],[30000,null],[60000,null],[90000,96],[120000,85],[150000,93]])};
+    const hr={id:'hr_dev', pts:pts([[0,80],[30000,80],[60000,80],[90000,80],[120000,80],[150000,80]])};
+    Object.assign(M, {durMs:200000, paramById:{spo2, hr_dev:hr}, _almIdx:null,
+      trends:[0,30000,60000,90000,120000,150000].map(t=>({t, fl: t===30000 ? {hr:{alarm:true}} : null})),
+      events:[
+        {t:25000, name:'SPO2 Probe Disconnect', kind:'annotation'},
+        {t:118000, name:'Alarm: SpO2 event 227', kind:'alarm', value:85, limits:{LowLimVal:90, HighLimVal:100}}]});
+    const s=(p,t)=>paramAlarmState(M.paramById[p],t);
+    return JSON.stringify({hrFlag:s('hr_dev',35000), hrClear:s('hr_dev',65000), spo2Probe:s('spo2',40000),
+      spo2Back:s('spo2',95000), spo2Low:s('spo2',125000), spo2Recovered:s('spo2',155000)});
+  })()`));
+  assert.deepEqual(st, {hrFlag:'crit', hrClear:null, spo2Probe:'warn', spo2Back:null, spo2Low:'crit', spo2Recovered:null});
+});

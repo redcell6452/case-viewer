@@ -123,6 +123,12 @@ shared across all three views. Averaging windows for the derived rates are in Se
   that moment, the way the Trends page does; **click** to pin them there (a dashed line
   marks the spot). Playing, moving the playhead, **Back to playhead** or **Esc** returns
   the panel to the playhead. Clicking while playing pauses and pins.
+- **Alarming parameters are boxed** in the parameter panel: **red** when the monitor
+  flagged the value as in alarm, or an alarm it raised is still past the crossed limit;
+  **yellow** for an equipment alert on that sensor (probe off, check probe, lead fault,
+  transducer disconnected) until a valid reading returns or it is reconnected. The file
+  does not store which colour the monitor itself used, so this is the viewer's reading.
+  **Flash** on the toolbar turns the flashing on or off; boxes stay either way.
 - **Timeline**: click or drag to scrub. **Shift-drag** selects a range; double-click
   clears it. Event markers are shaped by severity — triangle for alarms, diamond for
   warnings, square for snapshots, dot for notes — and annotations fly a flag.

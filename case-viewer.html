@@ -244,10 +244,21 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .alarm-setting{font:11px/1.4 var(--mono);color:var(--dim);margin-top:3px}
 .num.stale .val{opacity:.34}
 .num.alarm{border-color:var(--crit);box-shadow:0 0 0 1px var(--crit) inset}
+/* parameter in alarm (red) or with an equipment alert (yellow): boxed, and
+   flashing when Flash is on. Red flashes faster, as a monitor's high priority does;
+   both stay well under 3 flashes a second. */
+.num.alm-crit{border-color:var(--crit) !important;box-shadow:0 0 0 2px var(--crit) inset}
+.num.alm-warn{border-color:var(--warn) !important;box-shadow:0 0 0 2px var(--warn) inset}
+#numerics.almflash .num.alm-crit{animation:almCrit 1s steps(1,end) infinite}
+#numerics.almflash .num.alm-warn{animation:almWarn 2s steps(1,end) infinite}
+@keyframes almCrit{50%{background:color-mix(in srgb, var(--crit) 34%, var(--bg))}}
+@keyframes almWarn{50%{background:color-mix(in srgb, var(--warn) 30%, var(--bg))}}
+@media (prefers-reduced-motion: reduce){ #numerics.almflash .num.alm-crit,#numerics.almflash .num.alm-warn{animation:none} }
 .num .lbl em{font-style:normal;opacity:.6;font-size:11px}
 .num .lbl > span:first-child{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 3px}
 .num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
 .numpick{width:100%;font-size:11px;padding:4px}
+#numLive{display:contents}
 .numat{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;
   font:11px var(--mono);color:var(--dim);border:1px dashed var(--line2);border-radius:6px;padding:4px 6px}
 .numat b{color:var(--fg)}
@@ -821,6 +832,7 @@ dialog input[type=text]{width:100%}
             <button id="btnBeats" title="Mark detected beats">Beats</button>
             <button id="btnVent" title="Mark detected ventilations">Vents</button>
             <button id="btnPace" class="on" hidden>Pacer</button>
+            <button id="btnAlmFlash" class="on" aria-pressed="true" title="Flash parameters that are in alarm (red) or have an equipment alert (yellow). Off: boxed but steady.">Flash</button>
           </div>
           <span style="flex:1"></span>
           <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range.">＋ Annotate</button>
@@ -2646,7 +2658,7 @@ function buildParams(){
     rr_dev:'rr', rr_co2:'rr', rr_imp:'rr', rr_vent:'rr',
     temp1:'temp', temp2:'temp', tempd:'temp'};
   M.params = P;
-  M.paramById = {};
+  M.paramById = {}; M._almIdx = null;
   for(const p of P){
     M.paramById[p.id]=p;
     p.axis = AXIS[p.id] || p.group;
@@ -3209,6 +3221,9 @@ function glossBody(g, inTab){
    elsewhere closes it */
 const GLOSS_POP = {el:null, pinned:false, owner:null, hideT:null, showT:null};
 function glossShow(btn, pin){
+  /* never show an explanation for an icon that has just left the page: its
+     position reads as 0,0 and the box would land in the corner */
+  if(!btn || !btn.isConnected) return;
   const g = GLOSS_BY_KEY[btn.dataset.gloss]; if(!g) return;
   let el = GLOSS_POP.el;
   if(!el){
@@ -7533,10 +7548,120 @@ function setInspect(t, pinned){
   if(!was && !APP.inspect) return;
   if(APP.view==='monitor'){ drawMonitor(); drawNumerics(); }
 }
+/* ---------------- parameter alarm state ----------------
+   The file does not say what colour the monitor painted an alarm, so the panel uses
+   what it does record:
+     red    the monitor flagged the value as in alarm when it wrote the trend row,
+            or an alarm crossing for this parameter is still outside its limits
+     yellow an equipment alert on this parameter's sensor (probe off, check probe,
+            lead fault, transducer disconnected), from the alert until a valid
+            reading comes back or the sensor is reconnected */
+const TECH_ALERTS = [
+  [/^SPO2 (Probe Disconnect|Check Probe|.*(Fault|Unrecognized|Interference|Low Perf))/i,
+     ['spo2','pi','pvi','spco','spmet','sphb','spoc'], /^SPO2 Probe Connected/i],
+  [/^Ecg (Lead Fault|Out of Lead Fault)|Lead(s)? Off/i, ['hr_dev','hr_ecg'], null],
+  [/^IBP Probe([123]) Disconnected/i, n=>['ibp'+n], n=>new RegExp('^IBP Probe'+n+' (Connected|Zeroed)','i')],
+  [/^Temp Probe([12]) Disconnected/i, n=>['temp'+n], n=>new RegExp('^Temp Probe'+n+' Connected','i')],
+  [/^CO2 .*(Occlu|Fault|Check|Disconn)/i, ['etco2','fico2','rr_co2'], null],
+  [/^NIBP .*(Leak|Fail|Error|Overpress|Motion|Weak|Kink|Timeout|Cancel)/i, ['nibp'], null]
+];
+/* which parameters an equipment alert belongs to, and what event clears it */
+function techAlertTargets(name){
+  for(const [re,ids,clear] of TECH_ALERTS){
+    const m=re.exec(name||''); if(!m) continue;
+    const n=m[1] && /^\d$/.test(m[1]) ? m[1] : null;
+    return {ids: typeof ids==='function' ? ids(n) : ids, clear: typeof clear==='function' ? clear(n) : clear};
+  }
+  return null;
+}
+/* the series a parameter's value comes from: plain values, or a pressure's parts */
+function paramSeries(p){
+  if(p.sub) return Object.keys(p.sub).map(k=>({comp:k, pts:p.sub[k]}));
+  return p.pts ? [{comp:null, pts:p.pts}] : [];
+}
+function firstValidAfter(p, t){
+  let best=Infinity;
+  for(const s of paramSeries(p)) for(const q of s.pts){ if(q.t>t && q.v!=null){ if(q.t<best) best=q.t; break; } }
+  return best;
+}
+function valueNear(series, t){
+  let v=null; for(const q of series){ if(q.t>t+500) break; if(q.v!=null) v=q.v; } return v;
+}
+/* worked out once per case: yellow intervals per parameter, and the alarm
+   crossings each parameter has had, with the part (sys/dia/map) they were on */
+function alarmIndex(){
+  if(M._almIdx) return M._almIdx;
+  const warn={}, cross={};
+  const evs=M.events;
+  evs.forEach((e,i)=>{
+    const tg=techAlertTargets(e.name); if(!tg) return;
+    for(const id of tg.ids){
+      const p=M.paramById[id]; if(!p) continue;
+      let end=firstValidAfter(p, e.t);
+      if(tg.clear) for(let j=i+1;j<evs.length;j++){ if(evs[j].t>=end) break; if(tg.clear.test(evs[j].name)){ end=evs[j].t; break; } }
+      (warn[id]=warn[id]||[]).push({t0:e.t, t1:end});
+    }
+  });
+  for(const e of evs){
+    if(e.kind!=='alarm' || !e.limits || !Number.isFinite(+e.value)) continue;
+    const L=e.limits, lo=Number.isFinite(+L.LowLimVal)?+L.LowLimVal:-Infinity, hi=Number.isFinite(+L.HighLimVal)?+L.HighLimVal:Infinity;
+    let ids = /heart rate/i.test(e.name) ? ['hr_dev'] : /SpO2/i.test(e.name) ? ['spo2']
+      : /invasive pressure/i.test(e.name) ? ['ibp1','ibp2','ibp3'] : /pressure/i.test(e.name) ? ['nibp'] : [];
+    ids=ids.filter(id=>M.paramById[id]);
+    /* a pressure alarm names neither the channel nor the part, so take the
+       channel and part whose value at that moment is nearest the alarm value */
+    let best=null;
+    for(const id of ids) for(const s of paramSeries(M.paramById[id])){
+      const v=valueNear(s.pts, e.t); if(v==null) continue;
+      const d=Math.abs(v-(+e.value));
+      if(!best || d<best.d) best={id, comp:s.comp, d};
+    }
+    if(!best && ids.length===1) best={id:ids[0], comp:null};
+    if(!best) continue;
+    /* only the side that was crossed counts: a low alarm stays red while the value
+       is still below its low limit, never because the same part later sits above
+       a high limit it was never alarmed on */
+    const side = +e.value<lo ? 'low' : +e.value>hi ? 'high' : null;
+    if(!side) continue;
+    (cross[best.id]=cross[best.id]||[]).push({t:e.t, comp:best.comp, lo, hi, side});
+  }
+  return (M._almIdx={warn, cross});
+}
+/* 'crit', 'warn' or null for parameter p at time t */
+function paramAlarmState(p, t){
+  if(!p || !M.trends) return null;
+  /* the trend row in force: the monitor's own "in alarm" flag */
+  let r=null;
+  for(let lo=0, hi=M.trends.length-1; lo<=hi;){ const mid=(lo+hi)>>1;
+    if(M.trends[mid].t<=t+500){ r=M.trends[mid]; lo=mid+1; } else hi=mid-1; }
+  if(r && (t-r.t)<=(+CFG.staleMs||30000)){
+    const f=vitalFlags(p, r); if(f && f.alarm) return 'crit';
+  }
+  const idx=alarmIndex();
+  /* a crossing still outside the limits it was raised against */
+  const cr=idx.cross[p.id];
+  if(cr){
+    const latest={};
+    for(const c of cr){ if(c.t>t) break; latest[c.comp||'_']=c; }
+    for(const k in latest){
+      const c=latest[k], s=paramSeries(p).find(x=>(x.comp||'_')===k); if(!s) continue;
+      const v=valueNear(s.pts, t);
+      if(v!=null && (c.side==='low' ? v<c.lo : v>c.hi)) return 'crit';
+    }
+  }
+  const w=idx.warn[p.id];
+  if(w) for(const iv of w) if(t>=iv.t0 && t<iv.t1) return 'warn';
+  return null;
+}
+function syncAlarmFlash(){
+  const b=$('#btnAlmFlash'); if(b){ b.classList.toggle('on', !!CFG.alarmFlash); b.setAttribute('aria-pressed', !!CFG.alarmFlash); }
+  const n=$('#numerics'); if(n) n.classList.toggle('almflash', !!CFG.alarmFlash);
+}
 function drawNumerics(){
   const box = $('#numerics'); if(!box) return;
   const t = inspectTime(), staleMs = +CFG.staleMs||30000;
-  const cells = selected().map(p=>{
+  const ps = selected();
+  const data = ps.map(p=>{
     const v = paramText(p,t);
     /* an intermittent measurement stands until the next one replaces it, so it is
        never "stale" — it just carries the time it was taken */
@@ -7549,26 +7674,54 @@ function drawNumerics(){
     } else if(stale && clock){
       sub = (sub?sub+'  ':'')+'@'+clock;
     }
-    return '<div class="num'+(stale?' stale':'')+'" data-id="'+p.id+'" style="border-color:'+traceCol(p.color)+'55">'+
-      '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+infoBtn(p.id)+'</span>'+
-        '<span>'+esc(p.unit||'')+'</span></div>'+
-      '<div class="val" style="color:'+traceCol(p.color)+'">'+v.main+'</div>'+
-      '<div class="sub">'+esc(sub)+'</div>'+
-      (parameterAlarm(p.id,t)?'<div class="alarm-setting">Limits: '+esc(parameterAlarm(p.id,t))+'</div>':'')+
-    '</div>';
+    const lim = parameterAlarm(p.id,t);
+    return {stale, main:v.main, sub, alarm: lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
   });
-  const ins = APP.inspect;
-  box.innerHTML = '<button id="numPick" class="numpick">Parameters…</button>' +
-    (ins ? '<div class="numat'+(ins.pinned?' pinned':'')+'" role="status">'+
-      '<span>'+(ins.pinned?'Pinned at ':'Pointer at ')+'<b>'+fmtClock(M.t0Wall+ins.t)+'</b></span>'+
-      (ins.pinned ? '<button type="button" id="numBack" title="Show values at the playhead again (Esc)">Back to playhead</button>'
-                  : '<span class="numhint">click to pin</span>')+'</div>' : '') +
-    (cells.length ? cells.join('') : '<div class="emptynote">No parameters selected.</div>')+
-    (M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id))
-      ? '<div class="note-inline">Respiratory rate unavailable: this export has no valid device RR; its ventilation timestamps are not individual breaths.</div>'
-      : '');
-  $('#numPick').onclick = openParamChooser;
-  if($('#numBack')) $('#numBack').onclick = ()=> setInspect(null);
+  /* Playback calls this every frame. Rebuilding the panel each time replaced the
+     Parameters button and the (i) icons under the pointer, so they could not be
+     clicked and their explanations jumped to the corner of the window. The panel's
+     layout is now built only when the chosen parameters change; every other frame
+     just writes the new numbers into the boxes that are already there. */
+  if(!box.querySelector('#numLive')){
+    box.innerHTML='<button id="numPick" class="numpick">Parameters…</button><div id="numLive"></div>';
+    $('#numPick').onclick = openParamChooser;
+    syncAlarmFlash();
+  }
+  const live=$('#numLive'), ins=APP.inspect;
+  const rrNote = M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id));
+  const key = ps.map(p=>p.id+':'+p.label+':'+p.color).join('|')+'#'+(ins?(ins.pinned?'pin':'hover'):'')+'#'+(rrNote?1:0);
+  if(live._key!==key){
+    live._key=key;
+    live.innerHTML =
+      (ins ? '<div class="numat'+(ins.pinned?' pinned':'')+'" role="status">'+
+        '<span>'+(ins.pinned?'Pinned at ':'Pointer at ')+'<b></b></span>'+
+        (ins.pinned ? '<button type="button" id="numBack" title="Show values at the playhead again (Esc)">Back to playhead</button>'
+                    : '<span class="numhint">click to pin</span>')+'</div>' : '') +
+      (ps.length ? ps.map(p=>
+        '<div class="num" data-id="'+esc(p.id)+'" style="border-color:'+traceCol(p.color)+'55">'+
+          '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+infoBtn(p.id)+'</span>'+
+            '<span>'+esc(p.unit||'')+'</span></div>'+
+          '<div class="val" style="color:'+traceCol(p.color)+'"></div>'+
+          '<div class="sub"></div>'+
+          '<div class="alarm-setting" hidden></div>'+
+        '</div>').join('') : '<div class="emptynote">No parameters selected.</div>')+
+      (rrNote ? '<div class="note-inline">Respiratory rate unavailable: this export has no valid device RR; its ventilation timestamps are not individual breaths.</div>' : '');
+    if($('#numBack')) $('#numBack').onclick = ()=> setInspect(null);
+  }
+  if(ins){ const b=live.querySelector('.numat b'), txt=fmtClock(M.t0Wall+ins.t); if(b && b.textContent!==txt) b.textContent=txt; }
+  const cells = live.querySelectorAll('.num');
+  data.forEach((d,i)=>{
+    const el=cells[i]; if(!el) return;
+    if(el.classList.contains('stale')!==d.stale) el.classList.toggle('stale', d.stale);
+    if(el._alm!==d.alm){ el._alm=d.alm;
+      el.classList.toggle('alm-crit', d.alm==='crit'); el.classList.toggle('alm-warn', d.alm==='warn');
+      el.title = d.alm==='crit' ? 'In alarm: outside its limits or flagged by the monitor'
+               : d.alm==='warn' ? 'Equipment alert on this sensor' : ''; }
+    const v=el.querySelector('.val'), sb=el.querySelector('.sub'), al=el.querySelector('.alarm-setting');
+    if(v._h!==d.main){ v._h=d.main; v.innerHTML=d.main; }
+    if(sb.textContent!==d.sub) sb.textContent=d.sub;
+    if(al.textContent!==d.alarm){ al.textContent=d.alarm; al.hidden=!d.alarm; }
+  });
 }
 
 /* ---------------- vitals list ---------------- */
@@ -10046,7 +10199,7 @@ const CFG_DEFAULT = {
   heightCm:null, weightKg:null, bsaFormula:'dubois', svK:null, assumedCvp:null,
   ecgCountsPerMv:100,
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
-  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false,
+  showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true,
   /* remembered between runs: the last setup of each view */
   peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor'
 };
@@ -10534,6 +10687,9 @@ function wire(){
   $('#btnGrid').onclick = e=>{ APP.showGrid=!APP.showGrid; e.target.classList.toggle('on',APP.showGrid); CFG.showGrid=APP.showGrid; cfgSave(); drawMonitor(); };
   $('#btnBeats').onclick = e=>{ APP.showBeats=!APP.showBeats; e.target.classList.toggle('on',APP.showBeats); CFG.showBeats=APP.showBeats; cfgSave(); drawMonitor(); };
   $('#btnVent').onclick = e=>{ APP.showVents=!APP.showVents; e.target.classList.toggle('on',APP.showVents); CFG.showVents=APP.showVents; cfgSave(); drawMonitor(); };
+  $('#btnAlmFlash').onclick = ()=>{ CFG.alarmFlash=!CFG.alarmFlash; cfgSave(); syncAlarmFlash();
+    toast(CFG.alarmFlash ? 'Alarm flashing on' : 'Alarm flashing off: alarming parameters stay boxed'); };
+  syncAlarmFlash();
   $('#btnPace').onclick = e=>{ APP.showPace=!APP.showPace; e.target.classList.toggle('on',APP.showPace);
     CFG.showPace=APP.showPace; cfgSave(); drawMonitor();
     const pc=$('#paper'); if(APP.view==='ecg' && pc && pc._redraw) pc._redraw(); };
