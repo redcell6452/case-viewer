@@ -923,3 +923,11 @@ test('the changelog is dated, newest first, and its seen-marker never travels in
   assert.ok(a.run('DEVICE_ONLY_KEYS').includes('zollviewer:logSeen'));
   assert.ok(a.run('changelogHtml()').includes('<time datetime="'+log[0].date+'"'));
 });
+
+test('a pressure row grows its scale in round steps to fit values past the monitor scale, and keeps it otherwise', () => {
+  const a = app();
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,180], 40, 170))')), [0,180]);
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,180], 40, 186))')), [0,200]);
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,180], -30, 303))')), [-40,320]);
+  assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,100], 50, 101))')), [0,120]);
+});

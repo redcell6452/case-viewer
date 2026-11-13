@@ -6894,6 +6894,28 @@ function chScale(ch){
   }
   return [-1,1];
 }
+/* The monitor's own display scale for a pressure or other non-ECG trace is kept,
+   but when the visible stretch goes past it (a pressure above the top of the scale,
+   a flush, a zero) the row grows in round steps to take it in, instead of
+   flattening the trace against the row's edge. The scale label shows the range in
+   use. Steps keep it from changing every frame during playback. */
+function fitRange(range, vmin, vmax){
+  let [lo,hi]=range; const span=hi-lo;
+  if(!(span>0)) return range;
+  const raw=span/9, mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(x=>x>=raw) || 10*mag;
+  if(isFinite(vmax) && vmax>hi) hi=Math.ceil(vmax/step)*step;
+  if(isFinite(vmin) && vmin<lo) lo=Math.floor(vmin/step)*step;
+  return [lo,hi];
+}
+function rowScale(ch, t0, t1, cols){
+  const base=chScale(ch);
+  if(ch.isEcg || !ch.segs || cols<2) return base;
+  const {mn,mx}=envelope(ch, t0, t1, cols);
+  let vmin=Infinity, vmax=-Infinity;
+  for(let i=0;i<cols;i++){ if(mn[i]===mn[i] && mn[i]<vmin) vmin=mn[i]; if(mx[i]===mx[i] && mx[i]>vmax) vmax=mx[i]; }
+  return vmax>=vmin ? fitRange(base, vmin, vmax) : base;
+}
 function fitCanvas(cv){
   const r = cv.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio||1);
@@ -6954,7 +6976,7 @@ function drawMonitor(){
   const geo={LEFT, plotW, plotH, t0, t1, rowH, rows:[]};
   chans.forEach((ch,ri)=>{
     const yTop = ri*rowH, yBot = yTop+rowH;
-    const [lo,hi] = chScale(ch);
+    const [lo,hi] = rowScale(ch, t0, t1, Math.round(plotW));
     geo.rows.push({idx:ri, name:ch.name, lo, hi, yTop, yBot, rowH,
       units:ch.units, isEcg:ch.isEcg});
     const Y = v => yBot-4 - (v-lo)/(hi-lo)*(rowH-8);
@@ -10542,6 +10564,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'Monitor: a pressure trace that goes past the monitor scale (above 180, a flush, a zero) no longer runs into the row edge; the row widens its scale in round steps and the scale label shows the range in use.',
     'Event list: during playback the playhead marker moves down the list and the list turns the page when it reaches the bottom.',
     'Changelog: this list, from the button beside GitHub (on a phone, under Settings › Project).',
     'Blood pressures read like the monitor: systolic/diastolic with the mean in large parentheses, e.g. 133/66 (89).',
