@@ -462,9 +462,22 @@ decided.
 
 Systolic/diastolic, pulse-pressure variation and damping only mean something on an
 arterial trace — a central venous line or a ventriculostomy has to be read as a mean.
-The monitor labels channels `P1`–`P3` until someone sets a site, so the Analysis tab
-**infers the site from the waveform and lets you override it**. What you get depends on
-the site:
+Lines keep the monitor's names, `P1`–`P3`, everywhere in the viewer, with their type
+beside the name (for example **P2 PA**). The type comes from, in order:
+
+1. **Your choice**: the drop-down beside the name in the line's box in the parameter panel
+   (on the Monitor and CPR pages), or the picker on Physiology. It is kept for that case;
+   the drop-down's first entry (Automatic) undoes it.
+2. **The monitor's label**, when the line was given a site on the monitor (ART, PA, CVP,
+   ICP and the rest).
+3. **A guess from the waveform** when the monitor left the line as `P1`–`P3` (as it does
+   until someone sets a site): a clearly arterial or clearly venous trace is typed as such
+   and always marked as a guess ("Art (guess)", or "Art?" where space is short). Anything
+   unclear, such as a pulmonary artery trace, stays "type not set" until you choose.
+
+The type sets how a line reads on the parameter panel (an arterial or pulmonary artery
+line as systolic/diastolic (mean), a venous or intracranial line as its mean) and which
+results it feeds. What you get depends on the type:
 
 - **Arterial / aortic / umbilical arterial / pulmonary artery** — beat-by-beat systolic,
   diastolic and pulse pressure; dP/dt max; systolic pressure variation and pulse
@@ -598,13 +611,16 @@ with a pause, external pacing, VF with CPR, a shock and ROSC, ventilated pulse-p
 variation, a desaturation, a bronchospasm-shaped capnogram, apnoea, probe disconnects,
 NIBP readings, alarms, a zeroing and fast-flush test, 12-leads and snapshots, and treatments
 logged during the arrest (IV access, epinephrine, amiodarone, intubation, other). Its lines are
-arterial, **PA** and CVP, with two temperatures. `--neuro` writes `synthetic-neuro.zol`
-instead: arterial, CVP and ICP lines (CPP, and PRx that is negative before the arrest and
-positive after ROSC) and an ECG recorded at diagnostic bandwidth so PR and QT are measured.
+P1 arterial and P3 CVP, both unlabelled on the monitor (so typed as guesses), and P2, which the
+monitor labels PA, with two temperatures. `--neuro` writes `synthetic-neuro.zol`
+instead: arterial and CVP lines (unlabelled) and an ICP line the monitor labels ICP (CPP, and
+PRx that is negative before the arrest and positive after ROSC) and an ECG recorded at
+diagnostic bandwidth so PR and QT are measured.
 `--child` writes `synthetic-child.zol`: the cardiac story in a 7-year-old, with the monitor in
 Pediatric mode, child heart rates, pressures and alarm limits, a 100 J shock, breathing at
 20/min and compressions to the child depth, so the CPR page uses the Child (PALS) targets and
-shows the perfusion proxy's adult-derived warning.
+shows the perfusion proxy's adult-derived warning. Its only lines are P1 arterial and P2 CVP,
+both unlabelled: no pulmonary artery catheter and no P3.
 
 `--new-patient-at <seconds>` (with any of the above, plus `--out`) logs the New Patient marker
 at that time instead of at the start, so everything before it belongs to an earlier patient

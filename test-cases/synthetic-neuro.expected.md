@@ -31,7 +31,7 @@ Case start 2026-03-14 09:00:00 (device local), 30 minutes. Times below are case 
 | 09:26:00–09:27:00 | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | 09:27:30–09:27:55 | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |
 | 09:28:20–09:29:05 | Arterial systolic ~186 | Arterial high alarm (red) |
-| whole case | P1 arterial (auto-detected), P2 CVP (auto-detected), P3 labelled ICP: raised ICP ~26; slow pressure waves throughout, with ICP moving against them before the arrest (intact autoregulation, PRx negative) and with them after ROSC (impaired, PRx positive) | CPP = MAP − ICP ~65; PRx negative before the arrest, positive after ROSC |
+| whole case | Lines are named P1–P3 as on the monitor. P1 arterial, unlabelled on the monitor, P2 CVP, unlabelled, P3 labelled ICP by the monitor: raised ICP ~26; slow pressure waves throughout, with ICP moving against them before the arrest (intact autoregulation, PRx negative) and with them after ROSC (impaired, PRx positive) | Unlabelled lines are typed from the waveform and marked as a guess (“Art?”, “CVP?”); a labelled one takes the monitor’s label; the drop-down in each line’s box in the parameter panel (and the picker on Physiology) changes any of them. CPP = MAP − ICP ~65; PRx negative before the arrest, positive after ROSC |
 | whole case | T1 core 98.6 → 97.1 °F, T2 skin 96.4 → 95.6 °F, ΔT | Temperatures in Monitor, Trends, Vitals |
 | whole case | Patient 58 y male, 70 in, 180 lb | BSA (DuBois ~1.96 m²) |
 

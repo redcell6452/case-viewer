@@ -273,6 +273,8 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .num .lbl em{font-style:normal;opacity:.6;font-size:11px}
 .num .lbl > span:first-child{display:inline-flex;align-items:center;flex-wrap:wrap;gap:0 3px}
 .num .lbl button.info{text-transform:none;letter-spacing:0;margin-left:3px}
+.num .lbl select.ibpType.mini{font:600 11px system-ui,sans-serif;letter-spacing:0;text-transform:none;min-height:0;height:19px;
+  padding:0 2px;border:1px solid var(--line2);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer;max-width:8em}
 .numpick{width:100%;font-size:11px;padding:4px}
 #numLive{display:contents}
 #numerics.inspecting{box-shadow:inset 0 0 0 2px var(--line2)}
@@ -2998,15 +3000,13 @@ function buildParams(){
             dia:nibpReadings().map(r=>({t:r.t,v:r.dia})),
             map:nibpReadings().map(r=>({t:r.t,v:r.map}))}});
   for(const ch of [1,2,3]){
-    /* SrcLabel reads "None"/"Unknown" until a site is chosen, so take the most
-       common meaningful label the channel ever carried */
-    const counts={};
-    for(const r of M.trends) for(const x of (r.ibp||[]))
-      if(x.ch===ch && x.label && !/^(none|unknown)$/i.test(x.label))
-        counts[x.label]=(counts[x.label]||0)+1;
-    const lbl = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || ('P'+ch);
-    add({id:'ibp'+ch, group:'Blood pressure', label:lbl, sub2:'arterial line', unit:'mmHg',
-         color:C['ParmIbpSourceP'+ch+'Color']||'#ff4d4d', origin:'device', dec:0, bp:true,
+    /* named P1-P3 like the monitor's channels; the type (from the monitor's label,
+       a waveform guess or your choice) rides beside the name and sets how it reads */
+    const ty = M.ibpSite ? ibpType(ch) : {short:'', kind:'other'};
+    add({id:'ibp'+ch, group:'Blood pressure', label:'P'+ch, sub2:ibpTypeTag(ch)||'type not set', unit:'mmHg',
+         color:C['ParmIbpSourceP'+ch+'Color']||'#ff4d4d', origin:'device', dec:0, bp:true, ibpKind:ty.kind,
+         note:'Invasive pressure P'+ch+(ty.short ? ': '+siteLabel(ty.site)+(ty.src==='guess'?', guessed from the waveform':ty.src==='monitor'?', from the monitor’s label':'') : ', type not set')+
+           '. Choose what it measures from the drop-down in its box in the parameter panel, or on Physiology.',
          sub:{sys:ibpOf(ch,'sys'), dia:ibpOf(ch,'dia'), map:ibpOf(ch,'map')}});
   }
 
@@ -3051,7 +3051,9 @@ function buildParams(){
   for(const p of P){
     M.paramById[p.id]=p;
     p.axis = AXIS[p.id] || p.group;
-    p.full = p.label + (p.sub2 ? ' ('+p.sub2+')' : '');
+    /* a pressure line reads "P1 Art?" / "P2 PA" / "P3" everywhere, a guess marked */
+    p.full = /^ibp\d$/.test(p.id) ? p.label + (shortSub(p) ? ' '+shortSub(p) : '')
+           : p.label + (p.sub2 ? ' ('+p.sub2+')' : '');
   }
   return P;
 }
@@ -3803,10 +3805,12 @@ function paramText(p, t){
   const a = paramAt(p,t);
   if(p.sub){
     if(a.sys==null && a.map==null) return {main:'--', sub:'', when:a.when};
+    if(p.ibpKind==='ven' || p.ibpKind==='icp')
+      return {main:'<span class="bp-sd" title="Mean pressure">'+(a.map!=null?a.map:'--')+'</span>', sub:'', when:a.when};
     /* laid out the way the monitor shows a pressure: systolic/diastolic with the
        mean beside it in parentheses, large enough to read at a glance */
     return {main:'<span class="bp-sd">'+(a.sys!=null?a.sys:'--')+'<span class="bp-dia">/'+(a.dia!=null?a.dia:'--')+'</span></span>'+
-                 '<span class="bp-map" title="Mean arterial pressure">('+(a.map!=null?a.map:'--')+')</span>',
+                 '<span class="bp-map" title="'+(p.ibpKind && p.ibpKind!=='art' ? 'Mean pressure' : 'Mean arterial pressure')+'">('+(a.map!=null?a.map:'--')+')</span>',
             sub:'', when:a.when};
   }
   return {main: a.v==null?'--':a.v.toFixed(p.dec||0), sub:'', when:a.when};
@@ -3982,9 +3986,13 @@ function capnoDetail(ch){
 
 /* ---------------- invasive line sites ----------------
    Systolic/diastolic/PPV/damping only mean something on an arterial trace; a CVP or
-   a ventriculostomy needs different measurements. The monitor stores a site label
-   per channel, but it reads "P1"/"P2"/"P3" until someone sets it, so the site is
-   inferred from the waveform and can be overridden per case. */
+   a ventriculostomy needs different measurements. Lines are always named P1, P2, P3
+   (the monitor's channels); what each one is, its type, comes from, in order:
+     you      chosen in the line's box in the parameter panel or on Physiology (kept per case)
+     monitor  the monitor's own label, when it names a site (ART, PA, CVP, ICP ...)
+     guess    otherwise judged from the waveform (clearly arterial or clearly venous),
+              always shown as a guess
+     none     not set: the line is shown and trended but drives no site-specific result */
 const IBP_SITES = [
   {id:'ART',   label:'Arterial (ART / ABP / FAP)', kind:'art'},
   {id:'AO',    label:'Aortic',                     kind:'art'},
@@ -3997,15 +4005,26 @@ const IBP_SITES = [
   {id:'ICP',   label:'Intracranial (ventriculostomy)', kind:'icp'},
   {id:'OTHER', label:'Other / unspecified',        kind:'other'}
 ];
+const SITE_SHORT = {ART:'Art', AO:'Ao', UAP:'UA', PAP:'PA', CVP:'CVP', RAP:'RA', LAP:'LA', UVP:'UV', ICP:'ICP', OTHER:'Other'};
 const siteKind = id => (IBP_SITES.find(s=>s.id===id)||{kind:'other'}).kind;
 const siteLabel = id => (IBP_SITES.find(s=>s.id===id)||{label:id}).label;
 const siteKey = ()=> 'zollviewer:ibpsite:'+M.caseId;
 
-function inferSite(ch, srcLabel){
+/* the site a monitor label names, or null for P1/P2/P3, None, Unknown and the like */
+function siteFromLabel(srcLabel){
   const up=String(srcLabel||'').toUpperCase().replace(/[^A-Z]/g,'');
+  if(!up) return null;
   for(const s of IBP_SITES) if(s.id!=='OTHER' && up.includes(s.id)) return s.id;
-  if(/^(ABP|ART)/.test(up)) return 'ART';
-  if(/^PA\d*$/.test(up)) return 'PAP';
+  if(/^(ABP|ART|FAP|RAD|FEM)/.test(up)) return 'ART';
+  if(/^PA$/.test(up)) return 'PAP';
+  if(/^(RA|CV)$/.test(up)) return up==='RA' ? 'RAP' : 'CVP';
+  if(/^LA$/.test(up)) return 'LAP';
+  return null;
+}
+function inferSite(ch, srcLabel){
+  return siteFromLabel(srcLabel) || siteFromWave(ch);
+}
+function siteFromWave(ch){
   /* nothing usable in the label — judge it from the raw pressure in 2-s windows, not
      from detected beats (the beat detector drops anything with a systolic of 30 or
      less, so a CVP could never be recognised). Only clear cases get a site: a mean of
@@ -4032,18 +4051,92 @@ function inferSite(ch, srcLabel){
   }
   return 'OTHER';
 }
+/* the label the monitor gave each pressure channel: SrcLabel reads "None"/"Unknown"
+   until a site is chosen, so take the most common meaningful label it ever carried */
+function ibpMonitorLabels(){
+  const out={};
+  for(const ch of [1,2,3]){
+    const counts={};
+    for(const r of M.trends||[]) for(const x of (r.ibp||[]))
+      if(x.ch===ch && x.label && !/^(none|unknown)$/i.test(x.label))
+        counts[x.label]=(counts[x.label]||0)+1;
+    out[ch]=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || null;
+  }
+  return out;
+}
 function loadSites(){
-  M.ibpSite={};
+  M.ibpSite={}; M.ibpAuto={}; M.ibpLabel=ibpMonitorLabels();
   let saved={};
   try{ saved=JSON.parse(localStorage.getItem(siteKey())||'{}'); }catch(e){}
   for(const name in M.channels){
     const c=M.channels[name];
     if(!/^ibp/.test(c.kind) || !c.nValid) continue;
     const num=+c.kind.replace('ibp','');
-    const lbl=(M.paramById && M.paramById['ibp'+num]) ? M.paramById['ibp'+num].label : '';
-    M.ibpSite[num] = saved[num] || inferSite(c, lbl);
-    M.ibpSite['_auto'+num] = !saved[num];
+    const lbl=M.ibpLabel[num], fromLabel=siteFromLabel(lbl), guess=fromLabel ? null : siteFromWave(c);
+    M.ibpAuto[num] = fromLabel ? {site:fromLabel, src:'monitor', label:lbl}
+      : guess && guess!=='OTHER' ? {site:guess, src:'guess', label:lbl} : {site:'OTHER', src:'none', label:lbl};
+    const mine = saved[num] && IBP_SITES.some(x=>x.id===saved[num]) ? saved[num] : null;
+    M.ibpSite[num] = mine || M.ibpAuto[num].site;
+    M.ibpSite['_src'+num] = mine ? 'you' : M.ibpAuto[num].src;
   }
+}
+/* a line's type for display: short name, where it came from, and its kind */
+function ibpType(num){
+  const site=M.ibpSite && M.ibpSite[num], src=(M.ibpSite && M.ibpSite['_src'+num]) || 'none';
+  if(!site || (site==='OTHER' && src!=='you')) return {site:'OTHER', short:'', src:'none', kind:'other'};
+  return {site, short:SITE_SHORT[site]||site, src, kind:siteKind(site)};
+}
+/* "Art", "PA", "Art (guess)"; compact: "Art?" — a guess is always marked */
+function ibpTypeTag(num, compact){
+  const t=ibpType(num); if(!t.short) return '';
+  return t.short+(t.src==='guess' ? (compact ? '?' : ' (guess)') : '');
+}
+const ibpNumOf = c => c && /^ibp\d$/.test(c.kind) ? +c.kind.slice(3) : null;
+/* "P2" plus its type, for waveform rows and choosers */
+function ibpChanLabel(c, compact){
+  const n=ibpNumOf(c), tag=n ? ibpTypeTag(n, compact) : '';
+  return 'P'+n+(tag ? ' '+tag : '');
+}
+/* the type picker for one line: Automatic (what the monitor said or the waveform
+   suggests) or a type you choose. Compact, it sits in the line's box in the parameter
+   panel; in full, on Physiology */
+function ibpTypeSelect(num, compact){
+  const a=(M.ibpAuto && M.ibpAuto[num]) || {site:'OTHER', src:'none'};
+  const mine=M.ibpSite && M.ibpSite['_src'+num]==='you' ? M.ibpSite[num] : '';
+  const short=SITE_SHORT[a.site]||a.site;
+  const autoTxt = compact ? (a.src==='monitor' ? short : a.src==='guess' ? short+'?' : 'type?')
+    : a.src==='monitor' ? short+', from the monitor’s label'
+    : a.src==='guess' ? short+', guessed from the waveform' : 'not set';
+  const autoTitle = a.src==='monitor' ? 'from the monitor’s label' : a.src==='guess' ? 'guessed from the waveform' : 'not set';
+  return '<select class="ibpType'+(compact?' mini':'')+'" data-num="'+num+'" aria-label="What P'+num+' measures"'+
+    (compact ? ' title="What P'+num+' measures. Automatic: '+esc(autoTitle)+'. A “?” marks a guess."' : '')+'>'+
+    '<option value=""'+(mine?'':' selected')+'>'+(compact ? esc(autoTxt) : 'Automatic: '+esc(autoTxt))+'</option>'+
+    IBP_SITES.map(s=>'<option value="'+s.id+'"'+(s.id===mine?' selected':'')+(compact?' title="'+esc(s.label)+'"':'')+'>'+
+      esc(compact ? SITE_SHORT[s.id]||s.id : s.label)+'</option>').join('')+
+    '</select>';
+}
+/* a type was chosen (or reset to automatic): every result that depends on it follows */
+function setIbpType(num, val){
+  if(val){ M.ibpSite[num]=val; M.ibpSite['_src'+num]='you'; }
+  else { const a=(M.ibpAuto && M.ibpAuto[num]) || {site:'OTHER', src:'none'}; M.ibpSite[num]=a.site; M.ibpSite['_src'+num]=a.src; }
+  saveSites(); applySites();
+  /* everything that shows a pressure line reads M.ibpSite, so the choice carries to
+     every page; redraw the one you are on (keeping its scroll position) */
+  renderMonitorChoices();
+  refreshParamViews();
+  const keep=(sel, fn)=>{ const b=$(sel), y=b ? b.scrollTop : 0; fn(); const b2=$(sel); if(b2) b2.scrollTop=y; };
+  if(APP.view==='monitor') drawMonitor();
+  else if(APP.view==='hemo') keep('#hemoBody', renderPhysPane);
+  else if(APP.view==='cpr') keep('#cprBody', renderCprPane);
+  else if(APP.view==='analysis') keep('#analysisBody', renderAnalysis);
+}
+function applySites(){
+  retargetArterial(); M._lineBeats={}; M._hemoBeats={}; M._wholeSig=null;
+  buildParams(); buildHemoParams();
+  SEL.ids=SEL.ids.filter(id=>M.paramById[id]);
+}
+function wireIbpTypeSelects(root){
+  (root||document).querySelectorAll('select.ibpType').forEach(sl=> sl.onchange=()=> setIbpType(+sl.dataset.num, sl.value));
 }
 /* the arterial beat source follows the line identified as arterial; until sites are
    known it is simply the first pressure channel */
@@ -4054,8 +4147,9 @@ function retargetArterial(){
   return false;
 }
 function saveSites(){
+  /* only the types you chose; the automatic ones are worked out afresh each time */
   const o={};
-  for(const k in M.ibpSite) if(!/^_auto/.test(k)) o[k]=M.ibpSite[k];
+  for(const k in M.ibpSite) if(!/^_/.test(k) && M.ibpSite['_src'+k]==='you') o[k]=M.ibpSite[k];
   try{ localStorage.setItem(siteKey(), JSON.stringify(o)); }catch(e){}
 }
 function ibpChannels(){
@@ -4322,7 +4416,8 @@ function buildHemoParams(){
   for(const p of P){
     M.paramById[p.id]=p;
     if(AX[p.id]) p.axis=AX[p.id];
-    p.full = p.label + (p.sub2 ? ' ('+p.sub2+')' : '');
+    p.full = /^ibp\d$/.test(p.id) ? p.label + (shortSub(p) ? ' '+shortSub(p) : '')
+           : p.label + (p.sub2 ? ' ('+p.sub2+')' : '');
   }
   M._hemo = {pt, lines};
 }
@@ -5105,7 +5200,7 @@ function renderHemoPanel(computed){
     ['pulmonary artery',lines.pap]].filter(x=>x[1])
     .map(x=>x[0]+' → '+shortName(x[1].ch.name)).join(' · ');
   const q=H.quality, v=H.vent;
-  const pressureAlarms=[['NIBP','nibp'],['IBP '+lines.art.num,'ibp'+lines.art.num]]
+  const pressureAlarms=[['NIBP','nibp'],['P'+lines.art.num,'ibp'+lines.art.num]]
     .map(([label,id])=>{ const setting=alarmSetting(id,APP.cursor);
       return setting?'<div><b>'+esc(label)+':</b> '+esc(setting)+'</div>':''; }).filter(Boolean);
   if(pressureAlarms.length) html+='<div class="note-inline"><b>Recorded pressure alarm settings</b><br>'+
@@ -5172,7 +5267,7 @@ const HV = { chans:null, win:8000, scope:60000, anchor:null, hoverT:null };
 function hemoChanList(){
   const out=[];
   for(const L of ibpChannels())
-    out.push({key:L.ch.name, label:shortName(L.ch.name)+' — '+siteLabel(L.site),
+    out.push({key:L.ch.name, label:'P'+L.num+' — '+(ibpType(L.num).short ? siteLabel(L.site).replace(/\s*\(.*\)$/,'')+(ibpType(L.num).src==='guess'?' (guess)':'') : 'type not set'),
       ch:L.ch, primary:siteKind(L.site)==='art'});
   for(const nm in M.channels){
     const c=M.channels[nm];
@@ -7312,6 +7407,10 @@ function renderPhysPane(){
         [[2000,'2 s'],[4000,'4 s'],[8000,'8 s'],[15000,'15 s'],[30000,'30 s']]
           .map(o=>'<option value="'+o[0]+'"'+(HV.win===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+
         '</select></label>'+
+      /* what each pressure line measures: the same choice as the drop-down in its box on
+         the Monitor, so a change here carries there and back */
+      ibpChannels().map(L=>'<label title="What P'+L.num+' measures; the same setting as on the Monitor">P'+L.num+' '+
+        ibpTypeSelect(L.num, true)+'</label>').join('')+
     '</div></div><div id="hemoTraceViewport">'+
     '<canvas class="chart" id="hemoWave" style="height:'+
       Math.max(180, 90*Math.max(1,HV.chans.length))+'px;cursor:crosshair"></canvas></div>'+
@@ -7384,13 +7483,7 @@ function renderPhysPane(){
   sc.onpointercancel=()=>{ scDrag=false; };
   sc.ondblclick=()=>{ HV.anchor=null; hvFollowCursor(); drawHemoWave(cv); drawHemoScrub(sc); };
   $$('#hemoBody tr[data-t]').forEach(tr=> tr.onclick=()=>seek(+tr.dataset.t));
-  $$('#hemoBody .ibpSite').forEach(sl=> sl.onchange=()=>{
-    M.ibpSite[+sl.dataset.num]=sl.value;
-    M.ibpSite['_auto'+sl.dataset.num]=false;
-    saveSites(); retargetArterial(); M._lineBeats={}; M._wholeSig=null; buildParams(); buildHemoParams();
-    SEL.ids=SEL.ids.filter(id=>M.paramById[id]);
-    renderPhysPane(); refreshParamViews();
-  });
+  wireIbpTypeSelects($('#hemoBody'));
 }
 
 /* ---------------- monitor rendering ---------------- */
@@ -7607,7 +7700,7 @@ function drawMonitor(){
     /* labels */
     g.fillStyle=T0.panel; g.fillRect(0,yTop,LEFT-2,rowH);
     g.fillStyle=traceCol(ch.color); g.font='600 11px ui-monospace,monospace';
-    g.fillText(shortName(ch.name), 5, yTop+14);
+    g.fillText(ibpNumOf(ch) ? ibpChanLabel(ch, true) : shortName(ch.name), 5, yTop+14);
     g.fillStyle=T0.dim; g.font='10px ui-monospace,monospace';
     g.fillText(ch.isEcg ? (APP.gain+' mm/mV') : (fmtNum(lo)+'–'+fmtNum(hi)+(ch.units?' '+unitShort(ch.units):'')), 5, yTop+27);
     const cur = sampleAt(ch, APP.cursor);
@@ -7786,6 +7879,8 @@ function niceStep(spanMs, px, minPx){
   return STEP_LADDER[STEP_LADDER.length-1];
 }
 function shortName(n){
+  /* invasive pressure channels are the monitor's P1, P2, P3 */
+  const ibp=/^IBP\s*(\d)\b/i.exec(n); if(ibp) return 'P'+ibp[1];
   return n.replace('12-Lead ','').replace(' mmHg, Waveform','').replace(' %, Waveform','')
           .replace(', Waveform','').replace('Pads Impedance','Pads Imp');
 }
@@ -8429,19 +8524,21 @@ function drawNumerics(){
   const live=$('#numLive'), ins=APP.inspect;
   const rrNote = M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id));
   /* the theme is part of the key: the colours are written into the boxes when they are built */
-  const key = ps.map(p=>p.id+':'+p.label+':'+p.color).join('|')+'#'+(rrNote?1:0)+'#'+THEME.mode;
+  const key = ps.map(p=>p.id+':'+p.label+':'+(p.sub2||'')+':'+p.color).join('|')+'#'+(rrNote?1:0)+'#'+THEME.mode;
   if(live._key!==key){
     live._key=key;
     live.innerHTML =
       (ps.length ? ps.map((p,i)=>
         '<div class="num'+(i===0 || numRowKey(ps[i-1])!==numRowKey(p) ? ' grpstart' : '')+'" data-id="'+esc(p.id)+'" style="border-color:'+traceCol(p.color)+'55">'+
-          '<div class="lbl"><span>'+esc(p.label)+(shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':'')+infoBtn(p.id)+'</span>'+
+          '<div class="lbl"><span>'+esc(p.label)+(/^ibp\d$/.test(p.id) && M.ibpSite ? ' '+ibpTypeSelect(+p.id.slice(3), true)
+              : (shortSub(p)?' <em>'+esc(shortSub(p))+'</em>':''))+infoBtn(p.id)+'</span>'+
             '<span>'+esc(p.unit||'')+'</span></div>'+
           '<div class="val" style="color:'+traceCol(p.color)+'"></div>'+
           '<div class="sub"></div>'+
           '<div class="alarm-setting" hidden></div>'+
         '</div>').join('') : '<div class="emptynote">No parameters selected.</div>')+
       (rrNote ? '<div class="note-inline">Respiratory rate unavailable: this export has no valid device RR; its ventilation timestamps are not individual breaths.</div>' : '');
+    if(live.querySelector('select.ibpType')) wireIbpTypeSelects(live);
     requestAnimationFrame(fitNumerics);
   }
   /* reading at the pointer is shown by an outline on the panel and a time tag on the
@@ -8605,8 +8702,10 @@ function vitalRows(){
           return v; };
         const s=part('sys',a.sys), d=part('dia',a.dia), m=part('map',a.map);
         cell.parts=[s,d,m];
-        /* a mean-only reading (CVP, ICP, or a cuff mean without systolic) still shows */
-        cell.txt = s!=null ? (s+'/'+(d!=null?d:'--')+(m!=null?' ('+m+')':''))
+        /* a venous or intracranial line reads as its mean, as on the parameter panel;
+           a mean-only reading elsewhere (a cuff mean without systolic) still shows */
+        cell.txt = (p.ibpKind==='ven' || p.ibpKind==='icp') ? (m!=null ? String(m) : '')
+                 : s!=null ? (s+'/'+(d!=null?d:'--')+(m!=null?' ('+m+')':''))
                  : m!=null ? ('--/'+(d!=null?d:'--')+' ('+m+')') : '';
       } else if(f && f.range){
         cell.range=f.range; cell.raw=f.raw; cell.txt=RANGE_TXT[f.range];
@@ -8695,6 +8794,7 @@ function ibpZeroEvents(){
 /* column headers have to stay narrow, so trim the qualifier down to the part
    that actually distinguishes one source from another */
 function shortSub(p){
+  if(/^ibp\d$/.test(p.id)) return p.sub2==='type not set' ? '' : (p.sub2||'').replace(' (guess)','?');
   return (p.sub2||'')
     .replace(/^art line\s+/i,'')
     .replace(/^arterial line$/i,'')
@@ -9474,6 +9574,7 @@ function cprWaveLabel(c){
   if(c.kind==='pads') return 'ECG pads';
   if(c.isEcg) return 'ECG '+shortName(c.name);
   if(c.kind==='spo2') return 'SpO₂ pleth';
+  if(ibpNumOf(c)) return ibpChanLabel(c, true);
   return shortName(c.name);
 }
 function cprWaveDefault(){
@@ -11136,15 +11237,21 @@ function buildAxis(ax){
   for(const p of inAx){
     const hid = TRD.hidden.has(p.id);
     const nm = p.label + (shortSub(p) ? ' '+shortSub(p) : '');
-    if(p.sub){
+    if(p.sub && (p.ibpKind==='ven' || p.ibpKind==='icp')){
       const off = c => hid || TRD.hidden.has(p.id+'.'+c);
+      series.push({pts:p.sub.map, color:p.color, dots:p.dots, w:1.9, stat:true, hidden:off('map'), name:nm+' mean', dec:p.dec});
+      if(!off('map')) all.push(p.sub.map);
+      legend.push({p, fit:fitLine(p.sub.map), what:'mean', hidden:hid, parts:['map']});
+    } else if(p.sub){
+      const off = c => hid || TRD.hidden.has(p.id+'.'+c);
+      const meanName = p.ibpKind && p.ibpKind!=='art' ? 'mean' : 'MAP';
       series.push({pts:p.sub.sys, color:p.color, dots:p.dots, w:1.3, hidden:off('sys'), name:nm+' sys', dec:p.dec});
       series.push({pts:p.sub.dia, color:p.color, dots:p.dots, w:1.0, alpha:0.55, hidden:off('dia'), name:nm+' dia', dec:p.dec});
-      series.push({pts:p.sub.map, color:p.color, dots:p.dots, w:1.9, stat:true, hidden:off('map'), name:nm+' MAP', dec:p.dec});
+      series.push({pts:p.sub.map, color:p.color, dots:p.dots, w:1.9, stat:true, hidden:off('map'), name:nm+' '+meanName, dec:p.dec});
       if(!off('sys')) all.push(p.sub.sys);
       if(!off('dia')) all.push(p.sub.dia);
       if(!off('map')) all.push(p.sub.map);
-      legend.push({p, fit:fitLine(p.sub.map), what:'MAP', hidden:hid, parts:['sys','dia','map']});
+      legend.push({p, fit:fitLine(p.sub.map), what:meanName, hidden:hid, parts:['sys','dia','map']});
     } else {
       series.push({pts:p.pts, color:p.color, w:1.4, stat:true, hidden:hid, name:nm, dec:p.dec});
       if(!hid) all.push(p.pts);
@@ -11753,22 +11860,18 @@ function legacyAnalysisSections(){
   {
     const lines=ibpChannels();
     if(lines.length){
-      let h='<div class="note-inline">Set what each line actually is — systolic/diastolic, '+
+      let h='<div class="note-inline">Set what each line measures: systolic/diastolic, '+
         'pulse-pressure variation and damping only mean something on an arterial trace, while a '+
-        'venous or intracranial line is read as a mean. The monitor labels channels '+
-        '<span class="mono">P1</span>–<span class="mono">P3</span> until a site is chosen, so '+
-        'this is inferred from the waveform unless you override it. The full parameter set is on '+
-        'the <b>Hemodynamics</b> tab.</div>';
+        'venous or intracranial line is read as a mean. Lines keep the monitor’s names, '+
+        '<span class="mono">P1</span>–<span class="mono">P3</span>. If the monitor was told the site, '+
+        'that is used; otherwise the type is guessed from the waveform and marked as a guess. The same '+
+        'choice is the drop-down in each line’s box in the parameter panel.</div>';
       for(const L of lines){
+        const lbl=M.ibpLabel && M.ibpLabel[L.num];
         h+='<div class="setrow" style="border:1px solid var(--line);border-radius:9px;margin-bottom:8px">'+
-          '<div><label>'+esc(shortName(L.ch.name))+' — '+
-          esc((M.paramById['ibp'+L.num]||{}).label||('P'+L.num))+'</label>'+
+          '<div><label>P'+L.num+(lbl && !/^P\d$/i.test(lbl) ? ' <span class="sethint" style="display:inline">monitor label “'+esc(lbl)+'”</span>' : '')+'</label>'+
           '<div class="sethint">'+L.ch.nValid.toLocaleString()+' samples at '+L.ch.hz.toFixed(0)+
-          ' Hz</div></div><div><select class="ibpSite" data-num="'+L.num+'">'+
-          IBP_SITES.map(s=>'<option value="'+s.id+'"'+(s.id===L.site?' selected':'')+'>'+
-            esc(s.label)+'</option>').join('')+'</select>'+
-          (M.ibpSite['_auto'+L.num]?' <span class="sethint" style="display:inline">auto-detected</span>':'')+
-          '</div></div>';
+          ' Hz</div></div><div>'+ibpTypeSelect(L.num)+'</div></div>';
       }
       out.haemo=h;
     }
@@ -12210,6 +12313,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
+    'Pressure lines keep the monitor’s names, P1, P2 and P3, everywhere, with their type beside the name. The type is the one you choose (a drop-down in the line’s box in the parameter panel on the Monitor and CPR pages, and beside the waveform choice on Physiology), else the monitor’s own label, else a guess from the waveform that is always marked as one (“Art?”). A choice made on any page carries to all of them: the parameter panel, Trends, Vitals, CPR, Physiology and Analysis. A venous or intracranial line reads as its mean on the parameter panel and in Vitals, and Trends draws only its mean. The child sample has only an arterial line and a CVP, unlabelled; no PA catheter.',
     'Start page: a third sample case, a child cardiac arrest: the monitor in Pediatric mode, child heart rates, pressures and alarm limits, so the CPR page uses the Child (PALS) targets and shows the perfusion proxy’s adult-derived warning. Fixed: the samples’ answer sheets gave the first NIBP mean as 96; the reading is 97.',
     'Whole-case ECG: works from the keyboard. Tab to the panel and use ← → (1 s, Shift 10 s), ↑ ↓ for a row, Page Up / Page Down for five rows, Home / End; its top edge takes focus too, and ↑ ↓ resize it (Home resets). Screen readers hear the playhead time.',
     'Sources: the four studies the perfusion proxy’s time constants and release factor are scaled from (Mader 2009, Berg 2001, Yin 2024, Yannopoulos 2005) are now checked and listed under Settings › Sources and on the CPR page.',
@@ -12341,7 +12445,7 @@ async function importSettings(file){
   Object.assign(CFG, CFG_DEFAULT); cfgLoad();
   applyUiScale();
   try{ setTheme(CFG.theme==='auto' ? systemTheme() : CFG.theme); }catch(e){}
-  if(M.params && M.params.length){ selLoad(); annLoad(); loadSites(); }
+  if(M.params && M.params.length){ loadSites(); applySites(); selLoad(); annLoad(); }
   applyCfgToSession();
   renderChips(); renderEvents(); refreshParamViews();
   setView(APP.view);
@@ -13128,13 +13232,13 @@ push('AlarmLimits', {StdHdr: hdr(20, 0), Hr: lim(1, 1), Spo2: lim(1, 0), Resp: l
 const display = (s, nibpMin) => push('DisplayInfo', {StdHdr: hdr(35, s), ParmEcgColor: '#00ff00', ParmSpo2Color: '#00ffff',
   ParmPiColor: '#00ffff', ParmCo2Color: '#ff00ff', ParmRespColor: '#ff00ff', ParmNibpColor: '#ffff00', ParmTempColor: '#ffffff',
   ParmIbpSourceP1Color: '#ff0000', ParmIbpSourceP2Color: '#ffff00', ParmIbpSourceP3Color: '#00ffff',
-  ParmIbp1SourceLabel: 'P1', ParmIbp2SourceLabel: NEURO ? 'P2' : 'PA', ParmIbp3SourceLabel: NEURO ? 'ICP' : 'P3',
+  ParmIbp1SourceLabel: 'P1', ParmIbp2SourceLabel: NEURO || CHILD ? 'P2' : 'PA', ParmIbp3SourceLabel: NEURO ? 'ICP' : 'P3',
   ParmNibpAutoModeInterval: nibpMin, parmNibpMode: 1, ParmTempUnitsLabel: '°F', ParmPatientPaceMarkerOn: 1, '@TdrRecVer': 4});
 display(0, 5); display(T.rosc + 20, 10);
 const traces = (s, chans) => push('TraceConfigs', {StdHdr: hdr(3, s),
   TraceConfig: chans.map(c => ({AssignedChan: c, Multiplier: {'@Value': c <= 14 ? 1000 : 1}})), '@TdrRecVer': 1});
-traces(0, [3, 4, 16, 18, 19, 20, 15]);
-traces(T.afEnd, [2, 3, 16, 18, 19, 20, 15]);   /* lead III swapped for lead I */
+traces(0, CHILD ? [3, 4, 16, 18, 19, 15] : [3, 4, 16, 18, 19, 20, 15]);   /* the child has no P3 (channel 20) */
+traces(T.afEnd, CHILD ? [2, 3, 16, 18, 19, 15] : [2, 3, 16, 18, 19, 20, 15]);   /* lead III swapped for lead I */
 
 /* --- continuous waveforms, one record per second --- */
 const W = {   /* name, wave type, rate, units, data source */
@@ -13142,11 +13246,12 @@ const W = {   /* name, wave type, rate, units, data source */
   co2: {name: 'CO2 mmHg, Waveform', wt: 15, hz: 125, units: 'mmHg', u: 2, range: [0, 60], scale: 10},
   pleth: {name: 'SpO2 %, Waveform', wt: 16, hz: 125, units: 'Percent (%)', u: 5, scale: 1},
   ibp1: {name: 'IBP 1 mmHg, Waveform', wt: 18, hz: 125, units: 'mmHg', u: 2, range: [0, 180], scale: 1},
-  ibp2: {name: 'IBP 2 mmHg, Waveform', wt: 19, hz: 125, units: 'mmHg', u: 2, range: NEURO ? [0, 40] : [0, 60], scale: 1},
+  ibp2: {name: 'IBP 2 mmHg, Waveform', wt: 19, hz: 125, units: 'mmHg', u: 2, range: NEURO || CHILD ? [0, 40] : [0, 60], scale: 1},
   ibp3: {name: 'IBP 3 mmHg, Waveform', wt: 20, hz: 125, units: 'mmHg', u: 2, range: NEURO ? [0, 60] : [0, 40], scale: 1},
   imp: {name: 'Impedance Respiration, Waveform', wt: 23, hz: 125, units: 'Ohms', u: 0, scale: 1000}
 };
-const SRC = NEURO ? {ibp2: cvp, ibp3: icp} : {ibp2: pa, ibp3: cvp};
+/* the child has an arterial line and a CVP only: no pulmonary artery catheter, no P3 */
+const SRC = NEURO ? {ibp2: cvp, ibp3: icp} : CHILD ? {ibp2: cvp, ibp3: null} : {ibp2: pa, ibp3: cvp};
 const wave = (k, num, samples, status) => {
   const w = W[k], ecgW = w.hz === 250;
   return {Status: 0, StatusVal: 'Valid', '@WaveNum': num,
@@ -13173,7 +13278,7 @@ for (let s = 0; s < DUR; s++) {
   if (!(s >= T.probeOff && s < T.probeOn)) ws.push(wave('pleth', 3, seg(pleth, 1)));
   ws.push(wave('ibp1', 4, seg(art, 1)));
   ws.push(wave('ibp2', 5, seg(SRC.ibp2, 1)));
-  ws.push(wave('ibp3', 6, seg(SRC.ibp3, 1)));
+  if (SRC.ibp3) ws.push(wave('ibp3', 6, seg(SRC.ibp3, 1)));
   ws.push(wave('co2', 7, seg(co2, 10)));
   ws.push(wave('imp', 8, seg(imp, 1000)));
   push('ContinWaveRec', {StdHdr: hdr(26, s), Waveform: ws, HeaderData: '0 0 0', NotchSetting: 60, PatMode: 0, EcgLeadLabels: 1, '@TdrRecVer': 1});
@@ -13186,7 +13291,7 @@ const flags = {hr: t => { const h = hrAt(t); return h != null && (h < LIM.hrLo |
 let lastNibp = null;
 const trendRow = (s, evt) => {
   const hr = hrAt(s), sp = spo2At(s), et = etco2At(s), rr = rrAt(s);
-  const ibp = [stats(art, s, 6), stats(SRC.ibp2, s, 6), stats(SRC.ibp3, s, 6)];
+  const ibp = [art, SRC.ibp2, SRC.ibp3].filter(Boolean).map(a => stats(a, s, 6));
   const nb = nibp.filter(x => x.t <= s).pop();
   const isNew = nb && nb !== lastNibp; if (nb) lastNibp = nb;
   const hrV = val(hr, 10, 'Beats per minute', {SrcLabelVal: 'ECG', SrcLabel: 1, ChanState: 0});
@@ -13197,7 +13302,7 @@ const trendRow = (s, evt) => {
     SpCo: {Monitoring: 0, ...val(null, 5, 'Percent (%)')}, SpMet: {Monitoring: 0, ...val(null, 5, 'Percent (%)')}});
   if (flags.spo2(s)) spV.TrendData.Alarm = 1;
   const ibpRec = ibp.map((x, k) => {
-    const label = k === 0 ? 'P1' : k === 1 ? (NEURO ? 'P2' : 'PA') : (NEURO ? 'ICP' : 'P3');
+    const label = k === 0 ? 'P1' : k === 1 ? (NEURO || CHILD ? 'P2' : 'PA') : (NEURO ? 'ICP' : 'P3');
     const r = {'@ChanNum': k + 1, SrcLabelVal: label, SrcLabel: 7, DispForm: 1, ChanState: 0,
       Sys: val(x && x.sys, 2, 'mmHg'), Dia: val(x && x.dia, 2, 'mmHg'), Map: val(x && x.map, 2, 'mmHg')};
     if (k === 0 && s >= T.flush && s < T.flush + 6) r.Sys.TrendData.DataState = '+++';  /* above measurable */
@@ -13230,7 +13335,7 @@ ev(NP_AT, CHILD ? 'Patient Mode Pediatric' : 'Patient Mode Adult', 14, '0000016C
 ev(1, 'SPO2 Probe Connected', 223, '0000008B', 0);
 ev(2, 'IBP Probe1 Connected', 171, '0000005D', 0);
 ev(2, 'IBP Probe2 Connected', 174, '00000060', 0);
-ev(2, 'IBP Probe3 Connected', 177, '00000063', 0);
+if (SRC.ibp3) ev(2, 'IBP Probe3 Connected', 177, '00000063', 0);
 ev(T.zeroEnd, 'IBP Probe1 Zeroed', 164, '00000059', 0);
 ev(T.afEnd, 'Ecg Lead Fault', 102, '00000021', 0);
 ev(T.paceStart, 'Pacer Mode On', 302, '000000B0', 1);
@@ -13406,7 +13511,7 @@ Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below a
 | ${clock(T.paceStart)}–${clock(T.paceEnd)} | External pacing ${PACE}/min, wide paced complexes | Pacer marks on Monitor, snapshot ${clock(950)} and strips; pacing time 180 s |
 | ${clock(T.paceStart - 20)} | Pads impedance falls from open circuit to ~92 Ω | "Possible patient pad contact" |
 | ${clock(T.vfStart)}–${clock(T.shock)} | **VF**; arterial pressure collapses; CPR from ${clock(T.cprStart)} | Arterial low alarm; CPR tab populated |
-| ${clock(T.cprStart)}–${clock(T.cprEnd)} | Compressions ~112/min (faster after ${clock(1200)}), depth ~${CHILD ? '2.0' : '2.2'} in falling late, release ~410 mm/s; pause ${clock(T.cprPause0)}–${clock(T.cprPause1)}; ventilations ${CHILD ? 20 : 10}/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P${NEURO ? '2' : '3'} CVP) |
+| ${clock(T.cprStart)}–${clock(T.cprEnd)} | Compressions ~112/min (faster after ${clock(1200)}), depth ~${CHILD ? '2.0' : '2.2'} in falling late, release ~410 mm/s; pause ${clock(T.cprPause0)}–${clock(T.cprPause1)}; ventilations ${CHILD ? 20 : 10}/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P${NEURO || CHILD ? '2' : '3'} CVP) |
 | ${clock(T.shock - 8)} / ${clock(T.shock)} | AED **SHOCK ADVISED**, **Shock Delivered** ${JOULES} J | Device rhythm analysis; shock on CPR timeline |
 | ${clock(T.shock)}–${clock(T.rosc)} | Organised rhythm ${hrS(100)}/min with low pressure (PEA-like) while CPR continues | |
 | ${clock(T.cprStart + 40)}, ${clock(T.cprStart + 90)}, ${clock(T.cprStart + 120)}, ${clock(T.shock + 40)}, ${clock(T.shock + 70)} | Treatments logged: IV Access, Epinephrine, Intubation, Amiodarone, Other | Purple treatment markers on the CPR graph, strips and cascade; Events list |
@@ -13420,7 +13525,7 @@ Case start ${iso(0).replace('T', ' ')} (device local), 30 minutes. Times below a
 | ${clock(T.tempOff)}–${clock(T.tempOn)} | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | ${clock(T.apnea0)}–${clock(T.apnea1)} | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |
 | ${clock(T.high0)}–${clock(T.high1)} | Arterial systolic ~${bpS(186)} | Arterial high alarm (red) |
-| whole case | P1 arterial (auto-detected), ${NEURO ? 'P2 CVP (auto-detected), P3 labelled ICP: raised ICP ~26; slow pressure waves throughout, with ICP moving against them before the arrest (intact autoregulation, PRx negative) and with them after ROSC (impaired, PRx positive)' : 'P2 labelled **PA** ~28/12, 34/15 after ROSC, P3 CVP ~8 (auto-detected)'} | ${NEURO ? 'CPP = MAP − ICP ~65; PRx negative before the arrest, positive after ROSC' : 'mPAP; CVP; site picker in Physiology'} |
+| whole case | Lines are named P1–P3 as on the monitor. P1 arterial, unlabelled on the monitor, ${NEURO ? 'P2 CVP, unlabelled, P3 labelled ICP by the monitor: raised ICP ~26; slow pressure waves throughout, with ICP moving against them before the arrest (intact autoregulation, PRx negative) and with them after ROSC (impaired, PRx positive)' : CHILD ? 'P2 CVP ~8, unlabelled; no P3 and no pulmonary artery catheter' : 'P2 labelled **PA** by the monitor ~28/12, 34/15 after ROSC, P3 CVP ~8, unlabelled'} | Unlabelled lines are typed from the waveform and marked as a guess (“Art?”, “CVP?”); a labelled one takes the monitor’s label; the drop-down in each line’s box in the parameter panel (and the picker on Physiology) changes any of them. ${NEURO ? 'CPP = MAP − ICP ~65; PRx negative before the arrest, positive after ROSC' : CHILD ? 'CVP read as a mean' : 'mPAP; CVP read as a mean'} |
 | whole case | T1 core 98.6 → 97.1 °F, T2 skin 96.4 → 95.6 °F, ΔT | Temperatures in Monitor, Trends, Vitals |
 | whole case | ${CHILD ? 'Patient 7 y male, 48 in, 55 lb, Pediatric mode | BSA (DuBois ~0.92 m²); CPR targets Child (PALS); "Adult-derived model" warning on the CPR page' : 'Patient 58 y male, 70 in, 180 lb | BSA (DuBois ~1.96 m²)'} |
 
@@ -13494,7 +13599,7 @@ async function loadFile(file){
     prog(0.85,'Detecting beats…'); await nextFrame();
     detectBeats();
     prog(0.95,'Building views…'); await nextFrame();
-    buildParams(); loadSites(); if(retargetArterial()) buildParams();
+    loadSites(); retargetArterial(); buildParams();
     buildHemoParams(); selLoad(); annLoad(); applyCfgToSession();
     /* the vitals list opens on the monitor's own NIBP cycle whenever the case
        records one; the saved interval only covers cases that do not */

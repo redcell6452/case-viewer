@@ -145,6 +145,37 @@ function fixture(id, extra = []) {
     assert.match(await p.evaluate(`document.querySelector('.dashwarn').textContent`), /Adult-derived model/);
     await p.click('#tabs button[data-view="monitor"]');
 
+    /* -- pressure lines are P1/P2 with a marked guess; the picker sets the type and the reading follows -- */
+    assert.equal(await p.evaluate(`document.querySelectorAll('#monitorLeadList select').length`), 0, 'no picker row in the waveform chooser');
+    await p.evaluate(`(()=>{ selToggle('ibp1', true); selToggle('ibp2', true); seek(1400000); return 1; })()`);
+    const tile = `document.querySelector('#numLive .num[data-id="ibp2"]')`, pick = `${tile}.querySelector('select.ibpType')`;
+    await p.waitFor(pick);
+    assert.equal(await p.evaluate(`document.querySelectorAll('#numLive select.ibpType').length`), 2, 'the child has P1 and P2 only');
+    assert.equal(await p.evaluate(`${pick}.selectedOptions[0].textContent`), 'CVP?', 'automatic, marked as a guess');
+    assert.match(await p.evaluate(`${tile}.querySelector('.val').textContent`), /^\d+$/, 'a venous line reads as its mean');
+    /* the drop-down fits on the box's label line */
+    assert.ok(await p.evaluate(`${pick}.getBoundingClientRect().right <= ${tile}.getBoundingClientRect().right`), 'the drop-down fits in the box');
+    const pickNow = v => p.evaluate(`(()=>{ const s=${pick}; s.value='${v}'; s.dispatchEvent(new Event('change')); return 1; })()`);
+    await pickNow('ART');
+    await p.waitFor(`${pick} && ${pick}.selectedOptions[0].textContent==='Art'`);
+    assert.match(await p.evaluate(`${tile}.querySelector('.val').textContent`), /^\d+\/\d+\(\d+\)$/, 'chosen arterial: systolic/diastolic (mean)');
+    /* the choice made on the Monitor carries to every other page */
+    await p.click('#tabs button[data-view="trends"]');
+    await p.waitFor(`/P2 Art(?!\\?)/.test(document.querySelector('#trendsBody').textContent)`);
+    await p.click('#tabs button[data-view="vitals"]');
+    await p.waitFor(`/P2/.test(document.querySelector('#vitalsPane').textContent) && /Art(?!\\?)/.test(document.querySelector('#vitalsPane').textContent)`);
+    await p.click('#tabs button[data-view="cpr"]');
+    await p.waitFor(`${pick} && ${pick}.selectedOptions[0].textContent==='Art'`);
+    await p.click('#tabs button[data-view="hemo"]');
+    await p.waitFor(`document.querySelector('#hemoBody select.ibpType[data-num="2"]') && document.querySelector('#hemoBody select.ibpType[data-num="2"]').value==='ART'`, 30000);
+    /* and a choice made on Physiology carries back */
+    await p.evaluate(`(()=>{ const s=document.querySelector('#hemoBody select.ibpType[data-num="2"]'); s.value='CVP'; s.dispatchEvent(new Event('change')); return 1; })()`);
+    await p.click('#tabs button[data-view="monitor"]');
+    await p.waitFor(`${pick} && ${pick}.selectedOptions[0].textContent==='CVP'`);
+    assert.match(await p.evaluate(`${tile}.querySelector('.val').textContent`), /^\d+$/);
+    await pickNow('');
+    await p.waitFor(`${pick} && ${pick}.selectedOptions[0].textContent==='CVP?'`);
+
     /* -- waveform choices are remembered across cases and reloads -- */
     await load(fixture('browser-case-a'));
     const waveSel = '#monitorLeadList input[data-ch="12-Lead II"]';

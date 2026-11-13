@@ -22,7 +22,7 @@ adult case; alarm limits are HR 70–170, arterial systolic 70–140.
 | 09:15:00–09:18:00 | External pacing 100/min, wide paced complexes | Pacer marks on Monitor, snapshot 09:15:50 and strips; pacing time 180 s |
 | 09:14:40 | Pads impedance falls from open circuit to ~92 Ω | "Possible patient pad contact" |
 | 09:18:00–09:19:10 | **VF**; arterial pressure collapses; CPR from 09:18:05 | Arterial low alarm; CPR tab populated |
-| 09:18:05–09:20:40 | Compressions ~112/min (faster after 09:20:00), depth ~2.0 in falling late, release ~410 mm/s; pause 09:19:06–09:19:16; ventilations 20/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P3 CVP) |
+| 09:18:05–09:20:40 | Compressions ~112/min (faster after 09:20:00), depth ~2.0 in falling late, release ~410 mm/s; pause 09:19:06–09:19:16; ventilations 20/min | CPR rate, depth, release velocity, compression fraction ~94%; EtCO2 14–19 during CPR; coronary perfusion pressure from P1 diastolic (and P2 CVP) |
 | 09:19:02 / 09:19:10 | AED **SHOCK ADVISED**, **Shock Delivered** 100 J | Device rhythm analysis; shock on CPR timeline |
 | 09:19:10–09:20:45 | Organised rhythm 135/min with low pressure (PEA-like) while CPR continues | |
 | 09:18:45, 09:19:35, 09:20:05, 09:19:50, 09:20:20 | Treatments logged: IV Access, Epinephrine, Intubation, Amiodarone, Other | Purple treatment markers on the CPR graph, strips and cascade; Events list |
@@ -36,7 +36,7 @@ adult case; alarm limits are HR 70–170, arterial systolic 70–140.
 | 09:26:00–09:27:00 | **T1 probe disconnected** | Yellow box on T1; T1 gap in Trends |
 | 09:27:30–09:27:55 | **Apnoea 25 s**, no breaths, CO2 falls to 0 | Apnoea detected; no-breath flag |
 | 09:28:20–09:29:05 | Arterial systolic ~149 | Arterial high alarm (red) |
-| whole case | P1 arterial (auto-detected), P2 labelled **PA** ~28/12, 34/15 after ROSC, P3 CVP ~8 (auto-detected) | mPAP; CVP; site picker in Physiology |
+| whole case | Lines are named P1–P3 as on the monitor. P1 arterial, unlabelled on the monitor, P2 CVP ~8, unlabelled; no P3 and no pulmonary artery catheter | Unlabelled lines are typed from the waveform and marked as a guess (“Art?”, “CVP?”); a labelled one takes the monitor’s label; the drop-down in each line’s box in the parameter panel (and the picker on Physiology) changes any of them. CVP read as a mean |
 | whole case | T1 core 98.6 → 97.1 °F, T2 skin 96.4 → 95.6 °F, ΔT | Temperatures in Monitor, Trends, Vitals |
 | whole case | Patient 7 y male, 48 in, 55 lb, Pediatric mode | BSA (DuBois ~0.92 m²); CPR targets Child (PALS); "Adult-derived model" warning on the CPR page |
 

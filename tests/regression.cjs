@@ -1214,6 +1214,60 @@ test('a sample with the New Patient marker partway through excludes the earlier 
   assert.equal(r.sheet, true);
 });
 
+test('pressure lines keep the names P1-P3; the type comes from your choice, else the monitor label, else a marked guess', () => {
+  const a = app();
+  sampleModel(a, '{}');
+  const types = () => JSON.parse(a.run(`(()=>{ loadSites(); applySites();
+    return JSON.stringify([1,2,3].map(n=>({label:M.paramById['ibp'+n].label, sub2:M.paramById['ibp'+n].sub2,
+      src:ibpType(n).src, site:ibpType(n).site, text:paramText(M.paramById['ibp'+n],1400000).main.replace(/<[^>]+>/g,'')}))); })()`));
+  let r = types();
+  assert.deepEqual(r.map(x => x.label), ['P1', 'P2', 'P3'], 'never renamed after the monitor label');
+  assert.deepEqual(r.map(x => [x.site, x.src]), [['ART', 'guess'], ['PAP', 'monitor'], ['CVP', 'guess']]);
+  assert.deepEqual(r.map(x => x.sub2), ['Art (guess)', 'PA', 'CVP (guess)'], 'a guess is always marked');
+  assert.match(r[0].text, /^\d+\/\d+\(\d+\)$/, 'arterial: systolic/diastolic (mean)');
+  assert.match(r[2].text, /^\d+$/, 'venous: the mean only');
+  /* you choose: P2 is a CVP after all; it sticks for this case, and Automatic puts the label back */
+  /* the real setIbpType, with only the screen updates stubbed */
+  a.run(`renderMonitorChoices=renderPhysPane=refreshParamViews=drawMonitor=()=>{}; setIbpType(2,'CVP')`);
+  assert.equal(a.run(`JSON.parse(localStorage.getItem(siteKey()))[2]`), 'CVP', 'your choice is saved for this case');
+  assert.equal(a.run(`Object.keys(JSON.parse(localStorage.getItem(siteKey()))).join()`), '2', 'automatic types are not saved');
+  r = types();
+  assert.deepEqual([r[1].site, r[1].src, r[1].sub2], ['CVP', 'you', 'CVP']);
+  assert.equal(a.run('hemoLines().pap'), null, 'no PA results once P2 is not a PA line');
+  assert.match(r[1].text, /^\d+$/);
+  /* the choice carries to the other pages: Trends draws the venous line as its mean only,
+     Physiology lists it by its new type */
+  const trend = JSON.parse(a.run(`(()=>{ SEL.ids=['ibp1','ibp2']; TRD.hidden=new Set();
+    return JSON.stringify(buildAxis(M.paramById.ibp2.axis).series.map(x=>x.name)); })()`));
+  assert.ok(trend.includes('P1 Art? sys') && trend.includes('P1 Art? MAP'), trend.join());
+  assert.ok(trend.includes('P2 CVP mean') && !trend.includes('P2 CVP sys'), trend.join());
+  assert.deepEqual(JSON.parse(a.run(`JSON.stringify(hemoChanList().filter(c=>/^P\\d/.test(c.label)).map(c=>c.label))`)),
+    ['P1 — Arterial (guess)', 'P2 — Central venous', 'P3 — Central venous (guess)']);
+  a.run(`setIbpType(2,'')`);
+  r = types();
+  assert.deepEqual([r[1].site, r[1].src], ['PAP', 'monitor']);
+  /* the picker offers Automatic plus every site */
+  const sel = a.run('ibpTypeSelect(1)');
+  assert.match(sel, /Automatic: Art, guessed from the waveform/);
+  for (const s of ['Pulmonary artery', 'Central venous', 'Intracranial', 'Arterial']) assert.ok(sel.includes(s), s);
+  /* the compact one in the parameter box: short names, the guess marked */
+  const mini = a.run('ibpTypeSelect(1, true)');
+  assert.match(mini, /<option value="" selected>Art\?<\/option>/);
+  for (const s of ['>PA<', '>CVP<', '>ICP<', '>Art<']) assert.ok(mini.includes(s), s);
+  assert.match(a.run('ibpTypeSelect(2, true)'), /<option value="" selected>PA<\/option>/, 'a monitor label is not a guess');
+});
+test('the child sample has an arterial line and a CVP, unlabelled, and no PA or P3', () => {
+  const a = app();
+  sampleModel(a, '{child:true}');
+  const r = JSON.parse(a.run(`(()=>{ loadSites(); applySites();
+    return JSON.stringify({ids:['ibp1','ibp2','ibp3'].filter(id=>M.paramById[id]), labels:M.ibpLabel,
+      types:[1,2].map(n=>ibpType(n).site+':'+ibpType(n).src), pap:hemoLines().pap}); })()`));
+  assert.deepEqual(r.ids, ['ibp1', 'ibp2']);
+  assert.deepEqual([r.labels[1], r.labels[2]], ['P1', 'P2']);
+  assert.deepEqual(r.types, ['ART:guess', 'CVP:guess']);
+  assert.equal(r.pap, null);
+});
+
 test('monitor waveform choices survive absent channels, case changes and settings reloads', () => {
   const nodes={'#monitorLeadList':{innerHTML:''}};
   const inputs=[{dataset:{ch:'12-Lead I'},checked:false}, {dataset:{ch:'12:12-Lead I'},checked:true}];
