@@ -539,6 +539,21 @@ windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, ch
 and synthetic integration regressions.
 Synthetic success verifies these scenarios, not accuracy on real clinical recordings.
 
+## Synthetic test cases
+
+`node tools/make-test-case.cjs` writes `test-cases/synthetic-cardiac.zol`, a made-up
+30-minute case (no real patient or device) that exercises every view and algorithm:
+sinus rhythm with sinus arrhythmia, AF with a pulse deficit, a lead switch, bradycardia
+with a pause, external pacing, VF with CPR, a shock and ROSC, ventilated pulse-pressure
+variation, a desaturation, a bronchospasm-shaped capnogram, apnoea, probe disconnects,
+NIBP readings, alarms, a zeroing and fast-flush test, 12-leads and snapshots. Its lines are
+arterial, **PA** and CVP, with two temperatures. `--neuro` writes `synthetic-neuro.zol`
+instead: arterial, CVP and ICP lines (CPP, and PRx that is negative before the arrest and
+positive after ROSC) and an ECG recorded at diagnostic bandwidth so PR and QT are measured.
+
+Each case comes with `<name>.expected.md`, a timeline of what happens and what the viewer
+should find. The output is seeded, so it is the same on every run.
+
 ## Sources
 
 Published sources behind the methods, formulas and thresholds the viewer uses. The same list, with what each is used for, is in the viewer under **Settings › Sources**, each result in the Physiology tab links its own, and the CPR tab links its targets. Links are DOIs, checked against the title and authors; the two that are not DOIs are the issuing body's own page. Where the original has no DOI (Bazett 1920), the link is to its reprint.

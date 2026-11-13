@@ -6,6 +6,22 @@ validate the underlying detectors or turn derived values into diagnostic measure
 
 ## Corrected in this revision
 
+Found with the synthetic test cases (`tools/make-test-case.cjs`), whose answers are known:
+
+- **Fast-flush damping test missed every flush.** Invasive pressures are stored as identical
+  sample pairs; the peak finder compared neighbouring samples, so each falling pair read as a
+  peak and each rising pair as a trough. Runs of equal values are now collapsed first. A
+  synthetic 11 Hz, ζ≈0.20 flush now reads 10.7 Hz, ζ 0.23.
+- **PR read long at faster rates.** The P-wave search took its baseline from the start of its
+  window, which sat on the previous T wave, and took that T wave as the P wave (276 ms against
+  a true 160 at 100/min). The baseline is now the PR segment, the search starts after the
+  previous T wave ends, and only a local peak counts. PR now reads 156–160 ms from 48 to 100/min.
+- **QT end wandered with rate.** The baseline came from just before the next QRS (the next
+  P wave at higher rates) and the steepest slope could be found on that P wave; single-sample
+  slopes were also dominated by noise. QT now uses the PR-segment baseline, the T wave's own
+  return limb and a ±10 ms slope; errors went from −21…+33 ms to a steady −14 ms.
+
+
 | Area | Previous behavior | Current behavior |
 | --- | --- | --- |
 | Trend parsing | Numeric zero was treated as missing. | Valid zero values survive, including wrapped values. |

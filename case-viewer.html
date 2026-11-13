@@ -516,6 +516,9 @@ body.no-transport #transport{display:none}
 .tbar .elapsed{font:13px var(--mono);color:var(--dim);min-width:74px}
 .grp{display:flex;gap:3px;align-items:center}
 .grp>span{font-size:11px;color:var(--dim);margin-right:2px}
+/* a labelled set of related buttons: the label sits on the box's top edge */
+fieldset.tgrp{border:1px solid var(--line2);border-radius:7px;padding:1px 4px 3px;margin:0;min-width:0}
+fieldset.tgrp>legend{padding:0 4px;font-size:10px;line-height:1;color:var(--dim);margin-left:2px}
 #timeline{position:relative;height:78px;border:1px solid var(--line);border-radius:7px;background:var(--bg);overflow:hidden;cursor:crosshair;user-select:none}
 #timeline canvas{position:absolute;inset:0;width:100%;height:100%}
 #tlCursor{position:absolute;top:0;bottom:0;width:1px;background:#fff;pointer-events:none;box-shadow:0 0 5px rgba(255,255,255,.7)}
@@ -842,9 +845,11 @@ dialog input[type=text]{width:100%}
             <button id="btnZoomOut" title="Zoom out">−</button>
             <span class="mono" id="winNow" style="color:var(--dim);min-width:34px"></span>
           </div>
-          <div class="grp adv">
-            <button id="btnCal" title="Calipers: drag on a trace to measure (C)" aria-keyshortcuts="C">⟺<span class="keyhint" aria-hidden="true">(C)</span></button>
+          <fieldset class="grp tgrp adv"><legend>Calipers</legend>
+            <button id="btnCal" title="Calipers: drag on a trace to measure (C)" aria-keyshortcuts="C">Caliper<span class="keyhint" aria-hidden="true">(C)</span></button>
             <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
+          </fieldset>
+          <div class="grp adv">
             <button id="btnResetView" title="Reset window, gain and tools">Reset</button>
             <button id="btnGrid" class="on" title="ECG grid">Grid</button>
             <button id="btnBeats" title="Mark detected beats">Beats</button>
@@ -856,6 +861,7 @@ dialog input[type=text]{width:100%}
           <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range." aria-keyshortcuts="A">＋ Annotate<span class="keyhint" aria-hidden="true">(A)</span></button>
           <button id="btnPrintMonitor" title="Print current monitor strip">Print</button>
           <button id="btnPng" title="Save current strip as PNG">PNG</button>
+          <button id="btnCopy" title="Copy the current strip to the clipboard as an image">Copy</button>
         </div>
         <div id="timeline">
           <canvas id="tlCanvas"></canvas>
@@ -976,6 +982,22 @@ const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&l
 
 function toast(msg,ms){ const t=$('#toast'); t.textContent=msg; t.classList.add('on');
   clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms||2200); }
+/* Puts a canvas on the clipboard as a PNG, ready to paste into a report or a
+   message. The image is handed over as a promise so the browser still counts the
+   click that asked for it. Nothing leaves the computer: the clipboard is local. */
+async function copyCanvasImage(cv, what){
+  if(!cv) return;
+  if(!(navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem!=='undefined')){
+    toast('This browser cannot copy images to the clipboard. Use PNG to save it instead.'); return;
+  }
+  try{
+    const png=new Promise((res,rej)=>cv.toBlob(b=> b ? res(b) : rej(new Error('the image could not be made')), 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': png})]);
+    toast((what||'Image')+' copied to the clipboard');
+  }catch(e){
+    toast('Could not copy the image'+(e && e.message ? ' ('+e.message+')' : '')+'. Use PNG to save it instead.');
+  }
+}
 function download(name, blob){ const u=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),4000); }
 function csvCell(v){ v = v==null?'':String(v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
@@ -3512,11 +3534,21 @@ function flushTests(ch){
         (typeof ibpZeroEvents==='function' && ibpZeroEvents().some(z=>Math.abs(z.t-tRel)<15000));
       if(nearZero){ i=Math.max(j+1, i+Math.round(ch.hz)); continue; }
       const end=Math.min(n, start+Math.round(ch.hz*1.2));
-      /* peaks and troughs of the ringing that follows */
-      const ext=[];
-      for(let k=start+1;k<end-1;k++){
+      /* peaks and troughs of the ringing that follows. The monitor stores invasive
+         pressures as identical pairs of samples, so a plain neighbour test saw every
+         falling pair as a peak and every rising pair as a trough and never measured
+         the ringing: runs of equal values are collapsed first, keeping the first
+         sample of each run. */
+      const run=[];
+      for(let k=start;k<end;k++){
         const v=d[k]; if(!(v===v)) continue;
-        if((v>=d[k-1]&&v>d[k+1]) || (v<=d[k-1]&&v<d[k+1])) ext.push({k, v, up:v>=d[k-1]});
+        if(!run.length || v!==run[run.length-1].v) run.push({k, v});
+      }
+      const ext=[];
+      for(let r=1;r<run.length-1;r++){
+        const v=run[r].v, a=run[r-1].v, c=run[r+1].v;
+        if(v>a && v>c) ext.push({k:run[r].k, v, up:true});
+        else if(v<a && v<c) ext.push({k:run[r].k, v, up:false});
       }
       if(ext.length>=4){
         const peaks=ext.filter(e=>e.up);
@@ -5393,17 +5425,32 @@ function qrsBounds(ch, tR){
   return {on, off, dur:off-on};
 }
 /* P wave: largest deflection in the PR search window before QRS onset */
-function pWave(ch, qOn, prevOff){
+/* the isoelectric reference for a beat: the PR segment just before QRS onset */
+function prBaseline(ch, qOn){
+  const dt=1000/ch.hz, v=[];
+  for(let t=qOn-28;t<=qOn-8;t+=dt){ const x=sampleAt(ch,t); if(x===x) v.push(x); }
+  if(!v.length) return null;
+  v.sort((a,b)=>a-b); return v[v.length>>1];
+}
+function pWave(ch, qOn, prevOff, prevTOff){
   const dt=1000/ch.hz, at=t=>sampleAt(ch,t);
-  const start=Math.max(qOn-300, prevOff!=null?prevOff+80:qOn-300);
+  /* At faster rates the previous T wave runs into a fixed 300 ms window. Start after
+     it ends when that is known, and take the baseline from the PR segment rather
+     than from the start of the window, which can sit on the T wave's tail; and only
+     a real local peak counts, not the T wave still falling at the window's edge. */
+  const start=Math.max(qOn-300, prevOff!=null?prevOff+80:qOn-300, prevTOff!=null?prevTOff+20:-Infinity);
   if(qOn-start<70) return null;
-  let base=0,n=0;
-  for(let t=start;t<start+30;t+=dt){ const v=at(t); if(v===v){ base+=v; n++; } }
-  base = n?base/n:0;
+  let base=prBaseline(ch, qOn);
+  if(base==null){ let s=0,n=0;
+    for(let t=start;t<start+30;t+=dt){ const v=at(t); if(v===v){ s+=v; n++; } }
+    base = n?s/n:0; }
   let best=null, bestA=0;
-  for(let t=start;t<qOn-20;t+=dt){
+  const lag=Math.max(dt, 12);
+  for(let t=start+lag;t<qOn-20;t+=dt){
     const v=at(t); if(v!==v) continue;
     const a=Math.abs(v-base);
+    const l=at(t-lag), r=at(t+lag);
+    if(!(Math.abs(l-base)<a && Math.abs(r-base)<a)) continue;
     if(a>bestA){ bestA=a; best=t; }
   }
   if(best==null || bestA<0.02) return null;
@@ -5417,14 +5464,17 @@ function pWave(ch, qOn, prevOff){
   return {peak:best, on, off, amp:bestA, dur:off-on};
 }
 /* T offset by the tangent method: steepest descent of the T wave back to baseline */
-function tWave(ch, qOff, nextOn){
+function tWave(ch, qOff, nextOn, qOn){
   const dt=1000/ch.hz, at=t=>sampleAt(ch,t);
   const win=Math.min(nextOn!=null?nextOn-qOff-40:520, 560);
   if(win<160) return null;
   const start=qOff+60, end=qOff+win;
-  let base=0,n=0;
-  for(let t=end-40;t<end;t+=dt){ const v=at(t); if(v===v){ base+=v; n++; } }
-  base=n?base/n:0;
+  /* baseline from this beat's PR segment; the last 40 ms before the next QRS used
+     before reaches the next P wave once the rate is up, which pushes T offset late */
+  let base=qOn!=null ? prBaseline(ch, qOn) : null;
+  if(base==null){ let s=0,n=0;
+    for(let t=end-40;t<end;t+=dt){ const v=at(t); if(v===v){ s+=v; n++; } }
+    base=n?s/n:0; }
   let tp=null, ta=0;
   for(let t=start;t<end-40;t+=dt){
     const v=at(t); if(v!==v) continue;
@@ -5432,13 +5482,20 @@ function tWave(ch, qOff, nextOn){
     if(a>ta){ ta=a; tp=t; }
   }
   if(tp==null || ta<0.02) return null;
-  /* steepest slope after the T peak, extrapolated to baseline */
+  /* steepest slope on the T wave's own return limb, extrapolated to baseline. The
+     search stops once the trace is back near baseline: past that point, at faster
+     rates, lies the next P wave, whose slope used to be taken instead. */
+  const pol = at(tp)>base ? 1 : -1;
+  /* slope over +/-10 ms, not sample to sample: at 250 Hz ordinary ECG noise gives
+     single-sample slopes as steep as the T wave's own, which put the tangent early */
+  const h=Math.max(dt, 10);
   let sMax=0, sAt=null, sVal=null;
-  for(let t=tp;t<end-dt;t+=dt){
-    const a=at(t), b=at(t+dt);
-    if(!(a===a&&b===b)) continue;
-    const g=(b-a)/(dt/1000);
-    if(Math.abs(g)>Math.abs(sMax)){ sMax=g; sAt=t; sVal=a; }
+  for(let t=tp+h;t<end-h;t+=dt){
+    const v=at(t), a=at(t-h), b=at(t+h);
+    if(!(v===v&&a===a&&b===b)) continue;
+    if((v-base)*pol < ta*0.1) break;
+    const g=(b-a)/(2*h/1000);
+    if(g*pol<0 && Math.abs(g)>Math.abs(sMax)){ sMax=g; sAt=t; sVal=v; }
   }
   if(sAt==null || sMax===0) return null;
   const off = sAt + (base-sVal)/sMax*1000;
@@ -6106,12 +6163,14 @@ function sigCompute(winArg){
     const irregular = rh.classification==='irregularly_irregular';
     const prs=[], qts=[], pdur=[];
     if(diag){
+      let prevTOff=null;
       for(let i=1;i<eB.length;i++){
-        const b=eB[i]; if(b.qrsOn==null) continue;
-        const p=pWave(ec, b.qrsOn, eB[i-1].qrsOff);
+        const b=eB[i]; if(b.qrsOn==null){ prevTOff=null; continue; }
+        const p=pWave(ec, b.qrsOn, eB[i-1].qrsOff, prevTOff);
         if(p){ prs.push(b.qrsOn-p.on); pdur.push(p.dur); }
-        const t=tWave(ec, b.qrsOff, eB[i+1]?eB[i+1].qrsOn:null);
+        const t=tWave(ec, b.qrsOff, eB[i+1]?eB[i+1].qrsOn:null, b.qrsOn);
         if(t && t.off!=null) qts.push(t.off-b.qrsOn);
+        prevTOff = t && t.off!=null ? t.off : null;
       }
     }
     const prLim = !diag ? ['requires_diagnostic_bandwidth_acquisition']
@@ -9992,15 +10051,18 @@ function renderEcgPane(){
           (String(PAPER.perRow)===v?' selected':'')+'>'+(v==='auto'?'fit width':v+' s')+'</option>').join('')+
         '</select></label>'+
       '<label style="color:var(--dim);font-size:12px"><input type="checkbox" id="stripAll"> include pressure / CO2</label>'+
-      '<button id="stripCal" title="Arm the calipers, then drag across the strip">⟺ Calipers</button>'+
+      '<fieldset class="grp tgrp"><legend>Calipers</legend>'+
+      '<button id="stripCal" title="Arm the calipers, then drag across the strip">Caliper</button>'+
       '<button id="stripMarch" title="March out: repeat the caliper interval along the strip to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March'+keyHint('M')+'</button>'+
       '<button id="stripCalClr" title="Clear the caliper (or double-click the strip)">Clear</button>'+
+      '</fieldset>'+
       '<button type="button" id="paperZoomOut" aria-label="Zoom out">−</button>'+
       '<label aria-label="ECG zoom percentage"><input class="zoom-input" type="number" id="paperZoomValue" min="25" max="400" step="5" value="100">%</label>'+
       '<button type="button" id="paperZoomIn" aria-label="Zoom in">+</button>'+
       '<button type="button" id="paperFit">Fit width</button>'+
       '<button type="button" id="paperPrint">Print</button>'+
       '<button id="stripPng">Save PNG</button>'+
+      '<button id="stripCopy" title="Copy the strip or 12-lead to the clipboard as an image">Copy</button>'+
     '</div>'+
     '<div class="note-inline" style="margin:4px 0 8px">Drag across the strip to measure — '+
     'the caliper reads the interval, the equivalent rate and the amplitude. Drag an upright to resize it or the middle to slide it. '+
@@ -10106,6 +10168,7 @@ function renderEcgPane(){
   if(PAPER.resizeHandler) window.removeEventListener('resize',PAPER.resizeHandler);
   PAPER.resizeHandler=fitPaper;
   window.addEventListener('resize',PAPER.resizeHandler);
+  $('#stripCopy').onclick = ()=> copyCanvasImage($('#paper'), 'ECG image');
   $('#stripPng').onclick = ()=> $('#paper').toBlob(bl=>
     download(M.caseId+'-strip-'+fmtClock(M.t0Wall+APP.cursor).replace(/:/g,'')+'.png', bl));
   if(twelve.length) $$('#snapList button')[M.snapshots.indexOf(twelve[0])].click();
@@ -10590,6 +10653,10 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-12', items:[
+    'Fixed: the arterial fast-flush (damping) test now works on the monitor’s paired pressure samples; it was missing flushes entirely.',
+    'Fixed: PR no longer mistakes the previous T wave for the P wave at faster rates, and QT no longer runs into the next P wave; both use the PR segment as baseline.',
+    'Copy buttons beside PNG put the Monitor strip, an ECG strip or a 12-lead on the clipboard as an image, ready to paste.',
+    'The calipers button is labelled Caliper, and it sits with March in a box labelled Calipers, on the Monitor and on ECG strips.',
     'Buttons a key toggles show that key in parentheses: play (Space), Annotate (A), calipers (C), March (M), theme (T) and the event list (E). Hidden on touch screens.',
     'Monitor: when an invasive line was zeroed, the pressure row shows a ZERO flag with the time, a dashed line, and a tick at the 0 mmHg level.',
     'Monitor: a pressure trace that goes past the monitor scale (above 180, a flush, a zero) no longer runs into the row edge; the row widens its scale in round steps and the scale label shows the range in use.',
@@ -10885,6 +10952,7 @@ function wire(){
   $('#logClose').onclick = ()=> $('#logDlg').close();
   $('#logDlg').addEventListener('click', ev=>{ if(ev.target===$('#logDlg')) $('#logDlg').close(); });
   syncLogBadge();
+  $('#btnCopy').onclick = ()=> copyCanvasImage($('#waveCanvas'), 'Monitor strip');
   $('#btnPng').onclick = ()=> $('#waveCanvas').toBlob(bl=>
     download(M.caseId+'-strip-'+fmtClock(M.t0Wall+APP.cursor).replace(/:/g,'')+'.png', bl));
   $('#btnPrintMonitor').onclick=()=>printCanvas($('#waveCanvas'),

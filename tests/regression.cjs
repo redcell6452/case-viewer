@@ -931,3 +931,48 @@ test('a pressure row grows its scale in round steps to fit values past the monit
   assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,180], -30, 303))')), [-40,320]);
   assert.deepEqual(JSON.parse(a.run('JSON.stringify(fitRange([0,100], 50, 101))')), [0,120]);
 });
+
+test('a fast-flush test is measured on pressures stored as identical sample pairs', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const hz=125, n=hz*6, d=new Float32Array(n);
+    for(let i=0;i<n;i++){ const t=i/hz; let p=90;
+      if(t>=1 && t<2.2) p=300;
+      if(t>=2.2){ const x=t-2.2; p=90+45*Math.exp(-x/0.07)*Math.cos(2*Math.PI*11*x); }
+      d[i]=p; }
+    for(let i=1;i<n;i+=2) d[i]=d[i-1];               /* identical pairs, as the monitor stores them */
+    M.events=[]; M.deviceLog=[];
+    const f=flushTests({hz, segs:[{t0:0, n, data:d}]});
+    return JSON.stringify(f.map(x=>({t:x.t, fn:+x.fn.toFixed(1), zeta:+x.zeta.toFixed(2)})));
+  })()`));
+  assert.equal(r.length, 1);
+  assert.ok(Math.abs(r[0].t - 2200) < 20);
+  assert.ok(r[0].fn > 8 && r[0].fn < 14, 'natural frequency ' + r[0].fn);
+  assert.ok(r[0].zeta > 0.05 && r[0].zeta < 0.5, 'damping ' + r[0].zeta);
+});
+
+test('PR and QT stay on their own waves at 100/min (no T wave taken for P, no P wave taken for T end)', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    const hz=250, rr=0.6, n=hz*12, d=new Float32Array(n), G=(x,m,s)=>Math.exp(-0.5*((x-m)/s)**2);
+    const Rs=[]; for(let t=0.5;t<11.5;t+=rr) Rs.push(t);
+    for(let i=0;i<n;i++){ const t=i/hz; let v=0;
+      for(const R of Rs){ const x=t-R; if(x<-0.4||x>0.6) continue;
+        v+=0.15*G(x,-0.155,0.022)-0.08*G(x,-0.036,0.009)+1.1*G(x,0,0.0135)-0.25*G(x,0.036,0.011)+0.32*G(x,0.227,0.04); }
+      d[i]=v; }
+    const ch={hz, segs:[{t0:0, n, data:d}]};
+    const out=[];
+    for(let k=2;k<Rs.length-1;k++){
+      const R=Rs[k]*1000, Rp=Rs[k-1]*1000;
+      const tp=tWave(ch, Rp+45, R-45, Rp-45);
+      const p=pWave(ch, R-45, Rp+45, tp&&tp.off);
+      const t=tWave(ch, R+45, Rs[k+1]*1000-45, R-45);
+      out.push({pr: p ? (R-45)-p.on : null, qt: t&&t.off ? t.off-(R-45) : null});
+    }
+    return JSON.stringify(out);
+  })()`));
+  const med = xs => { const s = xs.filter(x=>x!=null).sort((x,y)=>x-y); return s[s.length>>1]; };
+  const pr = med(r.map(x=>x.pr)), qt = med(r.map(x=>x.qt));
+  assert.ok(pr > 130 && pr < 180, 'PR ' + pr);          /* built at 160 ms */
+  assert.ok(qt > 320 && qt < 370, 'QT ' + qt);          /* tangent end of a 360 ms QT */
+});

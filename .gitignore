@@ -10,3 +10,9 @@
 !/tests/
 /tests/*
 !/tests/regression.cjs
+!/tools/
+/tools/*
+!/tools/make-test-case.cjs
+!/test-cases/
+/test-cases/*
+!/test-cases/*.expected.md
