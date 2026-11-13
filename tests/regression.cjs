@@ -914,3 +914,12 @@ test('parameter alarm boxes: monitor flag or a still-crossed limit is red, a sen
   })()`));
   assert.deepEqual(st, {hrFlag:'crit', hrClear:null, spo2Probe:'warn', spo2Back:null, spo2Low:'crit', spo2Recovered:null});
 });
+
+test('the changelog is dated, newest first, and its seen-marker never travels in a settings backup', () => {
+  const a = app();
+  const log = JSON.parse(a.run('JSON.stringify(CHANGELOG)'));
+  assert.ok(log.length >= 2 && log.every(e => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.items.length));
+  assert.deepEqual(log.map(e=>e.date), [...log.map(e=>e.date)].sort().reverse());
+  assert.ok(a.run('DEVICE_ONLY_KEYS').includes('zollviewer:logSeen'));
+  assert.ok(a.run('changelogHtml()').includes('<time datetime="'+log[0].date+'"'));
+});

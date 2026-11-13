@@ -24,6 +24,12 @@ drop a `.zol` or `.zip` on it, or use *Open a file…*.
 The opening screen, case header and browser title show **Rev 2**. The revision is
 defined by `APP_REVISION` in the viewer; increment it when distributing an updated file.
 
+Across the top of a loaded case: **Local only** explains how the page is kept offline;
+**ⓘ** opens the case details in full (timing, device, patient, contents); the theme
+switch; **Open…** returns to the case list (so does clicking the title); **GitHub**; and
+**Changelog**, a dated list of what changed in each update. On a phone, GitHub and the
+changelog are under Settings › Project.
+
 ## Case library
 
 The landing page lists every `.zol`, `.zip` and `.json` in the chosen folder, descending
@@ -64,12 +70,12 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | Scrolling waveforms with a numerics panel, event markers, annotation bands, calipers and playback. |
+| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), event markers, sticky notes and annotation bands, calipers with march-out, and playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. |
 | **Vitals** | Every selected parameter as a table at a chosen interval, with resizable columns, CSV export and a pop-out window. |
-| **Annotations** | Your notes on time ranges, with import/export. |
+| **Annotations** | Your sticky notes and annotated time ranges, with import/export. |
 | **CPR** | Resuscitation quality: the combined rate/depth quality graph, case metrics, and the stacked performance strips. |
 | **Analysis** | Whole-case summary: what the recording contains, vital extremes with times, notable events, the device's own determinations. Nothing here moves with the cursor. |
 | **Settings** | Theme, interface size, monitor defaults, rate-averaging windows, ECG calibration, list defaults, resets. Back up and restore your settings as a file. The viewer remembers its setup between runs. |
@@ -115,7 +121,7 @@ shared across all three views. Averaging windows for the derived rates are in Se
 
 - **Space** play/pause · **← →** step 1 s (**Shift** 10 s) · **Home/End** ends
 - **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **T** theme
-- **E** event list · **+ −** zoom · **1**–**7** switch tabs
+- **E** event list · **+ −** zoom · **1**–**9** switch tabs (Monitor through Settings)
 - Speed 0.25×–20×; sweep window 1–60 s; ECG gain 5–40 mm/mV
 - **Drag the strip** left or right to move through the recording, like pulling paper
   (dragging right goes back in time); the **mouse wheel** over the strip does the same
@@ -134,8 +140,8 @@ shared across all three views. Averaging windows for the derived rates are in Se
   warnings, square for snapshots, dot for notes — and annotations fly a flag.
 - The **event list carries a marker rule** at the cursor, so you can see where playback
   sits between events. It follows along while playing.
-- **Hide events / Show events** in the top bar toggles the left event list; **E** does
-  the same. The panel also has a **Hide** button. The desktop choice is remembered,
+- The **event-list button** at the left of the tab row, beside Monitor, shows or hides
+  the left event list; **E** does the same. The desktop choice is remembered,
   and the waveforms expand into the available space. On narrow screens, the list
   starts closed and opens as an overlay.
 - **Drag the grip above the transport bar** to make the bottom panel taller. The extra
@@ -498,13 +504,14 @@ Raw `.zol`, zipped `.zol`, and a bare JSON export all load.
 ## On a phone
 
 Below 900px the layout collapses to a single column: the event list becomes a full-screen
-overlay opened with **Show events**, secondary controls tuck behind **⋯**, and the monitor page scrolls
+overlay opened with the event-list button at the left of the tab row, secondary controls tuck behind **⋯**, and the monitor page scrolls
 — waveforms on top, numerics flowing underneath.
 
 The shell is sized in `dvh` so the transport bar cannot be pushed under the browser
 chrome, and that height is divided by the interface zoom so scaling stays exact. Only
-two things deliberately capture touch: the timeline, which is a scrubber, and an armed
-caliper. Everything else scrolls and pans normally, and a strip wider than the screen
+a few things deliberately capture touch: the timeline, which is a scrubber; an armed
+caliper or note placement; and a sideways drag on the Monitor strip, which moves through
+the recording (an up-down swipe still scrolls the page). Everything else scrolls and pans normally, and a strip wider than the screen
 can be panned sideways.
 
 ## Requirements
@@ -522,7 +529,8 @@ malformed input before adding any notes.
 
 With Node.js 24.2 or later, run `node --test tests/regression.cjs`. No packages need to be
 installed. The suite includes the 25 built-in arterial checks plus parser, annotation,
-windowing, case-isolation, HRV, capnography and synthetic integration regressions.
+windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, changelog
+and synthetic integration regressions.
 Synthetic success verifies these scenarios, not accuracy on real clinical recordings.
 
 ## Sources

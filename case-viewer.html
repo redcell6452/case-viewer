@@ -572,6 +572,15 @@ canvas.chart{width:100%;display:block;border:1px solid var(--line);border-radius
 .annrow .cat{font:11px var(--mono);color:var(--dim2);margin-top:2px}
 dialog{background:var(--bg2);color:var(--fg);border:1px solid var(--line2);border-radius:12px;padding:0;width:min(520px,92vw)}
 dialog::backdrop{background:#000a}
+#logDlg{width:min(640px,94vw)}
+.logbody{max-height:min(70vh,640px);overflow:auto}
+.logbody section+section{border-top:1px solid var(--line);padding-top:10px}
+.logbody h3{margin:0 0 6px;font-size:13px;font-weight:600}
+.logbody h3 .logrel{font-weight:400;color:var(--dim);margin-left:8px}
+.logbody ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+.logbody li{font-size:13px;line-height:1.45;max-width:72ch}
+#btnLog.hasnew::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--ok);margin-left:6px;vertical-align:middle}
 dialog .dh{padding:12px 15px;border-bottom:1px solid var(--line);font-weight:600}
 dialog .db{padding:14px 15px;display:flex;flex-direction:column;gap:11px}
 dialog .df{padding:11px 15px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
@@ -656,7 +665,7 @@ dialog input[type=text]{width:100%}
   button.info.localbadge{padding:4px 7px}
   button.info.localbadge span{display:none}
   /* no room for a fifth header button on a phone: the link is in Settings instead */
-  #btnRepo{display:none}
+  #btnRepo,#btnLog{display:none}
   .num .val{font-size:22px}
   #numerics{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
   .tabs button{padding:7px 10px;font-size:13px}
@@ -736,6 +745,7 @@ dialog input[type=text]{width:100%}
       <a id="btnRepo" class="btnlink" href="https://github.com/redcell6452/case-viewer"
          target="_blank" rel="noopener noreferrer"
          title="Source code, documentation and sources on GitHub (opens in a new tab)">GitHub</a>
+      <button id="btnLog" type="button" aria-haspopup="dialog" title="What changed in each update">Changelog</button>
     </div>
     <div id="casePanel" class="casepanel" role="dialog" aria-label="Case details" hidden></div>
     <div class="tabrow">
@@ -852,6 +862,14 @@ dialog input[type=text]{width:100%}
     </div>
   </main>
 </div>
+
+<dialog id="logDlg" aria-labelledby="logDlgTitle">
+  <div class="dh" style="display:flex;align-items:center;gap:8px">
+    <span id="logDlgTitle" style="flex:1">Changelog</span>
+    <button id="logClose" type="button">Close</button>
+  </div>
+  <div class="db logbody" id="logBody"></div>
+</dialog>
 
 <dialog id="chartDlg">
   <div class="dh">
@@ -10428,6 +10446,8 @@ function renderSettings(){
       row('Source code', '<a class="btnlink" href="https://github.com/redcell6452/case-viewer" '+
         'target="_blank" rel="noopener noreferrer">Open on GitHub</a>',
         'Code, documentation and the format notes. Opens in a new tab.')+
+      row('Changelog', '<button id="cfgLog" type="button">Show changelog</button>',
+        'What changed in each update, with dates.')+
     '</div>'+
     '<h2 class="sec">Sources</h2>'+
     '<p class="srcintro">Published sources behind the methods, formulas and thresholds this '+
@@ -10495,6 +10515,7 @@ function renderSettings(){
   on('#cfgExport','click',()=>exportSettings($('#cfgExportAnn') && $('#cfgExportAnn').checked));
   on('#cfgImport','click',()=>$('#cfgImportFile').click());
   on('#cfgImportFile','change',e=>{ const f=e.target.files && e.target.files[0]; if(f) importSettings(f); e.target.value=''; });
+  on('#cfgLog','click',openChangelog);
   on('#cfgReset','click',()=>{ if(confirm('Restore all settings to defaults?')){
       Object.assign(CFG, CFG_DEFAULT); cfgSave(); applyUiScale(); applyCfgToSession();
       setTheme((window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');
@@ -10506,7 +10527,60 @@ function renderSettings(){
    backup is those keys and their stored text, as JSON. Recent files and the chosen
    folder name belong to this computer; annotations are opt-in. */
 const SETTINGS_KIND = 'case-viewer-settings';
-const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName'];
+const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer:logSeen'];
+/* What changed in each published update, newest first. Dates are when the update
+   went live on the published page. */
+const CHANGELOG = [
+  {date:'2026-11-12', items:[
+    'Changelog: this list, from the button beside GitHub (on a phone, under Settings › Project).',
+    'Blood pressures read like the monitor: systolic/diastolic with the mean in large parentheses, e.g. 133/66 (89).',
+    'Monitor: parameters in alarm are boxed and flash, red for alarms and yellow for sensor alerts such as a probe off. Flash on the toolbar turns the flashing off.',
+    'Monitor: the Parameters button and the (i) explanations now work while the recording is playing.',
+    'Monitor: drag the strip to move through the recording; while paused, the parameter panel follows the pointer and a click pins it.',
+    'Annotate now drops a sticky note where you click on a trace. Drag a note to move it, click it to edit.',
+    'The playhead is labelled with the case time on the time axis.',
+    'The case details (ⓘ) button opens everything about the case in full, on any screen size.',
+    'Formulas: an A–Z index, with abbreviations listed beside full names.',
+    'March-out calipers repeat a measured interval along the trace to check regularity, on the Monitor and on ECG paper.',
+    'Every Monitor parameter has an (i) explanation.',
+    'The start page and header state plainly that case files never leave the computer, and the page now blocks all network requests. The title returns to the start page. The event-list button sits at the left of the tab row.',
+    'Explanations for every derived measure, a searchable Formulas tab, remembered setup, and settings import and export. Invasive pressures are smoothed for display only. Physiology moved after Trends.',
+    'Links to the published sources behind the methods. Monitor display changes are marked, and stretches with no recorded waveform are hatched.',
+    'Corrections from an algorithm review: ECG scale read from the file; beat detection, pauses, QRS axis and 12-lead timing; vitals values and staleness; arterial line dP/dt and damping; breathing and SpO₂ estimates; time zones and clock drift; CPR periods and compression fraction.',
+    'Notice that this is an independent project and not a medical device.',
+    'Vitals follow the NIBP auto cycle, show P1–P3 and optional line-zeroing rows, and mark off-scale (+++/---) and alarm-flagged values; the table fits the window. Pacer pulses are marked on the traces, snapshots and strips. A quieter, neutral design.'
+  ]},
+  {date:'2026-11-01', items:[
+    'First public release (Rev 2): the offline viewer, its documentation and regression tests.'
+  ]}
+];
+function fmtLogDate(d){
+  const t=Date.parse(d+'T00:00:00Z');
+  return isFinite(t) ? new Date(t).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}) : d;
+}
+function changelogHtml(){
+  return CHANGELOG.map((e,i)=>'<section><h3><time datetime="'+esc(e.date)+'">'+esc(fmtLogDate(e.date))+'</time>'+
+      (i===0?'<span class="logrel">latest</span>':'')+'</h3>'+
+    '<ul>'+e.items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></section>').join('');
+}
+/* a small dot on the button when there is an update this browser has not opened
+   yet; a first visit starts with everything counted as seen */
+function syncLogBadge(){
+  const b=$('#btnLog'); if(!b) return;
+  const latest=CHANGELOG[0].date; let seen=null;
+  try{ seen=localStorage.getItem('zollviewer:logSeen');
+    if(seen==null){ localStorage.setItem('zollviewer:logSeen', latest); seen=latest; } }catch(e){ seen=latest; }
+  const fresh = seen < latest;
+  b.classList.toggle('hasnew', fresh);
+  b.setAttribute('aria-label', fresh ? 'Changelog (new update)' : 'Changelog');
+}
+function openChangelog(){
+  $('#logBody').innerHTML=changelogHtml();
+  try{ localStorage.setItem('zollviewer:logSeen', CHANGELOG[0].date); }catch(e){}
+  syncLogBadge();
+  $('#logDlg').showModal();
+  $('#logBody').scrollTop=0;
+}
 function settingsKeys(includeAnn){
   const out=[];
   try{
@@ -10743,6 +10817,10 @@ function wire(){
   };
   $('#btnLoad').onclick = goHome;
   if($('#btnHome')) $('#btnHome').onclick = goHome;
+  $('#btnLog').onclick = openChangelog;
+  $('#logClose').onclick = ()=> $('#logDlg').close();
+  $('#logDlg').addEventListener('click', ev=>{ if(ev.target===$('#logDlg')) $('#logDlg').close(); });
+  syncLogBadge();
   $('#btnPng').onclick = ()=> $('#waveCanvas').toBlob(bl=>
     download(M.caseId+'-strip-'+fmtClock(M.t0Wall+APP.cursor).replace(/:/g,'')+'.png', bl));
   $('#btnPrintMonitor').onclick=()=>printCanvas($('#waveCanvas'),

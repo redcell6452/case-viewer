@@ -84,6 +84,15 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
    same cases used to report accuracy. PhysioNet provides [waveform-analysis evaluation
    resources](https://physionet.org/physiotools/wpg/wpg.htm).
 
+8. **Alarm boxes are the viewer's reading, not the monitor's display.** The export records
+   a per-value "in alarm" flag on trend rows and alarm crossings with the limits in force,
+   but not the alarm's priority, its colour on screen, which pressure channel or part
+   (systolic, diastolic, mean) a pressure alarm was on, or when an alarm ended. The
+   Monitor's red and yellow boxes are inferred: red from the trend flag or from a crossing
+   whose value is still past the crossed limit (pressure alarms are matched to the channel
+   and part nearest the alarm value); yellow from equipment-alert events until a valid
+   reading returns. Trend rows are typically 30 s apart, so box timing is no finer than that.
+
 ## Missing-input display policy
 
 Normal review does not require calibrating a monitor. Absolute SV/CO and dependent
@@ -107,7 +116,7 @@ follows that distinction. [The cardiac output from blood pressure algorithms tri
 
 ## Verification performed
 
-`node --test tests/regression.cjs` passes 51 tests, including all 25 original arterial
+`node --test tests/regression.cjs` passes 76 tests, including all 25 original arterial
 self-checks. Tests cover malformed inputs, annotation injection fields, case isolation,
 window selection, venous means, HRV gaps and equal-power spectral signals, capnography,
 and a synthetic raw-case path through parsing, analysis and table rendering. Additional
@@ -138,6 +147,8 @@ width, fast playback, case-end bounds, and changing device/venous/ventilation va
 Event-panel checks cover showing and hiding the list, saved desktop visibility,
 focus restoration, Physiology redraws and reopening after switching to a narrow screen.
 
-The documented verification used synthetic inputs. No real exports are included in this repository. Visual browser testing was not completed:
-the browser tool's URL policy blocked opening the local HTML file. No clinical validation,
-multi-browser compatibility or full interactive workflow validation is claimed.
+The automated tests use synthetic inputs; no real exports are included in this repository.
+Interactive behaviour (playback, calipers, notes, the parameter panel, alarm boxes, phone
+layout) was checked by hand in one desktop browser, with one real X Series export that is
+not distributed. No clinical validation, multi-browser compatibility or full interactive
+workflow validation is claimed.

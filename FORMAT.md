@@ -88,11 +88,23 @@ fields the parser reads; no actual XML export is included.
 Real-arrest per-compression extraction is unverified. CPR field discovery and waveform
 detection are heuristic fallbacks and require independent real-file validation.
 
+## Events and operator actions
+
+`AnnotationEvt` names many operator actions as well as device states: *Alarms
+Silenced*, *NIBP Reading Started*, *IBP Probe1 Zeroed*, *New Patient*, *Patient Mode
+Adult*, probe connect/disconnect and lead faults. Snapshots are separate `SnapshotRpt`
+records, and changes to the displayed waveforms appear in `DisplayInfo`/`TraceConfigs`.
+Not every key press is recorded: menu navigation, alarm-limit edits, volume and
+brightness do not appear. Alarm limits are visible only as the values attached to each
+`AlarmEvt`, which carries the value and the limits in force but no channel name, no
+pressure part, no priority and no end time. Trend values carry a separate `Alarm` flag.
+
 ## Unresolved details
 
 - ECG scalar arithmetic and some channel/unit mappings.
 - Clock alignment and reliable patient boundaries across all record types.
 - Certain opaque event payloads and analysis segments.
+- Alarm priority (the colour the monitor showed) and when an alarm ended.
 - Per-compression record layout on a real arrest export.
 - Compatibility with other device families, firmware and schema versions.
 - Detector accuracy, signal quality thresholds and model calibration.
