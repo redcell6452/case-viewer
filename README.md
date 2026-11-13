@@ -17,6 +17,9 @@ ZOLL, X Series, R Series and Propaq are trademarks of their respective owners an
 named here only to say which export files the viewer reads. This is retrospective review
 software, not a medical device; do not use it for clinical decisions.
 
+**AI disclosure.** AI was used to help develop this tool and to review its code and
+algorithms. That review does not change the validation status described above.
+
 **Open `case-viewer.html` in a browser.** Point it at the folder your exports live in and
 it remembers that folder; from then on it opens on a list of your cases. You can also just
 drop a `.zol` or `.zip` on it, or use *Open a file…*.
