@@ -1404,18 +1404,30 @@ test('pressure-line alarm limits: read per part, the crossing given to the line 
       buildModel(json, xml, 'sample.zol'); loadSites(); retargetArterial(); buildParams(); })()`);
     const r = JSON.parse(a.run(`JSON.stringify({
       p1:alarmSetting('ibp1',M.durMs), p2:alarmSetting('ibp2',M.durMs), early:alarmSetting('ibp1',60000),
-      etco2:alarmSetting('etco2',M.durMs),
+      etco2:alarmSetting('etco2',M.durMs), hr:alarmSetting('hr',M.durMs),
       crossings:Object.entries(alarmIndex().cross).filter(([id])=>/^ibp/.test(id))
         .flatMap(([id,l])=>l.map(c=>id+'.'+c.comp)),
       invasive:M.events.filter(e=>e.kind==='alarm'&&/invasive/.test(e.name)).length,
       flat:(()=>{ const keep=M.alarmLimits.Ibp; M.alarmLimits.Ibp={HighLimOn:1, LowLimOn:{'#text':1}};
         const s=alarmSetting('ibp1',M.durMs); M.alarmLimits.Ibp=keep; return s; })()})`));
-    assert.ok(r.p1.startsWith(`Sys low ${lo} · high ${hi} mmHg`), opts + ' P1: ' + r.p1);
-    assert.ok(!/\d/.test(r.p2.replace('mmHg', '')), opts + ' P2 has no limits of its own: ' + r.p2);
-    assert.equal(r.early, 'Sys low on · high on mmHg; Dia low on · high on mmHg; Map low on · high on mmHg');
-    assert.equal(r.etco2, 'low on · high on mmHg');
+    assert.equal(r.p1, `Sys ${lo}–${hi} mmHg`, opts + ' P1');
+    assert.equal(r.p2, 'on', opts + ' P2 has alarms on but no limits of its own');
+    assert.equal(r.early, 'on');      /* before any alarm the values are not in the file */
+    assert.equal(r.etco2, 'on');
+    assert.equal(r.hr, `${opts==='{}'?50:70}–${opts==='{}'?140:170} bpm`);
     assert.ok(r.invasive >= 3);
     assert.deepEqual(r.crossings, Array(r.invasive).fill('ibp1.sys'));
-    assert.equal(r.flat, `low ${lo} · high ${hi} mmHg`);   /* a line written without Sys/Dia/Map */
+    assert.equal(r.flat, `${lo}–${hi} mmHg`);   /* a line written without Sys/Dia/Map */
   }
+});
+test('impedance respiration starts hidden on the Monitor unless it was chosen', () => {
+  const a = app();
+  a.run(`(()=>{ const x=synthCase(false, null, {}); const {json,xml}=splitZol(x.zol.buffer);
+    buildModel(json, xml, 'sample.zol'); loadSites(); retargetArterial(); buildParams(); })()`);
+  const imp = a.run(`Object.values(M.channels).find(c=>c.kind==='imp').name`);
+  a.run('CFG.monitorChoices=null; restoreMonitorChoices()');
+  assert.equal(a.run('visibleChannels().some(c=>c.kind==="imp")'), false);
+  assert.equal(a.run('visibleChannels().some(c=>c.kind==="ibp1")'), true);
+  a.run(`CFG.monitorChoices={${JSON.stringify(imp)}:true}; restoreMonitorChoices()`);
+  assert.equal(a.run('visibleChannels().some(c=>c.kind==="imp")'), true);
 });

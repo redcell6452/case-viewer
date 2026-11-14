@@ -5202,7 +5202,7 @@ function renderHemoPanel(computed){
   const q=H.quality, v=H.vent;
   const pressureAlarms=[['NIBP','nibp'],['P'+lines.art.num,'ibp'+lines.art.num]]
     .map(([label,id])=>{ const setting=alarmSetting(id,APP.cursor);
-      return setting?'<div><b>'+esc(label)+':</b> '+esc(setting)+'</div>':''; }).filter(Boolean);
+      return setting?'<div><b>'+esc(label)+':</b> '+esc(setting==='on'?'alarms on, values not recorded yet':setting)+'</div>':''; }).filter(Boolean);
   if(pressureAlarms.length) html+='<div class="note-inline"><b>Recorded pressure alarm settings</b><br>'+
     pressureAlarms.join('')+'</div>';
   html+='<div class="cards">'+
@@ -7500,7 +7500,13 @@ function restoreMonitorChoices(){
   const saved=CFG.monitorChoices;
   APP.hidden=new Set(Object.values(M.channels).concat(M.monitorExtra||[])
     .filter(c=>!c.captureOnly && saved && Object.hasOwn(saved,monKey(c)) && typeof saved[monKey(c)]==='boolean'
-      ? !saved[monKey(c)] : !!c.captureOnly).map(monKey));
+      ? !saved[monKey(c)] : (!!c.captureOnly || c.kind==='imp')).map(monKey));
+}
+/* text cut with an ellipsis to fit a width, in the canvas's current font */
+function fitText(g, s, maxW){
+  if(g.measureText(s).width<=maxW) return s;
+  while(s.length>1 && g.measureText(s+'…').width>maxW) s=s.slice(0,-1);
+  return s.trimEnd()+'…';
 }
 function visibleChannels(){
   const order = {ecg:0, pads:1, ibp1:2, ibp2:3, ibp3:4, spo2:5, co2:6, imp:7, other:8};
@@ -7697,15 +7703,21 @@ function drawMonitor(){
     }
     g.stroke();
 
-    /* labels */
+    /* labels: the name on the left, cut to fit; the scale on the strip itself, in
+       grey, the way a monitor shows it. Pleth and impedance respiration are relative
+       waveforms with no meaningful scale, so they show none. */
     g.fillStyle=T0.panel; g.fillRect(0,yTop,LEFT-2,rowH);
     g.fillStyle=traceCol(ch.color); g.font='600 11px ui-monospace,monospace';
-    g.fillText(ibpNumOf(ch) ? ibpChanLabel(ch, true) : shortName(ch.name), 5, yTop+14);
-    g.fillStyle=T0.dim; g.font='10px ui-monospace,monospace';
-    g.fillText(ch.isEcg ? (APP.gain+' mm/mV') : (fmtNum(lo)+'–'+fmtNum(hi)+(ch.units?' '+unitShort(ch.units):'')), 5, yTop+27);
-    const cur = sampleAt(ch, APP.cursor);
-    if(cur===cur){ g.fillStyle=T0.fg; g.font='600 12px ui-monospace,monospace';
-      g.fillText(fmtNum(cur), 5, yTop+41); }
+    g.fillText(fitText(g, ibpNumOf(ch) ? ibpChanLabel(ch, true) : shortName(ch.name), LEFT-8), 5, yTop+14);
+    const scaleTxt = ch.isEcg ? (APP.gain+' mm/mV')
+      : (ch.kind==='spo2' || ch.kind==='imp') ? ''
+      : (fmtNum(lo)+'–'+fmtNum(hi)+(ch.units?' '+unitShort(ch.units):''));
+    if(scaleTxt){
+      g.font='10px ui-monospace,monospace';
+      g.save(); g.globalAlpha=.75; g.fillStyle=T0.bg;
+      g.fillRect(LEFT+2, yTop+2, g.measureText(scaleTxt).width+4, 13); g.restore();
+      g.fillStyle=T0.dim; g.fillText(scaleTxt, LEFT+4, yTop+12);
+    }
 
     /* beat / vent markers on the first ECG or pressure row */
     if(APP.showBeats && (ch.kind==='ibp1'||ch.isEcg) && ch.name===M.beatSrc){
@@ -8286,12 +8298,19 @@ function alarmSetting(id,t){
       if(e.kind==='alarm' && codes && codes.includes(+e.code) && e.limits &&
          !(spec.skip && spec.skip.test(e.name))) match=e.limits;
     }
-    const fmt=(on,key,word)=>on ? (match && match[key]!=null ? word+' '+match[key] : word+' on') : '';
-    return (label?label+' ':'')+[fmt(low,'LowLimVal','low'),fmt(high,'HighLimVal','high')]
-      .filter(Boolean).join(' · ')+(spec.unit?' '+spec.unit:'');
+    /* short enough for a narrow box: "90–180", "low 90", or nothing when the
+       alarm is on but no alarm has shown its value yet */
+    const L=low && match && match.LowLimVal!=null ? match.LowLimVal : null;
+    const H=high && match && match.HighLimVal!=null ? match.HighLimVal : null;
+    const txt = L!=null && H!=null ? L+'–'+H : L!=null ? 'low '+L : H!=null ? 'high '+H : '';
+    return {txt: txt ? (label?label+' ':'')+txt : ''};
   };
-  return spec.parts ? spec.parts.map(x=>part(spec.node[x[0]],x[1],x[0])).filter(Boolean).join('; ')
-    : part(spec.node,spec.codes,'');
+  const parts=(spec.parts ? spec.parts.map(x=>part(spec.node[x[0]],x[1],x[0])) : [part(spec.node,spec.codes,'')])
+    .filter(Boolean);
+  if(!parts.length) return '';
+  const known=parts.filter(x=>x.txt).map(x=>x.txt);
+  /* 'on': alarms are enabled, but the file gives their values only with an alarm */
+  return known.length ? known.join(' · ')+(spec.unit?' '+spec.unit:'') : 'on';
 }
 function parameterAlarm(id,t){
   if(/^hr_/.test(id)) return alarmSetting('hr',t);
@@ -8557,9 +8576,14 @@ function drawNumerics(){
       sub = (sub?sub+'  ':'')+'@'+clock+(mins>=1?(' · '+mins+'m'):'');
     } else if(stale && clock){
       sub = (sub?sub+'  ':'')+'@'+clock;
+    } else if(v.when==null && p.origin==='device'){
+      /* nothing recorded yet: the monitor writes its numbers only every 30 s or so,
+         so say when the first one comes rather than leave a bare dash */
+      const nx=firstValidAfter(p, t);
+      if(isFinite(nx)) sub = (sub?sub+'  ':'')+'first at '+fmtClock(M.t0Wall+nx);
     }
     const lim = parameterAlarm(p.id,t);
-    return {stale, main:v.main, sub, alarm: lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
+    return {stale, main:v.main, sub, alarm: lim==='on' ? 'Alarms on' : lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
   });
   /* Playback calls this every frame. Rebuilding the panel each time replaced the
      Parameters button and the (i) icons under the pointer, so they could not be
@@ -12363,6 +12387,8 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
+    'Monitor: each row’s scale sits on the strip, names fit their column, and the value under the playhead is gone. Impedance respiration is hidden unless you turn it on.',
+    'Parameter boxes say when their first recorded value comes, and limits read briefly (“Limits: 50–140 bpm”, or “Alarms on” before any alarm shows the values).',
     'Fixed: pressure lines now show their alarm settings, and EtCO2 no longer shows an arterial line’s limits as its own.',
     'Pressure lines are named P1–P3 everywhere. Set a line’s type from the drop-down in its box; otherwise the monitor’s label is used, or a guess marked with “?”. The choice applies on every page.',
     'Venous and intracranial lines show their mean only.',
