@@ -241,7 +241,7 @@ button.sidetoggle.open .sidefill{opacity:.55}
 #waveCanvas{position:absolute;inset:0;width:100%;height:100%}
 #numerics{width:var(--numW,212px);flex:0 0 var(--numW,212px);background:var(--bg2);overflow:auto;padding:6px;
   display:grid;grid-template-columns:repeat(var(--numCols,1),minmax(0,1fr));align-content:start;gap:6px}
-#numerics>.numpick,#numLive>.numat,#numLive>.note-inline,#numLive>.emptynote{grid-column:1/-1}
+#numerics>.numpick,#numerics>#numNote,#numLive>.numat,#numLive>.note-inline,#numLive>.emptynote{grid-column:1/-1}
 @media (min-width: 901px){ #numerics .num.grpstart{grid-column-start:1} }
 /* the panel's left edge: drag to resize */
 #numGrip{flex:0 0 6px;cursor:col-resize;background:var(--bg2);border-left:1px solid var(--line);position:relative;touch-action:none}
@@ -3821,7 +3821,7 @@ function paramText(p, t){
    phone (where the parameter panel is below the strip): heart rate by the first ECG
    row, each pressure by its line, SpO2 by the pleth, EtCO2 by the CO2, breathing
    rate by impedance. Only what the monitor recorded: before its first record of a
-   parameter the space stays empty. */
+   parameter it shows a dim dash. */
 function stripReading(ch, t, firstEcg){
   const id = (ch.isEcg || ch.kind==='pads') ? (firstEcg ? 'hr_dev' : null)
     : /^ibp[123]$/.test(ch.kind) ? ch.kind : ch.kind==='spo2' ? 'spo2'
@@ -3829,7 +3829,8 @@ function stripReading(ch, t, firstEcg){
   const p = id && M.paramById[id]; if(!p) return null;
   const a = paramAt(p, t), staleMs = +CFG.staleMs||30000;
   const r = p.sub ? (a.sys!=null || a.map!=null ? a : null) : (a.v!=null ? a : null);
-  if(!r) return null;
+  /* nothing recorded yet: a dim dash holds the place, so it reads as "not yet" */
+  if(!r) return a.when==null ? {txt:'--', none:true} : null;
   const stale = !p.intermittent && a.when!=null && t-a.when>staleMs;
   const lbl = id==='hr_dev' ? 'HR' : id==='spo2' ? 'SpO₂' : id==='etco2' ? 'EtCO₂' : id==='rr_dev' ? 'RR' : '';
   if(!p.sub) return {txt:String(Math.round(r.v)), lbl, stale};
@@ -7738,7 +7739,7 @@ function drawMonitor(){
     if(narrow && rowH>=38){
       const rd=stripReading(ch, inspectTime(), ri===firstEcgRow);
       if(rd){
-        g.save(); g.globalAlpha = rd.stale ? .4 : 1;
+        g.save(); g.globalAlpha = rd.none ? .35 : rd.stale ? .4 : 1;
         g.fillStyle=traceCol(ch.color);
         g.font='700 16px ui-monospace,monospace';
         g.fillText(fitText(g, rd.txt, LEFT-8), 5, yTop+33);
@@ -8618,15 +8619,19 @@ function drawNumerics(){
     } else if(stale && clock){
       sub = (sub?sub+'  ':'')+'@'+clock;
     }
+    let title='';
     if(v.when==null && p.origin==='device'){
-      /* nothing recorded yet: the monitor writes its numbers only every 30 s or so,
-         so say when the first one comes rather than leave a bare dash. Nothing is
-         filled in: the box shows only what the monitor recorded. */
-      const nx=firstValidAfter(p, t);
-      if(isFinite(nx)) sub = (sub?sub+'  ':'')+'first at '+fmtClock(M.t0Wall+nx);
+      /* nothing recorded yet: the monitor writes its numbers to the file only every
+         30 s or so (its waveforms are continuous), so say that this is why the box is
+         empty and when the first record comes. Nothing is filled in. */
+      const nx=firstValidAfter(p, t), first=isFinite(nx) ? fmtClock(M.t0Wall+nx) : null;
+      sub = (sub?sub+'  ':'')+(first ? 'no record until '+first : 'not recorded');
+      title = 'The monitor had not recorded this yet. It writes its numbers to the file '+
+        'about every 30 s, while its waveforms are recorded continuously'+
+        (first ? '; the first record of this one is at '+first : '; this case has no record of it')+'.';
     }
     const lim = parameterAlarm(p.id,t);
-    return {stale, main:v.main, sub,
+    return {stale, title, main:v.main, sub,
       alarm: lim==='on' ? 'Alarms on' : lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
   });
   /* Playback calls this every frame. Rebuilding the panel each time replaced the
@@ -8635,11 +8640,20 @@ function drawNumerics(){
      layout is now built only when the chosen parameters change; every other frame
      just writes the new numbers into the boxes that are already there. */
   if(!box.querySelector('#numLive')){
-    box.innerHTML='<button id="numPick" class="numpick">Parameters…</button><div id="numLive"></div>';
+    box.innerHTML='<button id="numPick" class="numpick">Parameters…</button>'+
+      '<div id="numNote" class="note-inline" hidden></div><div id="numLive"></div>';
     $('#numPick').onclick = openParamChooser;
     syncAlarmFlash();
   }
   const live=$('#numLive'), ins=APP.inspect;
+  /* before the monitor's first numbers record, say why the boxes are empty */
+  const note=$('#numNote');
+  if(note){
+    const r0=M.trends && M.trends.length ? M.trends[0].t : null;
+    const txt = r0!=null && t<r0-500 ? 'No numbers yet: the monitor writes them to the file about every 30 s '+
+      '(its waveforms are recorded continuously). Its first record is at '+fmtClock(M.t0Wall+r0)+'.' : '';
+    if(note.textContent!==txt){ note.textContent=txt; note.hidden=!txt; }
+  }
   const rrNote = M.ventSamplesIgnored && !M.params.some(p=>/^rr_/.test(p.id));
   /* the theme is part of the key: the colours are written into the boxes when they are built */
   const key = ps.map(p=>p.id+':'+p.label+':'+(p.sub2||'')+':'+p.color).join('|')+'#'+(rrNote?1:0)+'#'+THEME.mode;
@@ -8677,6 +8691,7 @@ function drawNumerics(){
     const v=el.querySelector('.val'), sb=el.querySelector('.sub'), al=el.querySelector('.alarm-setting');
     if(v._h!==d.main){ v._h=d.main; v.innerHTML=d.main; }
     if(sb.textContent!==d.sub) sb.textContent=d.sub;
+    if(sb.title!==d.title) sb.title=d.title;
     if(al.textContent!==d.alarm){ al.textContent=d.alarm; al.hidden=!d.alarm; }
   });
 }
@@ -12433,7 +12448,7 @@ const CHANGELOG = [
   {date:'2026-11-13', items:[
     'On a phone the monitor’s recorded numbers also sit beside their waveforms.',
     'Monitor: each row’s scale sits on the strip, names fit their column, and the value under the playhead is gone. Impedance respiration is hidden unless you turn it on.',
-    'Parameter boxes say when their first recorded value comes, and limits read briefly (“Limits: 50–140 bpm”, or “Alarms on” before any alarm shows the values).',
+    'Until the monitor first records its numbers (it writes them about every 30 s; waveforms are continuous), the panel says so and each box reads “no record until …”. Limits read briefly (“Limits: 50–140 bpm”, or “Alarms on” before any alarm shows the values).',
     'Fixed: pressure lines now show their alarm settings, and EtCO2 no longer shows an arterial line’s limits as its own.',
     'Pressure lines are named P1–P3 everywhere. Set a line’s type from the drop-down in its box; otherwise the monitor’s label is used, or a guess marked with “?”. The choice applies on every page.',
     'Venous and intracranial lines show their mean only.',

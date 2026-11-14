@@ -1441,7 +1441,8 @@ test('the panel and the strip show only what the monitor recorded: nothing is fi
     laterHr:stripReading(Object.values(M.channels).find(c=>c.isEcg), 400000, true),
     recordedHr:paramAt(M.paramById.hr_dev, 400000).v,
     noFallback:typeof measuredLive==='undefined'})`));
-  assert.deepEqual(r.early, [null, null, null, null]);
+  /* only a placeholder dash before the first record, never a number */
+  assert.deepEqual(r.early, Array(4).fill({txt: '--', none: true}));
   assert.match(r.later.txt, /^\d+\/\d+$/);
   assert.equal(r.laterHr.txt, String(Math.round(r.recordedHr)));
   assert.equal(r.noFallback, true);
