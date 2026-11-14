@@ -1431,3 +1431,18 @@ test('impedance respiration starts hidden on the Monitor unless it was chosen', 
   a.run(`CFG.monitorChoices={${JSON.stringify(imp)}:true}; restoreMonitorChoices()`);
   assert.equal(a.run('visibleChannels().some(c=>c.kind==="imp")'), true);
 });
+test('the panel and the strip show only what the monitor recorded: nothing is filled in before its first record', () => {
+  const a = app();
+  a.run(`(()=>{ const x=synthCase(false, null, {}); const {json,xml}=splitZol(x.zol.buffer);
+    buildModel(json, xml, 'sample.zol'); detectBeats(); loadSites(); retargetArterial(); buildParams(); })()`);
+  const r = JSON.parse(a.run(`JSON.stringify({
+    early:['ecg','ibp1','spo2','co2'].map(k=>stripReading(Object.values(M.channels).find(c=>c.kind===k || (k==='ecg'&&c.isEcg)), 15000, true)),
+    later:stripReading(Object.values(M.channels).find(c=>c.kind==='ibp1'), 400000, false),
+    laterHr:stripReading(Object.values(M.channels).find(c=>c.isEcg), 400000, true),
+    recordedHr:paramAt(M.paramById.hr_dev, 400000).v,
+    noFallback:typeof measuredLive==='undefined'})`));
+  assert.deepEqual(r.early, [null, null, null, null]);
+  assert.match(r.later.txt, /^\d+\/\d+$/);
+  assert.equal(r.laterHr.txt, String(Math.round(r.recordedHr)));
+  assert.equal(r.noFallback, true);
+});

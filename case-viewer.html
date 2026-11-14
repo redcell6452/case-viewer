@@ -3801,19 +3801,40 @@ function paramAt(p, t){
   }
   return read(p.pts);
 }
+function pressureHtml(p, a){
+  if(p.ibpKind==='ven' || p.ibpKind==='icp')
+    return '<span class="bp-sd" title="Mean pressure">'+(a.map!=null?a.map:'--')+'</span>';
+  /* laid out the way the monitor shows a pressure: systolic/diastolic with the
+     mean beside it in parentheses, large enough to read at a glance */
+  return '<span class="bp-sd">'+(a.sys!=null?a.sys:'--')+'<span class="bp-dia">/'+(a.dia!=null?a.dia:'--')+'</span></span>'+
+    '<span class="bp-map" title="'+(p.ibpKind && p.ibpKind!=='art' ? 'Mean pressure' : 'Mean arterial pressure')+'">('+(a.map!=null?a.map:'--')+')</span>';
+}
 function paramText(p, t){
   const a = paramAt(p,t);
   if(p.sub){
     if(a.sys==null && a.map==null) return {main:'--', sub:'', when:a.when};
-    if(p.ibpKind==='ven' || p.ibpKind==='icp')
-      return {main:'<span class="bp-sd" title="Mean pressure">'+(a.map!=null?a.map:'--')+'</span>', sub:'', when:a.when};
-    /* laid out the way the monitor shows a pressure: systolic/diastolic with the
-       mean beside it in parentheses, large enough to read at a glance */
-    return {main:'<span class="bp-sd">'+(a.sys!=null?a.sys:'--')+'<span class="bp-dia">/'+(a.dia!=null?a.dia:'--')+'</span></span>'+
-                 '<span class="bp-map" title="'+(p.ibpKind && p.ibpKind!=='art' ? 'Mean pressure' : 'Mean arterial pressure')+'">('+(a.map!=null?a.map:'--')+')</span>',
-            sub:'', when:a.when};
+    return {main:pressureHtml(p, a), sub:'', when:a.when};
   }
   return {main: a.v==null?'--':a.v.toFixed(p.dec||0), sub:'', when:a.when};
+}
+/* The number a monitor shows beside a waveform, for the strip's left column on a
+   phone (where the parameter panel is below the strip): heart rate by the first ECG
+   row, each pressure by its line, SpO2 by the pleth, EtCO2 by the CO2, breathing
+   rate by impedance. Only what the monitor recorded: before its first record of a
+   parameter the space stays empty. */
+function stripReading(ch, t, firstEcg){
+  const id = (ch.isEcg || ch.kind==='pads') ? (firstEcg ? 'hr_dev' : null)
+    : /^ibp[123]$/.test(ch.kind) ? ch.kind : ch.kind==='spo2' ? 'spo2'
+    : ch.kind==='co2' ? 'etco2' : ch.kind==='imp' ? 'rr_dev' : null;
+  const p = id && M.paramById[id]; if(!p) return null;
+  const a = paramAt(p, t), staleMs = +CFG.staleMs||30000;
+  const r = p.sub ? (a.sys!=null || a.map!=null ? a : null) : (a.v!=null ? a : null);
+  if(!r) return null;
+  const stale = !p.intermittent && a.when!=null && t-a.when>staleMs;
+  const lbl = id==='hr_dev' ? 'HR' : id==='spo2' ? 'SpO₂' : id==='etco2' ? 'EtCO₂' : id==='rr_dev' ? 'RR' : '';
+  if(!p.sub) return {txt:String(Math.round(r.v)), lbl, stale};
+  if(p.ibpKind==='ven' || p.ibpKind==='icp') return {txt:r.map!=null?String(r.map):'--', lbl:'mean', stale};
+  return {txt:(r.sys!=null?r.sys:'--')+'/'+(r.dia!=null?r.dia:'--'), txt2:r.map!=null?'('+r.map+')':'', stale};
 }
 
 /* ---------------- waveform analysis ----------------
@@ -7638,6 +7659,11 @@ function drawMonitor(){
 
   /* traces */
   const geo={LEFT, plotW, plotH, t0, t1, rowH, rows:[]};
+  /* on a phone the parameter panel is below the strip, so the numbers go beside
+     their waveforms as well (the same breakpoint that moves the panel) */
+  const narrow = typeof matchMedia==='function' && matchMedia('(max-width: 900px)').matches;
+  const firstEcgRow = chans.findIndex(c=>(c.isEcg || c.kind==='pads') && !c.captureOnly &&
+    c.segs && c.segs.some(s=>APP.cursor>=s.t0 && APP.cursor<s.t0+s.n*1000/c.hz));
   chans.forEach((ch,ri)=>{
     const yTop = ri*rowH, yBot = yTop+rowH;
     const [lo,hi] = rowScale(ch, t0, t1, Math.round(plotW));
@@ -7709,6 +7735,21 @@ function drawMonitor(){
     g.fillStyle=T0.panel; g.fillRect(0,yTop,LEFT-2,rowH);
     g.fillStyle=traceCol(ch.color); g.font='600 11px ui-monospace,monospace';
     g.fillText(fitText(g, ibpNumOf(ch) ? ibpChanLabel(ch, true) : shortName(ch.name), LEFT-8), 5, yTop+14);
+    if(narrow && rowH>=38){
+      const rd=stripReading(ch, inspectTime(), ri===firstEcgRow);
+      if(rd){
+        g.save(); g.globalAlpha = rd.stale ? .4 : 1;
+        g.fillStyle=traceCol(ch.color);
+        g.font='700 16px ui-monospace,monospace';
+        g.fillText(fitText(g, rd.txt, LEFT-8), 5, yTop+33);
+        const second = rd.txt2 || rd.lbl;
+        if(second && rowH>=52){
+          g.font='600 11px ui-monospace,monospace';
+          g.fillText(second, 5, yTop+47);
+        }
+        g.restore();
+      }
+    }
     const scaleTxt = ch.isEcg ? (APP.gain+' mm/mV')
       : (ch.kind==='spo2' || ch.kind==='imp') ? ''
       : (fmtNum(lo)+'–'+fmtNum(hi)+(ch.units?' '+unitShort(ch.units):''));
@@ -8576,14 +8617,17 @@ function drawNumerics(){
       sub = (sub?sub+'  ':'')+'@'+clock+(mins>=1?(' · '+mins+'m'):'');
     } else if(stale && clock){
       sub = (sub?sub+'  ':'')+'@'+clock;
-    } else if(v.when==null && p.origin==='device'){
+    }
+    if(v.when==null && p.origin==='device'){
       /* nothing recorded yet: the monitor writes its numbers only every 30 s or so,
-         so say when the first one comes rather than leave a bare dash */
+         so say when the first one comes rather than leave a bare dash. Nothing is
+         filled in: the box shows only what the monitor recorded. */
       const nx=firstValidAfter(p, t);
       if(isFinite(nx)) sub = (sub?sub+'  ':'')+'first at '+fmtClock(M.t0Wall+nx);
     }
     const lim = parameterAlarm(p.id,t);
-    return {stale, main:v.main, sub, alarm: lim==='on' ? 'Alarms on' : lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
+    return {stale, main:v.main, sub,
+      alarm: lim==='on' ? 'Alarms on' : lim ? 'Limits: '+lim : '', alm:paramAlarmState(p,t)};
   });
   /* Playback calls this every frame. Rebuilding the panel each time replaced the
      Parameters button and the (i) icons under the pointer, so they could not be
@@ -12387,6 +12431,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-13', items:[
+    'On a phone the monitor’s recorded numbers also sit beside their waveforms.',
     'Monitor: each row’s scale sits on the strip, names fit their column, and the value under the playhead is gone. Impedance respiration is hidden unless you turn it on.',
     'Parameter boxes say when their first recorded value comes, and limits read briefly (“Limits: 50–140 bpm”, or “Alarms on” before any alarm shows the values).',
     'Fixed: pressure lines now show their alarm settings, and EtCO2 no longer shows an arterial line’s limits as its own.',
