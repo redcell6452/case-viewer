@@ -705,7 +705,8 @@ dialog::backdrop{background:#000a}
 .rpttab td.good{color:var(--ok)} .rpttab td.bad{color:var(--crit)} .rpttab td.mid{color:var(--warn)}
 .rptwrap{overflow-x:auto}
 .stjbox{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg2)}
-.stjhead{font-size:13px;margin-bottom:2px}
+.stjhead{font-size:13px;cursor:pointer}
+.stjbox[open] .stjhead{margin-bottom:5px}
 .stjtab{margin-top:4px} .stjtab td,.stjtab th{text-align:center} .stjtab td:first-child,.stjtab th:first-child{text-align:left}
 .stjaxes{font-size:12.5px;margin:8px 0 2px;color:var(--dim)} .stjaxes b{color:var(--fg)}
 #transport{position:relative}
@@ -1040,6 +1041,7 @@ dialog input[type=text]{width:100%}
           </div>
           <span style="flex:1"></span>
           <button id="btnMark" aria-pressed="false" title="Annotate: then click the waveform to stick a note there (A). With a timeline range selected, annotates that range." aria-keyshortcuts="A">＋ Annotate<span class="keyhint" aria-hidden="true">(A)</span></button>
+          <button id="btnAnnShow" class="on" aria-pressed="true" title="Hide annotations on every view">Annotations</button>
           <button id="btnPrintMonitor" title="Print current monitor strip">Print</button>
           <button id="btnPng" title="Save current strip as PNG">PNG</button>
           <button id="btnCopy" title="Copy the current strip to the clipboard as an image">Copy</button>
@@ -3504,10 +3506,6 @@ const GLOSSARY = [
   formula:'From per-compression records or the compression waveform', src:['cprRelease'], read:'cprQuality'},
 
  /* ---- how the viewer works ---- */
- {key:'m_local', group:'How the viewer works', title:'Everything stays on this computer', abbr:'Local only', ids:[],
-  what:'Case files are opened and analysed entirely inside this browser. Nothing is uploaded or sent anywhere: no server receives your files, results or notes.',
-  use:"This is enforced, not just promised: the page carries a security policy that blocks every network connection (connect-src 'none'), so even a bug couldn’t send data out. Settings and annotations are kept in this browser’s own storage. Once loaded, the page works with no connection. Links to articles and to GitHub open in a new tab and carry no case data.",
-  formula:"Content-Security-Policy: connect-src 'none'; default-src 'none'"},
  {key:'m_ecgbeats', group:'How the viewer works', title:'ECG beat detection', ids:[],
   what:'How R waves are found: the squared slope of the ECG is summed over 80 ms, and peaks above 35 % of the third-largest peak within ±3 s count as beats (at least 220 ms apart).',
   use:'Using the third-largest peak keeps one or two artefacts from hiding the beats around them. The post-pacing step is ignored.',
@@ -3583,8 +3581,17 @@ const EXPLAIN = {
   pacemakerEcg:{"title":"Pacemaker rhythms: normal patterns","site":"LITFL","url":"https://litfl.com/pacemaker-rhythms-normal-patterns/"},
   nibp:{"title":"Blood Pressure Measurement","site":"StatPearls","url":"https://www.ncbi.nlm.nih.gov/books/NBK482189/"}
 };
+/* popover notes that are not measures: shown by their own button, kept off the
+   Formulas page and without its "All formulas" link */
+const VIEWER_NOTES = [
+ {key:'m_local', standalone:true, title:'Everything stays on this computer', abbr:'Local only',
+  what:'Case files are opened and analysed entirely inside this browser. Nothing is uploaded or sent anywhere: no server receives your files, results or notes.',
+  use:"This is enforced, not just promised: the page carries a security policy that blocks every network connection (connect-src 'none'), so even a bug couldn’t send data out. Settings and annotations are kept in this browser’s own storage. Once loaded, the page works with no connection. Links to articles and to GitHub open in a new tab and carry no case data.",
+  formula:"Content-Security-Policy: connect-src 'none'; default-src 'none'"}
+];
 const GLOSS_BY_KEY = {}, GLOSS_BY_ID = {};
 for(const g of GLOSSARY){ GLOSS_BY_KEY[g.key]=g; for(const id of g.ids||[]) GLOSS_BY_ID[id]=g; }
+for(const g of VIEWER_NOTES) GLOSS_BY_KEY[g.key]=g;
 
 /* the small (i) next to a measure; nothing when the glossary has no entry for it */
 function infoBtn(id){
@@ -3609,7 +3616,7 @@ function glossBody(g, inTab){
     row('Value', g.origin==='device' ? 'recorded by the monitor, not calculated here' : '')+
     row('Explained', g.read ? explainHtml(g.read) : '')+
     row('Source', g.src ? sourcesHtml(g.src) : '')+
-    (inTab ? '' : '<div class="gl-more"><button type="button" class="linkish" data-formula="'+esc(g.key)+'">All formulas</button></div>');
+    (inTab || g.standalone ? '' : '<div class="gl-more"><button type="button" class="linkish" data-formula="'+esc(g.key)+'">All formulas</button></div>');
 }
 
 /* popover: hover shows it on a mouse, a click (or tap) pins it; Esc or a click
@@ -5345,6 +5352,7 @@ function drawHemoWave(cv){
     const x=Math.round(X(sec*1000))+0.5;
     g.beginPath(); g.moveTo(x,T); g.lineTo(x,T+plotH); g.stroke();
   }
+  annBands(g, X, T, plotH, t0, t1, L, w-R);
   sel.forEach((item,ri)=>{
     const ch=item.ch, yTop=T+ri*rowH, yBot=yTop+rowH;
     const [lo,hi]=chScale(ch);
@@ -5401,6 +5409,7 @@ function drawHemoWave(cv){
     if(cur===cur){ g.fillStyle=T0.fg; g.font='600 12px ui-monospace,monospace';
       g.fillText(fmtNum(cur), 5, yTop+40); }
   });
+  annFlags(g, X, T, plotH, t0, t1, {xMax:w-R});
   /* cursor */
   if(APP.cursor>=t0 && APP.cursor<=t1){
     const cx=Math.round(X(APP.cursor))+0.5;
@@ -5967,12 +5976,13 @@ function twelveMeasureHtml(snap){
   const leads=LEAD_ORDER.filter(l=>m.stj[l]!=null);
   const f=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1);
   const a=v=>v==null?'—':Math.round(v)+'°';
-  return '<div class="stjbox"><div class="stjhead"><b>Measured here</b> <span class="libdim">'+m.beats+' beats · not the monitor’s interpretation</span></div>'+
+  /* starts closed, like the device's own interpretation above it */
+  return '<details class="stjbox"><summary class="stjhead"><b>Measured here</b> <span class="libdim">'+m.beats+' beats · not the monitor’s interpretation</span></summary>'+
     '<div class="rptwrap"><table class="rpttab stjtab"><thead><tr><th>ST-J (mm)</th>'+leads.map(l=>'<th>'+esc(l)+'</th>').join('')+'</tr></thead>'+
     '<tbody><tr><td class="tgt">J point vs PR segment</td>'+leads.map(l=>'<td class="'+stjClass(l,m.stj[l])+'">'+f(m.stj[l])+'</td>').join('')+'</tr></tbody></table></div>'+
     '<div class="stjaxes">Axes &nbsp; P <b>'+a(m.axes.P)+'</b> &nbsp; QRS <b>'+a(m.axes.QRS)+'</b> &nbsp; T <b>'+a(m.axes.T)+'</b></div>'+
     '<div class="note-inline">ST-J is measured at the end of the QRS against the PR segment, median over the beats, at 10 mm/mV. '+
-    'Red: elevation of 1 mm or more (2 mm in V2–V3); amber: depression of 0.5 mm or more. A measurement to check, not a diagnosis.</div></div>';
+    'Red: elevation of 1 mm or more (2 mm in V2–V3); amber: depression of 0.5 mm or more. A measurement to check, not a diagnosis.</div></details>';
 }
 /* P wave: largest deflection in the PR search window before QRS onset */
 /* the isoelectric reference for a beat: the PR segment just before QRS onset */
@@ -7648,15 +7658,8 @@ function drawMonitor(){
     }
   }
 
-  /* annotation bands */
-  for(const a of ANN.list){
-    if(annIsNote(a)) continue;
-    if(a.t1<t0 || a.t0>t1) continue;
-    g.fillStyle = traceCol(a.color)+'26';
-    const x0=Math.max(LEFT,X(a.t0)), x1=Math.min(w-8,X(a.t1));
-    g.fillRect(x0,0,Math.max(2,x1-x0),plotH);
-    g.fillStyle=traceCol(a.color); g.fillRect(x0,0,2,plotH);
-  }
+  /* annotation bands; their flags go on top of the traces, below */
+  annBands(g, X, 0, plotH, t0, t1, LEFT, w-8);
 
   /* traces */
   const geo={LEFT, plotW, plotH, t0, t1, rowH, rows:[]};
@@ -7833,6 +7836,7 @@ function drawMonitor(){
       g.beginPath(); g.arc(ix,5,3.5,0,Math.PI*2); g.fill(); }
     g.restore();
   }
+  annFlags(g, X, 0, plotH, t0, t1, {notesBare:true, xMax:w-8});
   geo.notes = drawStickyNotes(g, geo, X, w);
   cv._mon = geo;
   drawCaliper(g, geo);
@@ -7891,17 +7895,14 @@ function drawPlayheadTag(g, cx, plotH, T0){
    words. Returns the notes' boxes so a click or drag can find them. */
 function drawStickyNotes(g, geo, X, w){
   const out=[];
-  for(const a of ANN.list){
+  for(const a of annVisible()){
     if(!annIsNote(a) || a.t0<geo.t0 || a.t0>geo.t1) continue;
     const row = geo.rows.find(r=>r.name===a.ch) || geo.rows[0];
     if(!row) continue;
     const x=Math.round(X(a.t0))+0.5;
     const y=row.yTop + (Number.isFinite(a.yf)?a.yf:0.25)*row.rowH;
     const col=a.color||ANN_COLORS[0];
-    g.save();
-    g.strokeStyle=col; g.globalAlpha=.45; g.setLineDash([2,3]); g.lineWidth=1;
-    g.beginPath(); g.moveTo(x,0); g.lineTo(x,geo.plotH); g.stroke();
-    g.restore();
+    /* the line through every row and the flag at the top come from annFlags() */
     const label=(a.text||a.cat||'Note').split('\n')[0];
     g.save();
     g.font='600 11px system-ui,-apple-system,"Segoe UI",sans-serif';
@@ -9234,6 +9235,9 @@ function drawReadout(g, series, opts, X, Y, geom){
   let bx = x+10, by = geom.T+6;
   if(bx+wBox > geom.w-geom.R) bx = x-10-wBox;
   bx=Math.max(geom.L+2, bx);
+  /* sit below any annotation flag it would cover */
+  for(const r of (opts.avoid||[]).slice().sort((a,b)=>a.y-b.y))
+    if(r.x < bx+wBox && r.x+r.w > bx && r.y+r.h+3 > by && r.y < by+hBox) by = r.y+r.h+3;
   g.fillStyle = THEME.mode==='light' ? '#ffffffee' : '#0b1218ee';
   g.strokeStyle = TC.chartGrid;
   g.fillRect(bx,by,wBox,hBox); g.strokeRect(bx+0.5,by+0.5,wBox,hBox);
@@ -9662,6 +9666,8 @@ function cprTreats(g, X, top, h, span, small){
     }
     g.restore();
   }
+  /* annotations, drawn the same way and stacked in the same lanes */
+  annFlags(g, X, top, h, span.t0, span.t1, {row, y0:20, small, xMax:X(span.t1)});
 }
 function cprShocks(g, X, top, h, span, small){
   for(const s of M.cpr.shocks){
@@ -9798,6 +9804,7 @@ function drawCprQuality(cv){
   cv._cprGeom={L,R,span};
 
   cprBands(g,X,T0,h-T0-B,span,true);
+  annBands(g,X,T0,h-T0-B,span.t0,span.t1,L,w-R);
   cprVents(g,X,T0,h-T0-B,span);
   waves.forEach((ch,i)=> drawCprWave(g, ch, X, span, L, w-R, T0+2+i*(CPR_WAVE_H+CPR_WAVE_GAP), CPR_WAVE_H, TC));
 
@@ -10738,9 +10745,8 @@ function lineChart(cv, series, opts){
   const X=t=>L+t/dur*(w-L-R), Y=v=>h-B-(v-lo)/(hi-lo)*(h-T-B);
   cv._geom={L,R,w,dur};
 
-  if(opts.bands) for(const b of opts.bands){
-    g.fillStyle=b.color+'22'; g.fillRect(X(b.t0),T,Math.max(2,X(b.t1)-X(b.t0)),h-T-B);
-  }
+  /* opts.bands: show the case's annotations (bands here, flags over the lines below) */
+  if(opts.bands) annBands(g, X, T, h-T-B, 0, dur, L, w-R);
   const TC=TH();
   g.strokeStyle=TC.chartGrid; g.lineWidth=1; g.font='10px ui-monospace,monospace'; g.fillStyle=TC.chartText;
   const ticks=4;
@@ -10796,9 +10802,10 @@ function lineChart(cv, series, opts){
     }
   }
 
+  const flags = opts.bands ? annFlags(g, X, T, h-T-B, 0, dur, {xMax:w-R}) : [];
   const vis = series.filter(s=>!s.hidden);
   if(opts.extrema) drawExtrema(g, vis, X, Y, {L,R,T,B,w,h}, lo, hi);
-  drawReadout(g, vis, {readoutT: (cv._hoverT!=null ? cv._hoverT : APP.cursor)},
+  drawReadout(g, vis, {readoutT: (cv._hoverT!=null ? cv._hoverT : APP.cursor), avoid:flags},
     X, Y, {L,R,T,B,w,h});
 }
 
@@ -10870,7 +10877,7 @@ function drawTimeline(){
   }
 
   /* annotation bands */
-  for(const a of ANN.list){
+  for(const a of annVisible()){
     const x0=X(a.t0), x1=Math.max(X(a.t1), X(a.t0)+2);
     g.fillStyle=traceCol(a.color)+'2e'; g.fillRect(x0,covTop,x1-x0,evTop-covTop);
     g.fillStyle=traceCol(a.color); g.fillRect(x0,covTop,1.5,evTop-covTop);
@@ -10904,7 +10911,7 @@ function drawTimeline(){
   const evs = M.events.slice().sort((a,b)=>(order[a.sev]||0)-(order[b.sev]||0));
   for(const e of evs) drawMark(Math.round(X(e.t))+0.5, e.sev);
   /* annotation flags share the marker lane */
-  for(const a of ANN.list){
+  for(const a of annVisible()){
     const x=Math.round(X(a.t0))+0.5;
     g.fillStyle=traceCol(a.color);
     g.beginPath(); g.moveTo(x,base-12); g.lineTo(x+7,base-10); g.lineTo(x,base-8); g.closePath(); g.fill();
@@ -11057,7 +11064,7 @@ function stepEvent(dir){
 
 /* ---------------- annotations ---------------- */
 const ANN_COLORS = ['#4aa3ff','#3fd68b','#ffb020','#ff4d4d','#b388ff','#00e5ff'];
-const ANN = { list:[], editing:null, color:ANN_COLORS[0] };
+const ANN = { list:[], editing:null, color:ANN_COLORS[0], show:true };
 const annKey = ()=> 'zollviewer:ann:'+M.caseId;
 function normalizeAnnotations(list){
   if(!Array.isArray(list)) throw new Error('Annotations must be an array.');
@@ -11099,8 +11106,72 @@ function annLoad(){
 function annSave(){
   try{ localStorage.setItem(annKey(), JSON.stringify(ANN.list)); }
   catch(e){ toast('Could not save annotations (storage blocked) — use Export.'); }
-  drawTimeline(); if(APP.view==='monitor') drawMonitor();
+  annRedraw();
+}
+/* every view that has a time axis shows the annotations; Show/Hide is one switch for
+   all of them (the Annotations list always shows them) */
+function annVisible(){ return ANN.show ? ANN.list : []; }
+function annRedraw(){
+  drawTimeline();
+  if(APP.view==='monitor') drawMonitor();
+  if(APP.view==='trends') renderTrends();
+  if(APP.view==='cpr' && $('#cprQual')) redrawCpr();
+  if(APP.view==='hemo'){ const cv=$('#hemoWave'), sc=$('#hemoScrub'); if(cv) drawHemoWave(cv); if(sc) drawHemoScrub(sc); }
   if(APP.view==='annot') renderAnnot();
+}
+function annSyncShowBtn(){
+  const b=$('#btnAnnShow'); if(!b) return;
+  b.classList.toggle('on', ANN.show); b.setAttribute('aria-pressed', String(ANN.show));
+  b.title = (ANN.show ? 'Hide' : 'Show')+' annotations on every view';
+}
+function annSetShow(on){
+  ANN.show=!!on; CFG.annShow=ANN.show; cfgSave();
+  annSyncShowBtn(); annRedraw();
+  if(!ANN.show && ANN.list.length) toast('Annotations hidden. They are kept, and listed on the Annotations tab.');
+}
+/* a range annotation's shaded band, behind the data */
+function annBands(g, X, top, h, t0, t1, xMin, xMax){
+  for(const a of annVisible()){
+    if(annIsNote(a) || a.t1<t0 || a.t0>t1) continue;
+    const x0=Math.max(xMin, X(a.t0)), x1=Math.min(xMax, X(a.t1));
+    g.fillStyle=traceCol(a.color||ANN_COLORS[0])+'26';
+    g.fillRect(x0, top, Math.max(2, x1-x0), h);
+  }
+}
+/* Flags, drawn the way the CPR page draws code markers: a dashed line in the
+   annotation's colour through the whole chart at its start, and a flag at the top
+   with its first words. A flag that would overlap another drops to the next lane;
+   opt.row passes lanes already taken (the CPR page's code markers). opt.small draws
+   a bare pennant for the small charts, and opt.notesBare does so for sticky notes,
+   which already carry their words on the trace. */
+function annFlags(g, X, top, h, t0, t1, opt){
+  opt=opt||{};
+  const row=opt.row||[], xMax=opt.xMax==null?Infinity:opt.xMax, boxes=[];
+  for(const a of annVisible()){
+    if(a.t0<t0 || a.t0>t1) continue;
+    const x=Math.round(X(a.t0))+0.5, col=traceCol(a.color||ANN_COLORS[0]);
+    g.save();
+    g.strokeStyle=col; g.lineWidth=1.5; g.setLineDash([4,3]);
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+h); g.stroke(); g.setLineDash([]);
+    g.fillStyle=col;
+    if(opt.small || (opt.notesBare && annIsNote(a))){
+      g.beginPath(); g.moveTo(x, top); g.lineTo(x+9, top+3.5); g.lineTo(x, top+7); g.closePath(); g.fill();
+    } else {
+      g.font='600 11px system-ui,sans-serif';
+      let txt=(a.text||a.cat||'Note').split('\n')[0].trim()||'Note';
+      if(txt.length>22) txt=txt.slice(0,21)+'…';
+      const w=g.measureText(txt).width+12;
+      const bx = x+w>xMax ? x-w : x;          /* near the right edge the flag points left */
+      let lane=0; while(row[lane]!=null && row[lane]>bx-2) lane++;
+      row[lane]=bx+w;
+      const y=top+(opt.y0==null?2:opt.y0)+lane*18;
+      g.fillRect(bx, y, w, 16);
+      g.fillStyle='#111'; g.textBaseline='middle'; g.fillText(txt, bx+6, y+8.5);
+      boxes.push({x:bx, y, w, h:16});
+    }
+    g.restore();
+  }
+  return boxes;      /* so a readout box can keep clear of them */
 }
 function annOpen(a, isNew){
   ANN.editing = a; ANN.color = a.color || ANN_COLORS[0];
@@ -11131,6 +11202,8 @@ function annCommit(action){
   if(!a.text && !a.cat){ toast('Nothing to save'); return; }
   if(ANN.isNew){ a.id = 'a'+Date.now()+Math.random().toString(36).slice(2,6); ANN.list.push(a); }
   ANN.list.sort((x,y)=>x.t0-y.t0);
+  /* a note just written should be seen, so saving one turns annotations back on */
+  if(!ANN.show){ ANN.show=true; CFG.annShow=true; cfgSave(); annSyncShowBtn(); }
   annSave(); toast('Annotation saved');
 }
 function annIsNote(a){ return !!a && a.t0===a.t1; }
@@ -12091,7 +12164,7 @@ const CFG_DEFAULT = {
   vitalsEvery:'device', vitalsChanges:false, vitalsScale:130, vitalsZero:true, cfgRev:2,
   showDeviceLog:false, meanLines:false, trendLines:false, eventsVisible:true, calMarch:false, alarmFlash:true, numW:null, cprWin:'60000', cprT:null, ovRow:120000, ovDock:false, leadPickerOpen:true, ovH:200, cprWave:null, cprWaves:null, caseInputsOpen:true, hideSamples:false,
   /* remembered between runs: the last setup of each view */
-  peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor', monitorChoices:null
+  peakLabels:false, hiddenSeries:[], eventGroups:[], hemoSweep:null, hemoChans:null, lastView:'monitor', monitorChoices:null, annShow:true
 };
 const CFG = Object.assign({}, CFG_DEFAULT);
 const CASE_INPUT_KEYS=['heightCm','weightKg','svK','assumedCvp','fio2'];
@@ -12204,6 +12277,7 @@ function applyCfgToSession(){
   EV.groups=new Set(Array.isArray(CFG.eventGroups)?CFG.eventGroups:[]);
   if(CFG.hemoSweep) HV.win=+CFG.hemoSweep;
   HV.chans=Array.isArray(CFG.hemoChans)?CFG.hemoChans.slice():null;
+  ANN.show = CFG.annShow!==false; annSyncShowBtn();
   const set=(id,v)=>{ const e=$(id); if(e) e.value=String(v); };
   set('#winSel',APP.win); set('#gainSel',APP.gain); set('#speed',APP.speed);
   const tog=(id,on)=>{ const e=$(id); if(e) e.classList.toggle('on',on); };
@@ -12445,6 +12519,11 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
 /* What changed in each published update, newest first. Dates are when the update
    went live on the published page. */
 const CHANGELOG = [
+  {date:'2026-11-14', items:[
+    'Annotations show on the Monitor, Trends, Physiology and CPR pages as a dashed line with a flag at the top, like the CPR page’s code markers. The Annotations button beside ＋ Annotate shows or hides them everywhere.',
+    '12-lead: “Measured here” starts closed, like the device’s interpretation.',
+    'The Local only note has its own box and is no longer listed on the Formulas page.'
+  ]},
   {date:'2026-11-13', items:[
     'On a phone the monitor’s recorded numbers also sit beside their waveforms.',
     'Monitor: each row’s scale sits on the strip, names fit their column, and the value under the playhead is gone. Impedance respiration is hidden unless you turn it on.',
@@ -12784,6 +12863,7 @@ function wire(){
       : 'Calipers on — drag across a trace to measure, double-click to clear');
   };
   $('#btnMark').onclick = annAnnotate;
+  $('#btnAnnShow').onclick = ()=> annSetShow(!ANN.show);
   $('#btnTheme').onclick = ()=>{
     setTheme(THEME.mode==='light'?'dark':'light', true);
     if(APP.view==='settings') renderSettings();

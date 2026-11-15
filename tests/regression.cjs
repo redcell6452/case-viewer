@@ -1106,12 +1106,38 @@ test('12-lead: ST-J at the J point across all leads (deep S in V2 does not end t
     const snap={is12:true, traces:[{lead:'I',hz,data:I},{lead:'II',hz,data:II},{lead:'V2',hz,data:V2},
       {lead:'aVF',hz,data:Float32Array.from(II,(v,i)=>v-I[i]/2)}]};
     const m=twelveMeasure(snap);
-    return JSON.stringify({I:m.stj.I, II:m.stj.II, V2:m.stj.V2, qrs:m.axes.QRS, p:m.axes.P, t:m.axes.T});
+    const html=twelveMeasureHtml(snap);
+    return JSON.stringify({I:m.stj.I, II:m.stj.II, V2:m.stj.V2, qrs:m.axes.QRS, p:m.axes.P, t:m.axes.T,
+      closed:/^<details class="stjbox"><summary/.test(html) && !/<details[^>]*\bopen\b/.test(html)});
   })()`));
+  assert.ok(r.closed, '"Measured here" starts closed, like the device interpretation');
   assert.ok(Math.abs(r.I) < 0.3 && Math.abs(r.II) < 0.3, 'limb leads near 0: ' + r.I + ' ' + r.II);
   assert.ok(Math.abs(r.V2 - 1.8) < 0.6, 'V2 ST-J ' + r.V2);       /* built at 0.18 mV = 1.8 mm; was -12 before the fix */
   assert.ok(r.qrs > 40 && r.qrs < 65, 'QRS axis ' + r.qrs);
   assert.ok(r.p > 40 && r.p < 70 && r.t > 40 && r.t < 65, 'P/T axes ' + r.p + ' ' + r.t);
+});
+
+test('annotations: a flag with the first words at the top, a bare pennant for sticky notes, and none when hidden', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    M.durMs=600000;
+    ANN.list=[{id:'a1',t0:60000,t1:60000,text:'Adrenaline 1 mg\\nIV',color:'#3fd68b'},
+              {id:'a2',t0:120000,t1:150000,text:'Airway placed',color:'#4aa3ff'}];
+    const calls=[];
+    const g=new Proxy({}, {get:(o,k)=> k==='measureText' ? (s=>({width:s.length*6}))
+      : k==='fillText' ? (s=>calls.push(s)) : (k in o ? o[k] : ()=>{}), set:(o,k,v)=>{ o[k]=v; return true; }});
+    const X=t=>t/1000;
+    ANN.show=true; annFlags(g,X,0,100,0,600000,{});
+    const all=calls.slice(); calls.length=0;
+    annFlags(g,X,0,100,0,600000,{notesBare:true});
+    const bare=calls.slice(); calls.length=0;
+    ANN.show=false; annFlags(g,X,0,100,0,600000,{});
+    return JSON.stringify({all, bare, hidden:calls.length, visible:annVisible().length});
+  })()`));
+  assert.deepEqual(r.all, ['Adrenaline 1 mg', 'Airway placed']);
+  assert.deepEqual(r.bare, ['Airway placed']);
+  assert.equal(r.hidden, 0);
+  assert.equal(r.visible, 0);
 });
 
 test('CPR perfusion proxy: builds toward the quality delivered (tau 5 s), decays fast in a pause (tau 3.6 s), no reset at a shock', () => {
