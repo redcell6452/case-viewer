@@ -94,8 +94,10 @@ are accepted.
 `CompRate` (compressions/min, 0 = none) and `TimeStamp`, a millisecond counter that
 keeps pace with the wall clock. The viewer reads `CompDisp` as thousandths of an inch
 and `RelVelocity` as hundredths of an inch per second. Those scales are inferred from
-plausible values on one real export, not from documentation. Its Lo/Hi depth and rate
-flags are smoothed across compressions and are not used. `CprAccelWaveRec` carries the
+plausible values on one real export, not from documentation. The `Lo`/`Hi` depth and
+rate flags are the device's own CPR feedback (too shallow, too deep, too slow, too fast);
+they are smoothed across compressions by the device, and the viewer shows them as the
+device's feedback rather than using them in its own targets. `CprAccelWaveRec` carries the
 raw CPR acceleration waveform and is not read.
 
 Real-arrest per-compression extraction is otherwise unverified. CPR field discovery and waveform
@@ -110,7 +112,10 @@ records, and changes to the displayed waveforms appear in `DisplayInfo`/`TraceCo
 On X Series exports the treatment buttons (EPI, IV, ...) are not `AnnotationEvt`: each
 press is a `TreatmentSnapshotEvt` with `@EvtName` "Treatment" and the button's label in
 `TreatmentLbl`; a waveform snapshot taken with it carries the same `TreatmentLbl`. When
-these exist the viewer uses them as the case's treatments. The `TreatmentSummary` bit
+these exist the viewer uses them as the case's treatments. `EPI` and `IV` have been seen in
+a real export. Other labels (`IO`, `AMIO`, `INTUB` and the airway buttons) are mapped on
+the assumption that the label is the button's text, which is unconfirmed; any label is
+shown as written when it is not mapped. The `TreatmentSummary` bit
 on other events (SpO2 Low Perfusion, NIBP Air Leak, ...) marks them for the printed
 summary and does not mean care was given.
 
@@ -119,12 +124,29 @@ brightness do not appear. Alarm limits are visible only as the values attached t
 `AlarmEvt`, which carries the value and the limits in force but no channel name, no
 pressure part, no priority and no end time. Trend values carry a separate `Alarm` flag.
 
+## Device determinations
+
+`AedContinAnalysis` is written every 3 seconds while the pads are on, even in manual mode.
+Each `AnalysisResult` carries `SceDecisionFlagVal` ("Disabled" when shock advice is off),
+`ShockResult` (values 3 and 5 seen; their meanings are not documented) and segment
+timing. `Aed` records log pads, cable and mode changes; their `AnalysisResults` are empty
+unless an analysis was requested. Neither names a rhythm.
+
+`AlarmEvt` carries a `DevEvtCode` but no name. Heart-rate alarms are 320 (high) and 319
+(low), with the limits in `AlarmLimits`; a low alarm with value 0 means no rate could be
+counted. Code 299 (`XidCode` 107) carries no limits and is unidentified.
+
+A 12-lead's `AnalysisResult` holds the monitor's own `HeartRate`, `QrsDur`, `QtInt`,
+`CorrQtInt` (correction formula not stated) and `QrsAxis`, with INT_MIN meaning "not
+measured", alongside its interpretation statements.
+
 ## Unresolved details
 
 - ECG scalar arithmetic and some channel/unit mappings.
 - Clock alignment and reliable patient boundaries across all record types.
 - Certain opaque event payloads and analysis segments.
 - Alarm priority (the colour the monitor showed) and when an alarm ended.
-- Per-compression record layout on a real arrest export.
+- Units of `CompDisp` and `RelVelocity` (inferred), and the meaning of `ShockResult` codes.
+- Treatment-button labels other than EPI and IV.
 - Compatibility with other device families, firmware and schema versions.
 - Detector accuracy, signal quality thresholds and model calibration.

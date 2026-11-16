@@ -19,6 +19,14 @@ validate the underlying detectors or turn derived values into diagnostic measure
   unobserved recovery are explicit. Rates of change cannot bridge these gaps. The cadence
   rule is an engineering continuity policy, not a validated physiological threshold.
 
+- **X Series CPR records were not read.** Period segments (`StartSecond` + `Duration`)
+  and `CprCompression` records were missed, so a real arrest showed no compressions. Both
+  are read now; the depth and release scales are inferred (see FORMAT.md).
+- **Ventilation marks were discarded.** An early burst of duplicate capnography marks
+  disqualified the whole source; each run of marks under 500 ms apart now counts once.
+- **Device events were counted as treatments.** The printed-summary bit on events such as
+  SpO₂ low perfusion is not care given; the X Series treatment buttons are used instead.
+
 Found with the synthetic test cases (`tools/make-test-case.cjs`), whose answers are known:
 
 - **Fast-flush damping test missed every flush.** Invasive pressures are stored as identical
@@ -102,8 +110,10 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
 
 6. **Units, bandwidth and applicability are incompletely established.** The ECG scale is
    read from the file (confirmed against the 12-lead's own amplitude in one export), the
-   format reference covers one X Series export, and real-arrest CPR
-   extraction is untested. Adult reference bands are not adapted to pediatric records.
+   format reference covers one X Series export, and real-arrest CPR extraction has
+   been checked against that one export only, with inferred depth and release units. CPR
+   targets follow the age group; other adult reference bands are not adapted to
+   pediatric records.
    Fixed “physiologic” cutoffs may discard genuine extremes. PR/QT, axis and morphology
    estimates need validation against annotations acquired at adequate bandwidth and
    sampling rate, not merely a filter metadata check.
@@ -115,7 +125,21 @@ Using Lomb–Scargle alone does not solve beat-labeling errors. [PhysioNet HRV t
    same cases used to report accuracy. PhysioNet provides [waveform-analysis evaluation
    resources](https://physionet.org/physiotools/wpg/wpg.htm).
 
-8. **Alarm boxes are the viewer's reading, not the monitor's display.** The export records
+8. **CPR cycles, the ratio phase and the debrief are the viewer's own rules.** Breath
+   pauses are recognised by their spacing (6–25 s apart, five or more), 15:2 is told from
+   30:2 by the compressions between pauses, and every later pause ends a cycle. A pause for
+   another reason inside the ratio phase, or ventilation given without pausing, can
+   misplace a boundary. An advanced airway is recognised only from a treatment name; the
+   airway itself is never inferred from capnography. The debrief's thresholds follow the
+   AHA guidance but its wording and selection are the viewer's, and it cannot see the
+   reasons for a pause. Treat it as a prompt for the team debrief.
+
+9. **Formula colours describe provenance, not accuracy.** Green values are read from the
+   monitor, yellow are calculated by a method with a published source, red are built here
+   with none cited. A yellow value still depends on this viewer's detectors; a red one may
+   be a standard formula still awaiting a citation.
+
+10. **Alarm boxes are the viewer's reading, not the monitor's display.** The export records
    a per-value "in alarm" flag on trend rows and alarm crossings with the limits in force,
    but not the alarm's priority, its colour on screen, which pressure channel or part
    (systolic, diastolic, mean) a pressure alarm was on, or when an alarm ended. The
@@ -147,7 +171,7 @@ follows that distinction. [The cardiac output from blood pressure algorithms tri
 
 ## Verification performed
 
-`node --test tests/regression.cjs` passes 76 tests, including all 25 original arterial
+`node --test tests/regression.cjs` passes 113 tests, including all 25 original arterial
 self-checks. Tests cover malformed inputs, annotation injection fields, case isolation,
 window selection, venous means, HRV gaps and equal-power spectral signals, capnography,
 and a synthetic raw-case path through parsing, analysis and table rendering. Additional

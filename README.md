@@ -95,7 +95,7 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | A **magnifier** (**Lens**, or **Z**) puts a round lens over the waveforms at the pointer, enlarged 2× (Shift + scroll for 1.5–4×), and keeps up with playback. Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. From the keyboard, tab to the panel: ← → move 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End the ends; its top edge also takes focus, and ↑ ↓ resize it (Home resets). It stays open across tabs and follows the playhead during playback. |
+| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, a **magnifier** (**Lens**, or **Z**: a round lens over the waveforms at the pointer, enlarged 2×, Shift + scroll for 1.5–4×, kept up to date during playback), and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. From the keyboard, tab to the panel: ← → move 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End the ends; its top edge also takes focus, and ↑ ↓ resize it (Home resets). It stays open across tabs and follows the playhead during playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. Under each 12-lead, the viewer's own ST-J level in every lead (red at the usual elevation thresholds, amber at depression) and the P, QRS and T axes. |
@@ -225,10 +225,28 @@ Modelled on RescueNet Case Review's *CPR Zoom* and *CPR Performance* pages:
 - **case metrics** — chest compression fraction, average rate, depth and release
   velocity, and the percentage of compressions in target;
 - **performance strips** — event summary, depth, rate, compressions in target, and a
-  release-velocity trend banded FAST / MEDIUM / SLOW.
+  release-velocity trend banded FAST / MEDIUM / SLOW. Click one to open all five zoomed in
+  around that moment; drag, scroll or use ← → to move, hover for details, click to move
+  the playhead;
+- **compression cycles** numbered along the top of the quality graph with their lengths,
+  each with its own figures on hover;
+- a **Debrief** written from the recording: cycle lengths, what went well and what is worth
+  working on, against the AHA guidelines for the patient's age group (30:2 or 15:2, the
+  switch to continuous compressions, 2-minute cycles, peri-shock pauses, rate, depth,
+  release, epinephrine spacing, and breath rate once breaths are continuous or an advanced
+  airway is marked). It is encouraging in tone and not a grade;
+- two **diamonds** on the dashboard: the viewer's perfusion proxy and, when the export
+  carries them, one built from the device's own feedback flags.
 
-Targets are the adult defaults: depth 2.0–2.4 in, rate 100–120 cpm, release velocity
-400+ mm/s. Click either view to move the cursor to that moment.
+Targets follow the age group (Settings › CPR targets; adult by default: depth 2.0–2.4 in,
+rate 100–120 cpm, release velocity 400+ mm/s). Click the quality graph to move the
+playhead to that moment.
+
+How the viewer reads cycles and the compression:breath ratio: breath pauses start 6–25 s
+apart, at least five in a row; the compressions between them tell 15:2 from 30:2. That
+whole phase is one cycle, and after it every pause (or ROSC) ends a cycle. Treatments named
+Intubation, i-gel, supraglottic airway and similar count as an advanced airway. These are
+the viewer's own rules, not the device's.
 
 Periods, ventilation marks and shocks are read from the device's own parsed output in the
 CaseReview XML. Compressions come from per-compression records if the export carries
@@ -455,6 +473,12 @@ give you an FDA-cleared one. Three reasons:
    generally a regulated medical device in its own right. A retrospective review and
    annotation tool is not.
 
+In manual mode the X Series does not label rhythms. It analyses the pads ECG in the
+background (`AedContinAnalysis`, a 3-second segment at a time) but records its shock
+decision as *Disabled*, and gives a verdict only when someone presses **Analyze** or it runs
+in AED mode. Asystole shows in the file only indirectly, as heart-rate-low alarms whose
+value is 0. The viewer does not turn either into a rhythm label.
+
 Everything this viewer computes is therefore **measurement, not interpretation** —
 intervals, amplitudes, slopes, ratios, counts. It is labelled as derived wherever it
 appears. Use it to review a case; use the device's own record for what the device
@@ -586,8 +610,9 @@ malformed input before adding any notes.
 
 With Node.js 24.2 or later, run `node --test tests/regression.cjs`. No packages need to be
 installed. The suite includes the 25 built-in arterial checks plus parser, annotation,
-windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, changelog
-and synthetic integration regressions.
+windowing, case-isolation, HRV, capnography, caliper, sticky-note, alarm-box, changelog,
+CPR (X Series records, device flags, treatment buttons, cycles, the 30:2 / 15:2 phase,
+airway checks, the debrief and the zoomed strips) and synthetic integration regressions.
 Synthetic success verifies these scenarios, not accuracy on real clinical recordings.
 
 Browser checks: `node tests/browser.cjs`. Nothing needs installing: it drives an installed
