@@ -12818,6 +12818,15 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
 /* What changed in each published update, newest first. Dates are when the update
    went live on the published page. */
 const CHANGELOG = [
+  {date:'2026-11-16', items:[
+    'CPR page reads X Series exports: CPR and pause periods, and each compression’s depth, rate and release. A file whose CPR records can’t be read says so instead of “no resuscitation”.',
+    'CPR dashboard: a second diamond built from the device’s own feedback flags (too shallow, too deep, too slow, too fast), beside the model’s. The flags also show in a field under the diamonds and as a strip between the rate and depth graphs.',
+    'Treatment buttons pressed on the monitor (Epinephrine, IV access, ...) appear on the CPR page and the timeline.',
+    'CPR page: a Debrief with what went well and what is worth working on, measured against the AHA guidelines: compression fraction, pauses, 2-minute cycles, 30:2 then continuous compressions, restarting straight after a shock, rate, depth, release, epinephrine timing and breaths every 6 s.',
+    'Treatment and annotation flags on the CPR graph sit in their own strip above the ECG.',
+    'The Whole-case ECG tab no longer covers the page above it.',
+    'Fixed: an early burst of repeated breath marks no longer hides the rest of the case’s breaths.'
+  ]},
   {date:'2026-11-14', items:[
     'Annotations show on the Monitor, Trends, Physiology and CPR pages as a dashed line with a flag at the top, like the CPR page’s code markers. The Annotations button beside ＋ Annotate shows or hides them everywhere.',
     '12-lead: “Measured here” starts closed, like the device’s interpretation.',
