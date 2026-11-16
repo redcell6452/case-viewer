@@ -878,6 +878,49 @@ test('compression cycles: the 30:2 phase is one cycle, then each pause ends one;
   assert.match(r.hover, /Cycle<\/span><span class="ctv">2 · 1:00 of 2:00/);
 });
 
+test('debrief: cycle lengths, 15:2 for a child, and continuous compressions with AHA breath rates after intubation', () => {
+  const a = app();
+  const run = (group, opts) => JSON.parse(a.run(`(()=>{ M.durMs=3000000; M.t0Wall=0; CFG.cprT={group:'${group}'}; syncCprTargets();
+    const o=${JSON.stringify(opts)};
+    // ratio phase: o.per compressions at 110/min, then a 3 s breath pause, eight rounds
+    const pauses=[]; let t=0; const comps=[];
+    for(let r=0;r<8;r++){ for(let i=0;i<o.per;i++){ comps.push({t, rate:110, depth:o.depth, relVel:450}); t+=545; } pauses.push({t0:t, t1:t+3000}); t+=3000; }
+    const airwayT=t-1000;
+    // continuous compressions; a pulse check every 2 min, or (o.stillPausing) breath pauses every 12 s for 2 min first
+    const end=t+6*60000;
+    if(o.stillPausing){ for(let k=0;k<10;k++){ const p0=t+25000+k*12000; pauses.push({t0:p0, t1:p0+3000}); } }
+    for(let p=t+120000;p<end-10000;p+=126000) pauses.push({t0:p, t1:p+6000});
+    pauses.sort((x,y)=>x.t0-y.t0);
+    for(;t<=end;t+=545){ if(pauses.some(p=>t>p.t0&&t<p.t1)) continue; comps.push({t, rate:110, depth:o.depth, relVel:450}); }
+    const vents=[]; for(let v=airwayT+2000; v<end; v+=o.ventMs) vents.push(v);
+    M.events=[{t:airwayT, kind:'treatment', group:'Treatment', name:'Intubation'}];
+    M.cpr={comps, periods:[{t0:0,t1:end}], pauses, rosc:[], shocks:[], vents, autopulse:[], resq:[]};
+    const D=cprDebrief(cprMetrics(), cprSummary());
+    return JSON.stringify({D, cyc:cprCycles().map(c=>c.phase), html:cprDebriefHtml(cprMetrics())}); })()`));
+  // a child, 15:2, intubated, breaths every 2.5 s: all praised
+  const kid = run('child', {per:15, depth:2.0, ventMs:2500});
+  assert.equal(kid.cyc[0], '15:2');
+  assert.ok(kid.D.good.some(s => /steady 15:2 rhythm/.test(s)), kid.D.good.join(' | '));
+  assert.ok(kid.D.good.some(s => /After intubation at .*kept going without stopping/.test(s)));
+  assert.ok(kid.D.good.some(s => /every 2\.5 s .*20–30\/min/.test(s)), kid.D.good.join(' | '));
+  assert.ok(!kid.D.work.some(s => /15:2|30:2/.test(s)));
+  assert.ok(kid.D.cycles.length >= 3 && kid.D.cycles[0].phase === '15:2');
+  assert.match(kid.html, /Cycle lengths/);
+  assert.match(kid.html, /1 \(15:2\): \d+:\d\d/);
+  // the same child at 30:2 gets the two-rescuer tip
+  const kid30 = run('child', {per:30, depth:2.0, ventMs:2500});
+  assert.ok(kid30.D.work.some(s => /15:2 gives the extra breaths/.test(s)));
+  // an adult still pausing for breaths after intubation, breaths every 3 s
+  const adult = run('adult', {per:30, depth:2.1, ventMs:3000, stillPausing:true});
+  assert.ok(adult.D.work.some(s => /still paused for breaths/.test(s)), adult.D.work.join(' | '));
+  assert.ok(adult.D.work.some(s => /After intubation, breaths ran about 20\/min.*one every 6 s/.test(s)), adult.D.work.join(' | '));
+  // an adult at 15:2 is reminded it is 30:2
+  const adult15 = run('adult', {per:15, depth:2.1, ventMs:6000});
+  assert.ok(adult15.D.work.some(s => /For adults it is 30:2/.test(s)));
+  assert.ok(adult15.D.good.some(s => /every 6 s .*about 10\/min/.test(s)), adult15.D.good.join(' | '));
+  a.run('CFG.cprT=null; syncCprTargets()');
+});
+
 test('device-flag diamond: fills from unflagged compressions, ignores a fast rate, decays in a pause, absent without flags', () => {
   const a = app();
   const r = JSON.parse(a.run(`(()=>{

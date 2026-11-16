@@ -589,6 +589,10 @@ table.grid tr:hover td{background:#182029}
 .debhead{margin:0 0 8px;font-size:15px;font-weight:600}
 .debrief h3{margin:8px 0 2px;font-size:13px} .debgood{color:var(--ok)} .debwork{color:var(--warn)}
 .debnote{margin:6px 0 0;font-size:11.5px;color:var(--dim)}
+.debcyc{margin:4px 0 8px;font-size:12.5px;line-height:1.7}
+.debcyc b{font-weight:600;margin-right:4px}
+.debcyc span{font-family:var(--mono);white-space:nowrap}
+.debcyc span.long{color:var(--warn)}
 .dashfl{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .dashflag{font:700 13px var(--mono);padding:3px 8px;border-radius:6px;border:1px solid currentColor}
 .dashflag.bad{color:var(--crit)} .dashflag.mid{color:var(--warn)} .dashflag.good{color:var(--ok)}
@@ -2424,7 +2428,8 @@ function buildModel(json, xml, fileName){
   }
   /* X Series treatment buttons (EPI, IV, ...): TreatmentSnapshotEvt, @EvtName "Treatment",
      the button's label in TreatmentLbl. Not AnnotationEvt, so they need their own pass. */
-  const TREAT_NAMES={EPI:'Epinephrine', IV:'IV access', IO:'IO access', AMIO:'Amiodarone'};
+  const TREAT_NAMES={EPI:'Epinephrine', IV:'IV access', IO:'IO access', AMIO:'Amiodarone',
+    INTUB:'Intubation', ETT:'Intubation', ETI:'Intubation', IGEL:'i-gel', SGA:'Supraglottic airway', KING:'King airway', LMA:'LMA'};
   for(const r of recs){
     const a = r.TreatmentSnapshotEvt; if(!a) continue;
     const h = a.StdHdr;
@@ -9775,22 +9780,50 @@ function cprTreats(g, X, top, h, span, small, y0){
   /* annotations, drawn the same way and stacked in the same lanes */
   annFlags(g, X, top, h, span.t0, span.t1, {row, y0, small, xMax:X(span.t1)});
 }
+/* ---- the compression:breath phase ----
+   Breath pauses during ratio CPR start 8-25 s apart (6-25 s, so 15:2 at 120/min fits),
+   at least five in a row from the first pause. The compressions counted between them
+   tell 15:2 (two-rescuer child and infant CPR) from 30:2. Returns the index of the
+   phase's last pause, or k=0 when there was no ratio phase. */
+function cprBreathPhase(){
+  const C=M.cpr; if(!C) return {k:0, has:false, ps:[]};
+  const ps=(C.pauses.length ? C.pauses : cprSummary().pauses).slice().sort((a,b)=>a.t0-b.t0);
+  const gaps=ps.slice(1).map((p,i)=>(p.t0-ps[i].t0)/1000);
+  let k=0; while(k<gaps.length && gaps[k]>=6 && gaps[k]<=25) k++;
+  if(k<4) return {k:0, has:false, ps};
+  const counts=[]; for(let i=0;i<k;i++){ const a=ps[i].t1, b=ps[i+1].t0; counts.push(C.comps.filter(c=>c.t>a && c.t<b).length); }
+  counts.sort((x,y)=>x-y);
+  const per=counts[counts.length>>1], ratio = per && per<=22 ? '15:2' : '30:2';
+  const brk=ps.slice(0,k+1).map(p=>(p.t1-p.t0)/1000).sort((a,b)=>a-b);
+  return {k, has:true, ps, ratio, per, breathS:brk[brk.length>>1], end:ps[k].t1, endT0:ps[k].t0};
+}
+/* the first advanced airway marked on the monitor (a treatment button or logged event) */
+const CPR_AIRWAY_RX=/intubat|\bett\b|endotrach|i-?gel|supraglottic|\bsga\b|\blma\b|\bking\b|advanced airway|cricothyro/i;
+function cprAirway(){
+  const e=cprTreatments().find(e=>CPR_AIRWAY_RX.test(e.name));
+  return e ? {t:e.t, name:e.name} : null;
+}
+/* the AHA breath rate once breaths are continuous: adults one every 6 s (10/min);
+   children and infants one every 2-3 s (20-30/min); newborns are not judged (3:1) */
+function cprVentTarget(group){
+  if(group==='newborn') return null;
+  if(group==='child' || group==='infant') return {lo:20, hi:30, okLo:16, okHi:32, txt:'one every 2–3 s (20–30/min) for a '+group};
+  return {lo:10, hi:10, okLo:6, okHi:12, txt:'one every 6 s (about 10/min)'};
+}
 /* ---- compression cycles ----
    A cycle is a stretch of compressions between the pauses that end one: a pulse or
-   rhythm check, a compressor change, a shock. During 30:2 CPR the short pauses for
-   breaths (starting 8-25 s apart, at least five in a row, as the debrief reads them)
-   belong to the cycle they fall in, so the whole 30:2 phase up to its last pause is the
+   rhythm check, a compressor change, a shock. During 30:2 or 15:2 CPR the short pauses for
+   breaths (cprBreathPhase) belong to the cycle they fall in, so the whole ratio phase up to its last pause is the
    first cycle; after it every pause ends one. ROSC ends a cycle too. */
 function cprCycles(){
   const C=M.cpr; if(!C || !C.comps || C.comps.length<3) return [];
   const key=C.comps.length+':'+C.pauses.length+':'+(C.rosc||[]).length+':'+(C.vents||[]).length+':'+M.events.length;
   if(C._cyc && C._cyc.key===key) return C._cyc.list;
   const comps=C.comps, first=comps[0].t, last=comps[comps.length-1].t;
-  const ps=(C.pauses.length ? C.pauses : cprSummary().pauses)
-    .filter(p=>p.t1>first && p.t0<last).slice().sort((a,b)=>a.t0-b.t0);
-  const gaps=ps.slice(1).map((p,i)=>(p.t0-ps[i].t0)/1000);
-  let k=0; while(k<gaps.length && gaps[k]>=8 && gaps[k]<=25) k++;
-  const has302 = k>=4;
+  const BP=cprBreathPhase();
+  const ps=BP.ps.filter(p=>p.t1>first && p.t0<last);
+  const k=BP.has ? ps.indexOf(BP.ps[BP.k]) : 0;
+  const has302 = BP.has && k>=4;
   const breaths = has302 ? ps.slice(0,k) : [];
   const bounds = (has302 ? ps.slice(k) : ps).map(p=>({t0:p.t0, t1:p.t1, kind:'pause'}))
     .concat((C.rosc||[]).map(p=>({t0:p.t0, t1:p.t1, kind:'rosc'}))).sort((a,b)=>a.t0-b.t0);
@@ -9813,7 +9846,7 @@ function cprCycles(){
     const rel=cs.map(c=>c.relVel).filter(v=>v!=null), fl=cs.filter(c=>c.devFlags);
     const inT=cs.filter(c=>c.rate!=null && c.depth!=null);
     list.push({n:list.length+1, t0:r.t0, t1:r.t1, ms:dur, comps:cs.length,
-      phase: has302 ? (r.t0<ps[k].t0 ? '30:2' : 'continuous') : null,
+      phase: has302 ? (r.t0<ps[k].t0 ? BP.ratio : 'continuous') : null,
       rate: rates.length ? median(rates) : null,
       depth: depths.length ? depths.reduce((a,v)=>a+v,0)/depths.length : null,
       relVel: rel.length ? median(rel) : null,
@@ -9829,6 +9862,7 @@ function cprCycles(){
   C._cyc={key, list};
   return list;
 }
+function cprRatioPhase(c){ return !!c && /^\d+:2$/.test(c.phase||''); }
 function fmtCycleLen(ms){ const s=Math.round(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 function cprCycleAt(t){ return cprCycles().find(c=>t>=c.t0 && t<=c.t1) || null; }
 /* the cycle row along the top of the quality graph: |--- Cycle 2 · 1:58 ---| per cycle,
@@ -9840,7 +9874,7 @@ function cprCycleRow(g, X, y, hgt, span, xL, xR, hot){
     if(c.t1<span.t0 || c.t0>span.t1) continue;
     const a=X(c.t0), b=X(c.t1), x0=Math.max(a,xL), x1=Math.min(b,xR);
     if(x1-x0<3) continue;
-    const long = c.phase!=='30:2' && c.ms>150000;
+    const long = !cprRatioPhase(c) && c.ms>150000;
     const col = long ? traceCol(CPR_MID) : (TC.chartText||TC.dim);
     g.globalAlpha = hot && hot!==c ? .6 : 1;
     if(hot===c){ g.fillStyle=TC.fg||'#fff'; g.globalAlpha=.08; g.fillRect(x0, y, x1-x0, hgt); g.globalAlpha=1; }
@@ -9848,7 +9882,7 @@ function cprCycleRow(g, X, y, hgt, span, xL, xR, hot){
     g.beginPath(); g.moveTo(x0,mid); g.lineTo(x1,mid); g.stroke();
     for(const e of [a,b]) if(e>=xL-0.5 && e<=xR+0.5){ const xe=Math.round(e)+0.5; g.beginPath(); g.moveTo(xe,y+2); g.lineTo(xe,y+hgt-2); g.stroke(); }
     const len=fmtCycleLen(c.ms);
-    const opts=['Cycle '+c.n+(c.phase==='30:2'?' (30:2)':'')+' · '+len, 'Cycle '+c.n+' · '+len, '#'+c.n+' '+len, String(c.n)];
+    const opts=['Cycle '+c.n+(cprRatioPhase(c)?' ('+c.phase+')':'')+' · '+len, 'Cycle '+c.n+' · '+len, '#'+c.n+' '+len, String(c.n)];
     const txt=opts.find(o=>g.measureText(o).width+14<=x1-x0);
     if(txt){
       const tw=g.measureText(txt).width+10, cx=(x0+x1)/2;
@@ -9862,8 +9896,9 @@ function cprCycleHtml(c){
   const rows=[], row=(k,v,cls)=>rows.push('<div class="ctr"><span class="ctk">'+k+'</span><span class="ctv'+(cls?' '+cls:'')+'">'+v+'</span></div>');
   const ok=b=> b==null ? '' : b ? 'good' : 'bad';
   row('Time', fmtClock(M.t0Wall+c.t0)+'–'+fmtClock(M.t0Wall+c.t1));
-  row('Length', fmtCycleLen(c.ms)+(c.phase!=='30:2' && c.ms>150000 ? ' (past 2½ min)' : ''), c.phase!=='30:2' && c.ms>150000 ? 'bad' : '');
-  if(c.phase) row('Style', c.phase==='30:2' ? '30:2 compressions and breaths' : 'Continuous compressions');
+  const long=!cprRatioPhase(c) && c.ms>150000;
+  row('Length', fmtCycleLen(c.ms)+(long ? ' (past 2½ min)' : ''), long ? 'bad' : '');
+  if(c.phase) row('Style', cprRatioPhase(c) ? c.phase+' compressions and breaths' : 'Continuous compressions');
   row('Compressions', String(c.comps));
   if(c.rate!=null) row('Rate (median)', Math.round(c.rate)+' /min', ok(cprRateOk(Math.round(c.rate))));
   if(c.depth!=null) row('Depth (average)', cprDFmt(c.depth,1), ok(cprDepthOk(+c.depth.toFixed(1))));
@@ -9872,7 +9907,7 @@ function cprCycleHtml(c){
   if(c.unflagged!=null) row('No device flag', Math.round(c.unflagged)+'%');
   if(c.breaths) row('Breath pauses', c.breaths+', about '+(c.breathMs/1000).toFixed(1)+' s each');
   if(c.breaths && c.handsOn!=null) row('Hands on', Math.round(c.handsOn)+'%');
-  if(c.vents) row('Ventilations', c.vents+(c.phase!=='30:2' && c.ms>=30000 ? ', about every '+Math.round(c.ms/1000/c.vents)+' s' : ''));
+  if(c.vents) row('Ventilations', c.vents+(!cprRatioPhase(c) && c.ms>=30000 ? ', about every '+Math.round(c.ms/1000/c.vents)+' s' : ''));
   if(c.treats.length) row('Treatments', esc(c.treats.join(', ')));
   row('Ended with', c.endKind==='rosc' ? 'ROSC' : c.endKind==='end' ? 'end of CPR'
     : (c.endShock ? 'a shock, ' : 'a pause, ')+(c.endMs/1000).toFixed(1)+' s hands-off', c.endKind==='rosc' ? 'good' : c.endMs>10000 ? 'bad' : '');
@@ -10168,22 +10203,33 @@ function cprDebrief(m, S){
   const long=S.pauses.filter(p=>p.ms>10000).sort((a,b)=>b.ms-a.ms);
   if(S.pauses.length && !long.length) good.push('No pause ran longer than 10 s, which is great discipline.');
   else if(long.length) work.push((long.length===1?'One pause':long.length+' pauses')+' ran past 10 s (the longest '+s1(long[0].ms)+' at '+at(long[0].t0)+'). Worth a look together: a pulse check, a compressor change, airway, a move? Knowing why makes the next one shorter.');
-  /* the rhythm of the code: 30:2 cycles, then 2-minute pulse checks and swaps */
-  const ps=C.pauses.length ? C.pauses : S.pauses;
-  const gapsP=ps.slice(1).map((p,i)=>(p.t0-ps[i].t0)/1000);
-  let k30=0; while(k30<gapsP.length && gapsP[k30]>=8 && gapsP[k30]<=25) k30++;
-  if(k30>=4){
-    const brk=ps.slice(0,k30+1).map(p=>(p.t1-p.t0)/1000).sort((a,b)=>a-b);
-    const sw=ps[k30].t1;
-    good.push('The first '+(k30+1)+' cycles kept a steady 30:2 rhythm, with breaths taking about '+brk[brk.length>>1].toFixed(0)+' s each time, '+
-      'then the team moved to continuous compressions on time-based cycles from '+at(sw)+' (high-performance CPR). Well done.');
+  /* the rhythm of the code: 30:2 (or 15:2 for children and infants with two rescuers),
+     then continuous compressions on 2-minute cycles */
+  const BP=cprBreathPhase(), ps=BP.ps, k30=BP.k, grp=T.group==='auto' ? 'adult' : T.group;
+  const peds = grp==='child' || grp==='infant';
+  const airway=cprAirway();
+  if(BP.has && grp!=='newborn'){
+    good.push('The first '+(k30+1)+' rounds kept a steady '+BP.ratio+' rhythm, with breaths taking about '+BP.breathS.toFixed(0)+' s each time, '+
+      'then the team moved to continuous compressions on time-based cycles from '+at(BP.end)+' (high-performance CPR)'+
+      (airway && Math.abs(BP.end-airway.t)<=90000 ? ', in step with the airway ('+esc(airway.name)+' at '+at(airway.t)+')' : '')+'. Well done.');
+    if(grp==='adult' && BP.ratio==='15:2') work.push('The breath pauses came about every '+BP.per+' compressions, which looks like 15:2. For adults it is 30:2 until an advanced airway is in; 15:2 is the two-rescuer ratio for children and infants.');
+    if(peds && BP.ratio==='30:2') work.push('Breaths came about every '+BP.per+' compressions (30:2). For a '+grp+' with two or more rescuers, 15:2 gives the extra breaths children need; 30:2 is the lone-rescuer ratio.');
   }
   /* time-based 2-minute cycles: a pulse check and a compressor change about every 2 min */
-  const later=gapsP.slice(k30>=4?k30+1:0);
-  if(later.length>=3){
-    const longSt=later.filter(g=>g>150), fine=later.filter(g=>g>=90 && g<=150).length;
-    if(!longSt.length) good.push('Time-based cycles held well: pulse checks and compressor changes came about every 2 minutes or sooner.');
-    else work.push((longSt.length===1?'One cycle':longSt.length+' cycles')+' ran longer than 2½ minutes before the next pulse check or swap (the longest about '+(Math.max(...longSt)/60).toFixed(1)+' min). Depth and recoil tend to fade after 2 minutes on the chest, so keeping to the 2-minute clock for checks and compressor changes keeps quality up'+(fine?', as the team did on '+fine+' other cycles.':'.'));
+  const cycles=cprCycles(), timed=cycles.filter(c=>!cprRatioPhase(c));
+  if(timed.length>=3){
+    const longC=timed.filter(c=>c.ms>150000), fine=timed.filter(c=>c.ms>=90000 && c.ms<=150000).length;
+    if(!longC.length) good.push('Time-based cycles held well: pulse checks and compressor changes came about every 2 minutes or sooner.');
+    else work.push((longC.length===1?'Cycle ':'Cycles ')+longC.map(c=>c.n+' ('+fmtCycleLen(c.ms)+')').join(', ').replace(/, ([^,]*)$/,' and $1')+(longC.length===1?' ran':' ran')+' longer than 2½ minutes before the next pulse check or swap. Depth and recoil tend to fade after 2 minutes on the chest, so keeping to the 2-minute clock for checks and compressor changes keeps quality up'+(fine?', as the team did on '+fine+' other cycle'+(fine>1?'s':'')+'.':'.'));
+  }
+  /* after an advanced airway: compressions without stopping for breaths */
+  const cprEnd=C.comps.length ? C.comps[C.comps.length-1].t : 0;
+  if(airway && cprEnd-airway.t>=60000 && grp!=='newborn'){
+    const after=ps.filter(p=>p.t0>airway.t+20000 && p.t0<cprEnd);
+    const stops=after.filter((p,i)=>{ const prev=i ? after[i-1] : ps.filter(q=>q.t0<p.t0).pop();
+      return prev && (p.t0-prev.t0)/1000>=6 && (p.t0-prev.t0)/1000<=25; });
+    if(stops.length>=3) work.push('After '+esc(airway.name.toLowerCase())+' at '+at(airway.t)+', compressions still paused for breaths '+stops.length+' times. With an advanced airway in, compressions run continuously and breaths are given over the top without stopping.');
+    else good.push('After '+esc(airway.name.toLowerCase())+' at '+at(airway.t)+', compressions kept going without stopping for breaths.');
   }
   /* epinephrine spacing (AHA: every 3-5 minutes during cardiac arrest) */
   const epi=(typeof cprTreatments==='function'?cprTreatments():[]).filter(e=>/^epi(nephrine)?\b|adrenalin/i.test(e.name)).map(e=>e.t);
@@ -10240,30 +10286,37 @@ function cprDebrief(m, S){
     if(ok>=85) good.push('The monitor’s own feedback had no depth or speed complaint on '+r0(ok)+'% of compressions.');
     else work.push('The monitor flagged '+r0(100-ok)+'% of compressions as too shallow or too slow. Its prompts in the moment are worth trusting.');
   }
-  /* ventilation, judged only during continuous compressions, when breaths are given
-     about one every 6 s (an advanced airway or i-gel, or asynchronous bag-mask breaths);
-     in 30:2 cycles breaths come in pairs during the pauses, so a per-minute rate means
-     little there. Capnography does not show which airway is in use, so none is assumed.
-     Adult guidance only: children and infants are ventilated faster. */
-  const contStart = k30>=4 ? ps[k30].t1 : -Infinity;
-  const vs=(T.group && !/^(adult|auto)$/.test(T.group)) ? [] :(C.vents||[]).filter(t=>t>=contStart && C.periods.some(p=>t>=p.t0 && t<=p.t1));
+  /* ventilation, judged only once breaths are continuous: from an advanced airway marked
+     on the monitor, or else from the end of the 30:2 / 15:2 phase (asynchronous bag-mask
+     breaths). In ratio cycles breaths come in pairs during the pauses, so a per-minute rate
+     means little there. Capnography does not show which airway is in use, so none is
+     assumed. AHA rates: adults one every 6 s, children and infants one every 2-3 s;
+     newborns (3:1) are not judged. */
+  const VT=cprVentTarget(grp);
+  const contStart = airway ? airway.t : BP.has ? BP.end : -Infinity;
+  const phaseTxt = airway ? 'After '+airway.name.toLowerCase()+', b' : 'During continuous compressions, b';
+  const vs=!VT ? [] : (C.vents||[]).filter(t=>t>=contStart && C.periods.some(p=>t>=p.t0 && t<=p.t1));
   /* rate from the median interval, ignoring marks under 1 s apart (duplicates) and gaps
      over 30 s (capnography off), so a disconnected sensor doesn't read as slow breathing */
   const vi=vs.slice(1).map((t,i)=>(t-vs[i])/1000).filter(g=>g>=1 && g<=30).sort((a,b)=>a-b);
   if(vi.length>=10){
     const vpm=60/vi[vi.length>>1];
-    if(vpm>12) work.push('During continuous compressions, breaths ran about '+vpm.toFixed(0)+'/min. Easing toward one every 6 s (about 10/min), whether through an i-gel, a tube or the bag-mask, avoids pressure building in the chest.');
-    else if(vpm>=6) good.push('During continuous compressions, breaths came about every '+(60/vpm).toFixed(0)+' s ('+vpm.toFixed(0)+'/min), right on the one-every-6-seconds guidance.');
+    const every=60/vpm, everyTxt = every<4 ? every.toFixed(1) : every.toFixed(0);
+    if(vpm>VT.okHi) work.push(phaseTxt+'reaths ran about '+vpm.toFixed(0)+'/min. Easing toward '+VT.txt+', whether through an i-gel, a tube or the bag-mask, avoids pressure building in the chest.');
+    else if(vpm>=VT.okLo) good.push(phaseTxt+'reaths came about every '+everyTxt+' s ('+vpm.toFixed(0)+'/min), right on the AHA guidance of '+VT.txt+'.');
+    else work.push(phaseTxt+'reaths came about every '+everyTxt+' s ('+vpm.toFixed(0)+'/min), slower than '+VT.txt+'. A ventilation timer or the monitor’s prompt can help keep the pace.');
   }
   const head = !work.length ? 'Excellent resuscitation: the recording shows strong CPR throughout.'
     : good.length>=work.length ? 'Strong CPR overall, with '+(work.length===1?'one thing':work.length===2?'a couple of things':'a few things')+' worth polishing.'
     : 'Good effort under pressure. Here are a few things to focus on next time.';
-  return {head, good, work};
+  return {head, good, work, cycles:cycles.map(c=>({n:c.n, len:fmtCycleLen(c.ms), phase:c.phase, long:!cprRatioPhase(c) && c.ms>150000}))};
 }
 function cprDebriefHtml(m){
   const D=cprDebrief(m, cprSummary());
   const li=a=>a.map(x=>'<li>'+esc(x)+'</li>').join('');
-  return '<div class="debrief"><p class="debhead">'+esc(D.head)+'</p>'+
+  const cyc = D.cycles && D.cycles.length ? '<p class="debcyc"><b>Cycle lengths</b> '+D.cycles.map(c=>
+      '<span'+(c.long?' class="long" title="past 2½ minutes"':'')+'>'+c.n+(cprRatioPhase(c)?' ('+esc(c.phase)+')':'')+': '+c.len+'</span>').join(' · ')+'</p>' : '';
+  return '<div class="debrief"><p class="debhead">'+esc(D.head)+'</p>'+cyc+
     (D.good.length ? '<h3 class="debgood">What went well</h3><ul>'+li(D.good)+'</ul>' : '')+
     (D.work.length ? '<h3 class="debwork">Worth working on</h3><ul>'+li(D.work)+'</ul>' : '')+
     '<p class="debnote">Written automatically from the recorded data against the targets in Settings › CPR targets. '+
@@ -12936,6 +12989,9 @@ const CHANGELOG = [
     'CPR page: a Debrief with what went well and what is worth working on, measured against the AHA guidelines: compression fraction, pauses, 2-minute cycles, 30:2 then continuous compressions, restarting straight after a shock, rate, depth, release, epinephrine timing and breaths every 6 s.',
     'Treatment and annotation flags on the CPR graph sit in their own strip above the ECG.',
     'CPR graph: a row across the top numbers each compression cycle and gives its length (|— Cycle 3 · 1:58 —|). A 30:2 phase counts as one cycle; after it, each pulse check, compressor change or shock ends one, and a time-based cycle past 2½ minutes shows amber. Point at a cycle for its rate, depth, release, time in target, device flags, breaths, treatments and the pause that ended it.',
+    'Debrief: lists every cycle’s length (long ones in amber) and names the cycles that ran past 2½ minutes.',
+    'Debrief for children and infants: tells 15:2 from 30:2 (15:2 is the two-rescuer ratio for children; adults are 30:2) and judges breaths against one every 2–3 s (20–30/min) once they are continuous. Newborns are not judged on breaths.',
+    'Debrief after an advanced airway (Intubation, i-gel and similar buttons or events): checks that compressions kept going without stopping for breaths, and that breaths ran at the AHA rate (adults one every 6 s, children and infants one every 2–3 s), too fast or too slow.',
     'The Whole-case ECG tab no longer covers the page above it.',
     'Fixed: an early burst of repeated breath marks no longer hides the rest of the case’s breaths.'
   ]},
