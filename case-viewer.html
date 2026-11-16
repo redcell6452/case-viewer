@@ -9749,7 +9749,8 @@ function cprTreatments(){
 }
 /* a dashed purple line through the plot; on the large graphs a labelled flag at the top,
    stepped down a row when two would overlap */
-function cprTreats(g, X, top, h, span, small){
+function cprTreats(g, X, top, h, span, small, y0){
+  if(y0==null) y0=20;
   let row=[];
   for(const e of cprTreatments()){
     if(e.t<span.t0||e.t>span.t1) continue;
@@ -9762,7 +9763,7 @@ function cprTreats(g, X, top, h, span, small){
       const txt=e.name.length>22 ? e.name.slice(0,21)+'…' : e.name, w=g.measureText(txt).width+12;
       let lane=0; while(row[lane]!=null && row[lane]>x-2) lane++;
       row[lane]=x+w;
-      const y=top+20+lane*18;
+      const y=top+y0+lane*18;
       g.fillStyle=traceCol(CPR_TREAT); g.fillRect(x, y, w, 16);
       g.fillStyle='#111'; g.textBaseline='middle'; g.fillText(txt, x+6, y+8.5);
     } else {
@@ -9772,7 +9773,7 @@ function cprTreats(g, X, top, h, span, small){
     g.restore();
   }
   /* annotations, drawn the same way and stacked in the same lanes */
-  annFlags(g, X, top, h, span.t0, span.t1, {row, y0:20, small, xMax:X(span.t1)});
+  annFlags(g, X, top, h, span.t0, span.t1, {row, y0, small, xMax:X(span.t1)});
 }
 function cprShocks(g, X, top, h, span, small){
   for(const s of M.cpr.shocks){
@@ -9892,8 +9893,14 @@ function cprView(){
 }
 function drawCprQuality(cv){
   const waves=cprWaveChannels();
+  /* treatment and annotation flags get their own strip above the first waveform, so
+     they never sit on the ECG; two lanes fit, a third or more step down over the trace.
+     A shock badge takes the top of the strip, so with shocks the lanes start below it. */
+  const hasFlags = !!(M.cpr && (cprTreatments().length || annVisible().length));
+  const FLAG_Y0 = M.cpr && M.cpr.shocks.length ? 20 : 2;
+  const FLAG_H = hasFlags ? FLAG_Y0+38 : 0;
   /* each waveform row adds to the graph's height rather than squeezing rate and depth */
-  const wantH='calc(clamp(300px, 48vh, 560px) + '+(waves.length*(CPR_WAVE_H+CPR_WAVE_GAP))+'px)';
+  const wantH='calc(clamp(300px, 48vh, 560px) + '+(FLAG_H+waves.length*(CPR_WAVE_H+CPR_WAVE_GAP))+'px)';
   if(cv.style.height!==wantH) cv.style.height=wantH;
   const nb=$('#cprMon #numerics'); if(nb && nb.style.maxHeight!==wantH) nb.style.maxHeight=wantH;
   const {g,w,h}=fitCanvas(cv);
@@ -9903,15 +9910,16 @@ function drawCprQuality(cv){
   const C=M.cpr, span=cprView();
   const L=52,R=12,T0=22,B=26;
   /* the waveform rows above the rate panel, on the same time scale */
-  const T=T0+waves.length*(CPR_WAVE_H+CPR_WAVE_GAP)+(waves.length?4:0);
+  const WT=T0+FLAG_H;                          /* top of the first waveform row */
+  const T=WT+waves.length*(CPR_WAVE_H+CPR_WAVE_GAP)+(waves.length?4:0);
   const mid=Math.round((h-T-B)*0.48)+T;      /* rate above, depth below */
   const X=t=>L+(t-span.t0)/(span.t1-span.t0)*(w-L-R);
   cv._cprGeom={L,R,span};
 
   cprBands(g,X,T0,h-T0-B,span,true);
   annBands(g,X,T0,h-T0-B,span.t0,span.t1,L,w-R);
-  cprVents(g,X,T0,h-T0-B,span);
-  waves.forEach((ch,i)=> drawCprWave(g, ch, X, span, L, w-R, T0+2+i*(CPR_WAVE_H+CPR_WAVE_GAP), CPR_WAVE_H, TC));
+  cprVents(g,X,WT,h-WT-B,span);
+  waves.forEach((ch,i)=> drawCprWave(g, ch, X, span, L, w-R, WT+2+i*(CPR_WAVE_H+CPR_WAVE_GAP), CPR_WAVE_H, TC));
 
   /* rate panel */
   const rLo=60,rHi=160;
@@ -9976,7 +9984,7 @@ function drawCprQuality(cv){
     }
   }
 
-  cprTreats(g,X,T0,h-T0-B,span);
+  cprTreats(g,X,T0,h-T0-B,span,false,FLAG_H?FLAG_Y0:20);
   cprShocks(g,X,T0,h-T0-B,span);
   cprAxis(g,X,h-B+4,span,w,L,R);
 
