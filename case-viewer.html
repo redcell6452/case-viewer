@@ -9778,15 +9778,22 @@ function cprTreatments(){
 }
 /* a dashed purple line through the plot; on the large graphs a labelled flag at the top,
    stepped down a row when two would overlap */
-function cprTreats(g, X, top, h, span, small, y0){
+/* Every line is drawn before any label, so a later marker's line never crosses an
+   earlier one's label; between() (the cycle row) is drawn between the two layers. */
+function cprTreats(g, X, top, h, span, small, y0, between){
   if(y0==null) y0=20;
   let row=[];
-  for(const e of cprTreatments()){
-    if(e.t<span.t0||e.t>span.t1) continue;
+  const list=cprTreatments().filter(e=>e.t>=span.t0 && e.t<=span.t1);
+  for(const e of list){
+    const x=Math.round(X(e.t))+0.5;
+    g.save(); g.strokeStyle=traceCol(CPR_TREAT); g.lineWidth=1.5; g.setLineDash([4,3]);
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+h); g.stroke(); g.restore();
+  }
+  annFlags(g, X, top, h, span.t0, span.t1, {small, xMax:X(span.t1), pass:'lines'});
+  if(between) between();
+  for(const e of list){
     const x=Math.round(X(e.t))+0.5;
     g.save();
-    g.strokeStyle=traceCol(CPR_TREAT); g.lineWidth=1.5; g.setLineDash([4,3]);
-    g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+h); g.stroke(); g.setLineDash([]);
     if(!small){
       g.font='600 11px system-ui,sans-serif';
       const txt=e.name.length>22 ? e.name.slice(0,21)+'…' : e.name, w=g.measureText(txt).width+12;
@@ -9802,7 +9809,7 @@ function cprTreats(g, X, top, h, span, small, y0){
     g.restore();
   }
   /* annotations, drawn the same way and stacked in the same lanes */
-  annFlags(g, X, top, h, span.t0, span.t1, {row, y0, small, xMax:X(span.t1)});
+  annFlags(g, X, top, h, span.t0, span.t1, {row, y0, small, xMax:X(span.t1), pass:'labels'});
 }
 /* ---- the compression:breath phase ----
    Breath pauses during ratio CPR start 8-25 s apart (6-25 s, so 15:2 at 120/min fits),
@@ -9937,12 +9944,14 @@ function cprCycleHtml(c){
     : (c.endShock ? 'a shock, ' : 'a pause, ')+(c.endMs/1000).toFixed(1)+' s hands-off', c.endKind==='rosc' ? 'good' : c.endMs>10000 ? 'bad' : '');
   return '<div class="cth">Cycle '+c.n+'</div>'+rows.join('');
 }
-function cprShocks(g, X, top, h, span, small){
+/* pass 'lines' draws only the lines, 'badges' only the badges; neither draws both */
+function cprShocks(g, X, top, h, span, small, pass){
   for(const s of M.cpr.shocks){
     if(s.t<span.t0||s.t>span.t1) continue;
     const x=Math.round(X(s.t));
     g.save();
-    g.fillStyle=traceCol(CPR_SHOCK); g.globalAlpha=.9; g.fillRect(x-1.5, top, 3, h); g.globalAlpha=1;
+    if(pass!=='badges'){ g.fillStyle=traceCol(CPR_SHOCK); g.globalAlpha=.9; g.fillRect(x-1.5, top, 3, h); g.globalAlpha=1; }
+    if(pass==='lines'){ g.restore(); continue; }
     if(!small){
       const txt='⚡ SHOCK'; g.font='700 11px system-ui,sans-serif';
       const w=g.measureText(txt).width+12;
@@ -10148,9 +10157,11 @@ function drawCprQuality(cv){
     }
   }
 
-  if(hasCycles){ cprCycleRow(g,X,T0+1,17,span,L,w-R,cv._hotCycle||null); cv._cprGeom.cycY=[T0, T0+19]; }
-  cprTreats(g,X,T0,h-T0-B,span,false,FLAG_H?FLAG_Y0:20);
-  cprShocks(g,X,T0,h-T0-B,span);
+  if(hasCycles) cv._cprGeom.cycY=[T0, T0+19];
+  cprTreats(g,X,T0,h-T0-B,span,false,FLAG_H?FLAG_Y0:20,
+    ()=>{ cprShocks(g,X,T0,h-T0-B,span,false,'lines');
+      if(hasCycles) cprCycleRow(g,X,T0+1,17,span,L,w-R,cv._hotCycle||null); });
+  cprShocks(g,X,T0,h-T0-B,span,false,'badges');
   cprAxis(g,X,h-B+4,span,w,L,R);
 
   /* playhead, tagged the way the Monitor tags it */
@@ -11757,13 +11768,19 @@ function annBands(g, X, top, h, t0, t1, xMin, xMax){
    which already carry their words on the trace. */
 function annFlags(g, X, top, h, t0, t1, opt){
   opt=opt||{};
+  /* all the lines first, then all the flags, so no line crosses a flag */
+  if(!opt.pass){ annFlags(g, X, top, h, t0, t1, Object.assign({}, opt, {pass:'lines'}));
+    return annFlags(g, X, top, h, t0, t1, Object.assign({}, opt, {pass:'labels'})); }
   const row=opt.row||[], xMax=opt.xMax==null?Infinity:opt.xMax, boxes=[];
   for(const a of annVisible()){
     if(a.t0<t0 || a.t0>t1) continue;
     const x=Math.round(X(a.t0))+0.5, col=traceCol(a.color||ANN_COLORS[0]);
+    if(opt.pass==='lines'){
+      g.save(); g.strokeStyle=col; g.lineWidth=1.5; g.setLineDash([4,3]);
+      g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+h); g.stroke(); g.restore();
+      continue;
+    }
     g.save();
-    g.strokeStyle=col; g.lineWidth=1.5; g.setLineDash([4,3]);
-    g.beginPath(); g.moveTo(x, top); g.lineTo(x, top+h); g.stroke(); g.setLineDash([]);
     g.fillStyle=col;
     if(opt.small || (opt.notesBare && annIsNote(a))){
       g.beginPath(); g.moveTo(x, top); g.lineTo(x+9, top+3.5); g.lineTo(x, top+7); g.closePath(); g.fill();
