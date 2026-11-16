@@ -807,6 +807,71 @@ test('X Series CPR: Segment/StartSecond/Duration periods and CprCompression reco
   assert.equal(+C.comps[0].relVel.toFixed(1), 381);           // hundredths of an inch/s, in mm/s
   assert.equal(C.comps[0].rate, 120);                         // the device's own rate
   assert.equal(C.comps[19].rate, null);                       // CompRate 0 is no rate
+  assert.equal(C.comps[0].devOk, false);                      // LoDepthFlag set: the device's verdict
+  assert.deepEqual(C.comps[0].devFlags, ['Too shallow', 'Too fast']);
+  // the dashboard shows the flags on the latest compression at the playhead
+  assert.deepEqual(JSON.parse(a.run(`JSON.stringify(cprLiveAt(M.cpr.comps[5].t+100).devFlags)`)), ['Too shallow', 'Too fast']);
+  assert.equal(a.run('cprHasDevFlags()'), true);
+});
+
+test('X Series treatment buttons (TreatmentSnapshotEvt) become treatment events and CPR treatment flags', () => {
+  const a = app();
+  const hdr = s => ({DevDateTime:'2020-01-01T00:' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'), ElapsedTime:s});
+  const tse = (s, lbl, code) => ({TreatmentSnapshotEvt:{StdHdr:hdr(s), '@EvtName':'Treatment', TreatmentSummary:1,
+    DevEvtCode:code, XidCode:'0000000D', Payload:'0 0 0 0', TreatmentLbl:lbl}});
+  const recs = [{CaseSummary:{StartTime:'2020-01-01T00:00:00', ElapsedTime:900}},
+    {AnnotationEvt:{StdHdr:hdr(0), '@EvtName':'New Patient', TreatmentSummary:1, DevEvtCode:1}},
+    {AnnotationEvt:{StdHdr:hdr(700), '@EvtName':'SpO2 Low Perfusion', TreatmentSummary:1, DevEvtCode:40}},
+    tse(612, 'EPI', 18), tse(614, 'IV', 19), tse(845, 'EPI', 18)];
+  for (let i = 0; i < 10; i++) recs.push({CprCompression:{StdHdr:hdr(600 + i), TimeStamp:600000 + i * 500, CompDisp:2100, CompRate:120}});
+  a.run(`buildModel(${JSON.stringify(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:recs}]}}))}, '<CaseReview/>', 'synthetic.zol')`);
+  const ev = JSON.parse(a.run(`JSON.stringify(M.events.filter(e=>e.kind==='treatment').map(e=>[Math.round(e.t/1000), e.name, e.group]))`));
+  assert.deepEqual(ev, [[612, 'Epinephrine', 'Treatment'], [614, 'IV access', 'Treatment'], [845, 'Epinephrine', 'Treatment']]);
+  assert.deepEqual(JSON.parse(a.run(`JSON.stringify(cprTreatments().map(e=>e.name))`)), ['Epinephrine', 'IV access', 'Epinephrine']);
+});
+
+test('CPR debrief: praises what met target, suggests gently what did not, never scolds', () => {
+  const a = app();
+  const run = setup => JSON.parse(a.run(`(()=>{ M.durMs=3000000; M.t0Wall=0; M.events=[]; syncCprTargets();
+    ${setup}
+    M.cpr={comps, periods:[{t0:comps[0].t, t1:comps[comps.length-1].t}], pauses:[], rosc:[], shocks:[], vents:[], autopulse:[], resq:[]};
+    return JSON.stringify(cprDebrief(cprMetrics(), cprSummary())); })()`));
+  // 5 min at 110/min, 2.1 in, full release: everything in target
+  const great = run(`const comps=[]; for(let t=0;t<300000;t+=545) comps.push({t, rate:110, depth:2.1, relVel:450});`);
+  assert.equal(great.work.length, 0);
+  assert.match(great.head, /^Excellent/);
+  assert.ok(great.good.some(s => /110\/min/.test(s)));
+  // fast, a bit shallow, poor recoil, one 15 s pause
+  const mixed = run(`const comps=[]; for(let t=0;t<300000;t+=455){ if(t>100000 && t<115000) continue;
+    comps.push({t, rate:132, depth:1.8, relVel:300}); }`);
+  assert.ok(mixed.work.some(s => /132\/min, a little quick/.test(s)));
+  assert.ok(mixed.work.some(s => /past 10 s/.test(s)));
+  assert.ok(mixed.work.some(s => /shallower/.test(s)));
+  assert.ok(mixed.work.some(s => /Release averaged 300 mm\/s/.test(s)));
+  assert.doesNotMatch(mixed.head + mixed.work.join(' '), /\b(poor|bad|fail|wrong|inadequate)\b/i);
+  assert.match(mixed.head, /Good effort|Strong CPR/);
+});
+
+test('device-flag diamond: fills from unflagged compressions, ignores a fast rate, decays in a pause, absent without flags', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{
+    syncCprTargets();
+    // 30 s at 132 /min, deep enough; the device flagged none as too shallow or too slow
+    const comps=[]; for(let t=0;t<30000;t+=455) comps.push({t, depth:2.1, relVel:340, rate:132, devOk:true});
+    M.cpr={comps, periods:[], pauses:[], rosc:[], shocks:[]};
+    const end=comps[comps.length-1].t;
+    const out={full:cprDevAt(end), model:cprPerfAt(end), pause5:cprDevAt(end+5000+1000)};
+    // flagged compressions empty it
+    M.cpr={comps:comps.map(c=>({...c, devOk:false})), periods:[], pauses:[], rosc:[], shocks:[]};
+    out.flagged=cprDevAt(end);
+    M.cpr={comps:comps.map(({devOk,...c})=>c), periods:[], pauses:[], rosc:[], shocks:[]};
+    out.none=cprDevAt(end);
+    return JSON.stringify(out); })()`));
+  assert.ok(r.full > 0.95, 'device diamond full: ' + r.full);
+  assert.ok(r.model < 0.65, 'model penalises 132 /min and slow release: ' + r.model);
+  assert.ok(r.pause5 < 0.4, 'decays in a pause: ' + r.pause5);
+  assert.equal(r.flagged, 0);
+  assert.equal(r.none, null);
 });
 
 test('CPR records the viewer cannot read are reported as such, not as no resuscitation', () => {
@@ -828,6 +893,29 @@ test('ventilation marks come from one source, never two merged', () => {
     {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:200}}]}]}}), ${JSON.stringify(xml)}, 'synthetic.json')`);
   assert.equal(a.run('M.vents.length'), 20);
   assert.equal(a.run('M.ventSource'), 'EtCO2Ventilations');
+});
+
+test('a burst of duplicate breath marks collapses to one breath instead of discarding the source', () => {
+  const a = app();
+  const burst = Array.from({length:40}, (_, i) => `<Ventilation second="${10 + Math.floor(i/10)}" ms="${(i%10)*100}"/>`).join('');
+  const clean = Array.from({length:20}, (_, i) => `<Ventilation second="${60 + i*6}" ms="0"/>`).join('');
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00',ElapsedTime:300}}]}]}}), ${JSON.stringify('<CaseReview><EtCO2Ventilations>' + burst + clean + '</EtCO2Ventilations></CaseReview>')}, 'synthetic.json')`);
+  assert.equal(a.run('M.ventSource'), 'EtCO2Ventilations');
+  assert.equal(a.run('M.vents.length'), 21);
+  assert.equal(a.run('M.vents[1]'), 60000);
+});
+
+test('debrief: compressions straight after a shock are praised, a delayed restart gets the no-pulse-check reminder', () => {
+  const a = app();
+  const run = postMs => JSON.parse(a.run(`(()=>{ M.durMs=3000000; M.t0Wall=0; M.events=[]; syncCprTargets();
+    const comps=[]; for(let t=0;t<200000;t+=545) if(t<100000-3000 || t>100000+${postMs}) comps.push({t, rate:110, depth:2.1, relVel:450});
+    M.cpr={comps, periods:[{t0:0,t1:200000}], pauses:[], rosc:[], shocks:[{t:100000,label:'Shock'}], vents:[], autopulse:[], resq:[]};
+    return JSON.stringify(cprDebrief(cprMetrics(), cprSummary())); })()`));
+  const fast = run(2000);
+  assert.ok(fast.good.some(s => /straight back on the chest without a pulse check/.test(s)));
+  const slow = run(12000);
+  assert.ok(slow.work.some(s => /resume immediately, with no pulse or rhythm check/.test(s)));
 });
 
 test('unrecorded stretches are found and named, and display changes become events', () => {

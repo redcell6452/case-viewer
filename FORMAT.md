@@ -107,6 +107,13 @@ detection are heuristic fallbacks and require independent real-file validation.
 Silenced*, *NIBP Reading Started*, *IBP Probe1 Zeroed*, *New Patient*, *Patient Mode
 Adult*, probe connect/disconnect and lead faults. Snapshots are separate `SnapshotRpt`
 records, and changes to the displayed waveforms appear in `DisplayInfo`/`TraceConfigs`.
+On X Series exports the treatment buttons (EPI, IV, ...) are not `AnnotationEvt`: each
+press is a `TreatmentSnapshotEvt` with `@EvtName` "Treatment" and the button's label in
+`TreatmentLbl`; a waveform snapshot taken with it carries the same `TreatmentLbl`. When
+these exist the viewer uses them as the case's treatments. The `TreatmentSummary` bit
+on other events (SpO2 Low Perfusion, NIBP Air Leak, ...) marks them for the printed
+summary and does not mean care was given.
+
 Not every key press is recorded: menu navigation, alarm-limit edits, volume and
 brightness do not appear. Alarm limits are visible only as the values attached to each
 `AlarmEvt`, which carries the value and the limits in force but no channel name, no

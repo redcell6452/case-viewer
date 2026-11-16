@@ -572,6 +572,9 @@ table.grid tr:hover td{background:#182029}
 .cprtip .ctv.treat{color:#d38cff;font-weight:600}
 .cprqualwrap{position:relative}
 .cprdash{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg2);min-height:108px}
+.dashdias{display:flex;gap:14px;flex:none}
+.dashfig{margin:0;display:flex;flex-direction:column;align-items:center;gap:3px}
+.dashfig figcaption{font-size:11px;color:var(--dim);white-space:nowrap}
 .dashdia{position:relative;width:86px;height:86px;flex:none}
 .dashpct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 15px var(--mono);text-shadow:0 0 3px var(--bg),0 0 6px var(--bg)}
 .dashvals{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end}
@@ -581,6 +584,14 @@ table.grid tr:hover td{background:#182029}
 .dashwarn{font-size:11.5px;color:var(--warn);flex-basis:100%}
 .dashnote{flex:1 1 220px;font-size:11.5px;color:var(--dim);line-height:1.4}
 .dashidle{font-size:13px;color:var(--dim)}
+.debrief{max-width:860px;padding:12px 16px;border:1px solid var(--line);border-radius:8px;background:var(--bg2);font-size:13.5px;line-height:1.55}
+.debrief ul{margin:4px 0 10px;padding-left:20px} .debrief li{margin:3px 0}
+.debhead{margin:0 0 8px;font-size:15px;font-weight:600}
+.debrief h3{margin:8px 0 2px;font-size:13px} .debgood{color:var(--ok)} .debwork{color:var(--warn)}
+.debnote{margin:6px 0 0;font-size:11.5px;color:var(--dim)}
+.dashfl{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.dashflag{font:700 13px var(--mono);padding:3px 8px;border-radius:6px;border:1px solid currentColor}
+.dashflag.bad{color:var(--crit)} .dashflag.mid{color:var(--warn)} .dashflag.good{color:var(--ok)}
 .metaed{display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .metarev{font-size:12.5px;display:flex;align-items:center;gap:6px}
 .metatags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -709,8 +720,10 @@ dialog::backdrop{background:#000a}
 .stjbox[open] .stjhead{margin-bottom:5px}
 .stjtab{margin-top:4px} .stjtab td,.stjtab th{text-align:center} .stjtab td:first-child,.stjtab th:first-child{text-align:left}
 .stjaxes{font-size:12.5px;margin:8px 0 2px;color:var(--dim)} .stjaxes b{color:var(--fg)}
-#transport{position:relative}
-.ovtab{position:absolute;left:14px;bottom:100%;z-index:4;min-height:0;padding:3px 12px 4px;font-size:12px;
+/* the tab hangs in its own strip above the playback bar, so it never covers the bottom
+   of a page (the CPR dashboard's diamond, a graph's corner) */
+#transport{position:relative;margin-top:25px}
+.ovtab{position:absolute;left:14px;bottom:100%;z-index:4;min-height:0;height:25px;box-sizing:border-box;padding:3px 12px 4px;font-size:12px;
   border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;background:var(--bg2);color:var(--dim)}
 .ovtab:hover{color:var(--fg)}
 .ovtab[aria-expanded="true"]{color:var(--fg)}
@@ -2409,6 +2422,18 @@ function buildModel(json, xml, fileName){
       code:a.DevEvtCode, sev:sevOf(nm,'annotation'),
       treatment:a.TreatmentSummary===1, historic:isHistoric(h)});
   }
+  /* X Series treatment buttons (EPI, IV, ...): TreatmentSnapshotEvt, @EvtName "Treatment",
+     the button's label in TreatmentLbl. Not AnnotationEvt, so they need their own pass. */
+  const TREAT_NAMES={EPI:'Epinephrine', IV:'IV access', IO:'IO access', AMIO:'Amiodarone'};
+  for(const r of recs){
+    const a = r.TreatmentSnapshotEvt; if(!a) continue;
+    const h = a.StdHdr;
+    const lbl = String(a.TreatmentLbl||'').trim();
+    const nm = lbl ? (TREAT_NAMES[lbl.toUpperCase()]||lbl) : (a['@EvtName']||'Treatment');
+    pushEvent({t:elapsedOf(h), wall:h&&h.DevDateTime, kind:'treatment', group:'Treatment',
+      name:nm, detail:'Treatment button'+(lbl?' “'+lbl+'”':'')+' pressed on the device',
+      code:a.DevEvtCode, sev:sevOf(nm,'annotation'), treatment:true, historic:isHistoric(h)});
+  }
   /* A change into the device's patient-impedance range suggests pad contact,
      but does not tell us the exact moment the pads were applied. */
   const defib=recs.map(r=>r.DefibTrace).filter(v=>v && !isHistoric(v.StdHdr))
@@ -2513,7 +2538,7 @@ function buildModel(json, xml, fileName){
       code:v.DevEvtCode, idx:M.snapshots.length, historic:isHistoric(h)};
     M.snapshots.push(snap);
     pushEvent({t:snap.t, wall:snap.wall, kind:'snapshot', group: is12?'12-Lead':'Snapshot',
-      name: is12 ? '12-lead ECG acquired' : 'Waveform snapshot',
+      name: (is12 ? '12-lead ECG acquired' : 'Waveform snapshot')+(v.TreatmentLbl ? ' ('+String(v.TreatmentLbl).trim()+')' : ''),
       detail: traces.map(x=>x.name).join(', '), sev:'snap',
       snapIdx:snap.idx, historic:snap.historic});
   }
@@ -2549,10 +2574,15 @@ function buildModel(json, xml, fileName){
     const samplesNotBreaths = v=>{
       const close=v.slice(1).filter((t,i)=>t-v[i]<500).length;
       return v.length>20 && close>v.length*0.2; };
+    /* A run of marks under 0.5 s apart is one breath sampled many times (an X Series
+       export opened with ~285 of them in its first minutes, then clean marks every ~6 s):
+       keep the run's first mark. Discarding the whole source lost every real breath. */
+    const oneMarkPerRun = v=>v.filter((t,i)=>i===0 || t-v[i-1]>=500);
     const sources=[];
     const cre=/<(\w*Ventilations)\b[^>]*>([\s\S]*?)<\/\1>/g;
     let mc; while((mc=cre.exec(xml))) sources.push({name:mc[1], times:timesIn(mc[2])});
     if(!sources.length) sources.push({name:'Ventilations', times:timesIn(xml)});
+    for(const x of sources){ const n=x.times.length; x.times=oneMarkPerRun(x.times); x.collapsed=n-x.times.length; }
     const usable=sources.filter(x=>x.times.length>=2 && !samplesNotBreaths(x.times));
     const pick=usable.find(x=>/etco2|co2/i.test(x.name)) || usable[0] || null;
     M.ventSamplesIgnored = !pick && sources.some(x=>x.times.length>20);
@@ -9393,7 +9423,9 @@ function parsePeriods(xml, tag){
                truncated to the second, so the counter is anchored to the wall clock by
                the median offset plus half a second, and times come from the counter.
    The Lo/Hi depth and rate flags are smoothed by the device over several compressions
-   (they do not follow each compression's own value), so they are not used. */
+   (they do not follow each compression's own value), so they are not used for the
+   rate/depth figures. They are kept as devOk (neither too shallow nor too slow), the
+   device's own verdict, which drives the monitor-style diamond. */
 function cprCompressionRecords(recs){
   const rows=[];
   for(const r of recs){
@@ -9413,8 +9445,22 @@ function cprCompressionRecords(recs){
     t: haveTs ? v.TimeStamp+off : elapsedOfHdr(v.StdHdr),
     depth: v.CompDisp/1000,
     relVel: typeof v.RelVelocity==='number' && v.RelVelocity>0 ? v.RelVelocity/100*25.4 : null,
-    rate: typeof v.CompRate==='number' && v.CompRate>0 ? v.CompRate : null
+    rate: typeof v.CompRate==='number' && v.CompRate>0 ? v.CompRate : null,
+    devOk: typeof v.LoDepthFlag==='number' || typeof v.LoRateFlag==='number' ? !(v.LoDepthFlag||v.LoRateFlag) : null,
+    devFlags: cprDevFlagsOf(v)
   })).sort((a,b)=>a.t-b.t);
+}
+/* the device's feedback flags on one compression, as short names; null when the record has none */
+const CPR_DEV_FLAGS=[['LoDepthFlag','Too shallow','depth'],['HiDepthFlag','Too deep','depth'],
+  ['LoRateFlag','Too slow','rate'],['HiRateFlag','Too fast','rate']];
+function cprHasDevFlags(){
+  const C=M.cpr; if(!C) return false;
+  if(C._hasFlags==null || C._hasFlagsN!==C.comps.length){ C._hasFlags=C.comps.some(c=>c.devFlags); C._hasFlagsN=C.comps.length; }
+  return C._hasFlags;
+}
+function cprDevFlagsOf(v){
+  if(!CPR_DEV_FLAGS.some(([k])=>typeof v[k]==='number')) return null;
+  return CPR_DEV_FLAGS.filter(([k])=>v[k]).map(([,n])=>n);
 }
 
 /* per-compression records, if this export has them */
@@ -9532,7 +9578,8 @@ function buildCpr(recs, xml){
     C.source = 'records: '+rec.src;
     for(const c of rec.list){
       const t = c.t!=null ? c.t : (c.tRec ? elapsedOfHdr(c.tRec) : 0)+(c.offMs||0);
-      if(t>=start) C.comps.push({t, depth:c.depth, relVel:c.relVel, rate:c.rate!=null?c.rate:null, devRate:c.rate!=null});
+      if(t>=start) C.comps.push({t, depth:c.depth, relVel:c.relVel, rate:c.rate!=null?c.rate:null, devRate:c.rate!=null,
+        ...(c.devOk!=null ? {devOk:c.devOk} : {}), ...(c.devFlags ? {devFlags:c.devFlags} : {})});
     }
     C.comps.sort((a,b)=>a.t-b.t);
     /* the device's own rate when it recorded one, otherwise from the interval */
@@ -9690,7 +9737,12 @@ const NOT_A_TREATMENT=/^(system on|new patient|patient mode|pacer|analy[sz]|shoc
 function cprTreatments(){
   const C=M.cpr; if(!C) return [];
   if(C._treat && C._treat.n===M.events.length) return C._treat.list;
-  const list=M.events.filter(e=>e.treatment && !e.historic && !NOT_A_TREATMENT.test(String(e.name||'').trim()))
+  /* When the device recorded its treatment buttons (X Series TreatmentSnapshotEvt), those
+     are the treatments; the treatment-summary bit on other events (SpO2 Low Perfusion,
+     NIBP Air Leak, ...) marks device events for the printed summary, not care given. */
+  const buttons=M.events.filter(e=>e.kind==='treatment' && !e.historic);
+  const list=(buttons.length ? buttons
+      : M.events.filter(e=>e.treatment && !e.historic && !NOT_A_TREATMENT.test(String(e.name||'').trim())))
     .map(e=>({t:e.t, name:String(e.name).trim()}));
   C._treat={n:M.events.length, list};
   return list;
@@ -9910,6 +9962,20 @@ function drawCprQuality(cv){
   g.fillStyle=TC.dim; g.font='11px system-ui,sans-serif'; g.textAlign='center';
   g.fillText('Depth '+cprDUnit(),0,0); g.restore(); g.textAlign='left';
 
+  /* the device's own feedback flags, in the gap between the panels: rate flags in the
+     upper half, depth flags in the lower; red for too shallow/slow, amber for too fast/deep */
+  if(cprHasDevFlags()){
+    const fw = Math.max(1.5, bw);
+    for(const c of C.comps){
+      if(!c.devFlags || !c.devFlags.length || c.t<span.t0 || c.t>span.t1) continue;
+      const x=X(c.t)-fw/2;
+      for(const n of c.devFlags){
+        g.fillStyle=traceCol(/shallow|slow/i.test(n) ? CPR_BAD : CPR_MID);
+        g.fillRect(x, /slow|fast/i.test(n) ? mid-5 : mid+1, fw, 4);
+      }
+    }
+  }
+
   cprTreats(g,X,T0,h-T0-B,span);
   cprShocks(g,X,T0,h-T0-B,span);
   cprAxis(g,X,h-B+4,span,w,L,R);
@@ -9966,6 +10032,128 @@ function cprSummary(){
     depth: [dPct(v=>v<CPR_TARGET.depthLo), dPct(v=>v>=CPR_TARGET.depthLo && v<=CPR_TARGET.depthHi), dPct(v=>v>CPR_TARGET.depthHi)],
     rate:  [rPct(v=>v<CPR_TARGET.rateLo),  rPct(v=>v>=CPR_TARGET.rateLo && v<=CPR_TARGET.rateHi),  rPct(v=>v>CPR_TARGET.rateHi)]
   };
+}
+/* ---- debrief: a short, encouraging read of the resuscitation ----
+   Plain rules over the figures this page already computes, against the targets in
+   Settings: what went well first, then a few things worth working on, phrased as
+   suggestions. It is a starting point for a team debrief, not a grade; it cannot see
+   anything the recording didn't capture. */
+function cprDebrief(m, S){
+  const C=M.cpr, good=[], work=[];
+  const T=Object.assign({}, CPR_DEFAULTS, CPR_TARGET), r0=v=>Math.round(v), s1=ms=>(ms/1000).toFixed(1)+' s';
+  const fl=C.comps.filter(c=>c.devFlags);
+  const devShallowOk = fl.length>=50 ? 100*fl.filter(c=>!c.devFlags.includes('Too shallow')).length/fl.length : null;
+  const at=t=>fmtClock(M.t0Wall+t);
+  /* hands on the chest */
+  if(m.ccf!=null){
+    if(m.ccf>=Math.max(80,T.fraction)) good.push('Hands were on the chest '+r0(m.ccf)+'% of the time, an excellent compression fraction.');
+    else if(m.ccf>=T.fraction) good.push('Compression fraction of '+r0(m.ccf)+'% meets the '+T.fraction+'% goal. Nice work keeping interruptions short.');
+    else work.push('Compression fraction was '+r0(m.ccf)+'% (goal '+T.fraction+'%). Every second back on the chest counts: charging during compressions and planning each pause ahead are good places to win time back.');
+  }
+  /* pauses */
+  const long=S.pauses.filter(p=>p.ms>10000).sort((a,b)=>b.ms-a.ms);
+  if(S.pauses.length && !long.length) good.push('No pause ran longer than 10 s, which is great discipline.');
+  else if(long.length) work.push((long.length===1?'One pause':long.length+' pauses')+' ran past 10 s (the longest '+s1(long[0].ms)+' at '+at(long[0].t0)+'). Worth a look together: a pulse check, a compressor change, airway, a move? Knowing why makes the next one shorter.');
+  /* the rhythm of the code: 30:2 cycles, then 2-minute pulse checks and swaps */
+  const ps=C.pauses.length ? C.pauses : S.pauses;
+  const gapsP=ps.slice(1).map((p,i)=>(p.t0-ps[i].t0)/1000);
+  let k30=0; while(k30<gapsP.length && gapsP[k30]>=8 && gapsP[k30]<=25) k30++;
+  if(k30>=4){
+    const brk=ps.slice(0,k30+1).map(p=>(p.t1-p.t0)/1000).sort((a,b)=>a-b);
+    const sw=ps[k30].t1;
+    good.push('The first '+(k30+1)+' cycles kept a steady 30:2 rhythm, with breaths taking about '+brk[brk.length>>1].toFixed(0)+' s each time, '+
+      'then the team moved to continuous compressions on time-based cycles from '+at(sw)+' (high-performance CPR). Well done.');
+  }
+  /* time-based 2-minute cycles: a pulse check and a compressor change about every 2 min */
+  const later=gapsP.slice(k30>=4?k30+1:0);
+  if(later.length>=3){
+    const longSt=later.filter(g=>g>150), fine=later.filter(g=>g>=90 && g<=150).length;
+    if(!longSt.length) good.push('Time-based cycles held well: pulse checks and compressor changes came about every 2 minutes or sooner.');
+    else work.push((longSt.length===1?'One cycle':longSt.length+' cycles')+' ran longer than 2½ minutes before the next pulse check or swap (the longest about '+(Math.max(...longSt)/60).toFixed(1)+' min). Depth and recoil tend to fade after 2 minutes on the chest, so keeping to the 2-minute clock for checks and compressor changes keeps quality up'+(fine?', as the team did on '+fine+' other cycles.':'.'));
+  }
+  /* epinephrine spacing (AHA: every 3-5 minutes during cardiac arrest) */
+  const epi=(typeof cprTreatments==='function'?cprTreatments():[]).filter(e=>/^epi(nephrine)?\b|adrenalin/i.test(e.name)).map(e=>e.t);
+  if(epi.length){
+    const iv=epi.slice(1).map((t,i)=>(t-epi[i])/60000);
+    if(iv.length && iv.every(m=>m>=3 && m<=5.5)) good.push('Epinephrine doses were '+iv.map(m=>m.toFixed(1)).join(', ')+' min apart, right in the 3–5 minute window.');
+    const lastT=epi[epi.length-1], endT=Math.max(...C.periods.map(p=>p.t1).concat(C.comps.length?[C.comps[C.comps.length-1].t]:[0]));
+    if((endT-lastT)/60000>6) work.push('The last epinephrine on record was at '+at(lastT)+', with CPR continuing about '+((endT-lastT)/60000).toFixed(0)+' more minutes. If further doses were given, pressing the EPI button each time keeps the record complete; if not, the 3–5 minute rhythm is worth building into the next code.');
+  }
+  /* around shocks */
+  const pre=S.shocks.map(s=>s.pre).filter(v=>v!=null), post=S.shocks.map(s=>s.post).filter(v=>v!=null);
+  if(S.shocks.length && pre.length){
+    if(pre.every(v=>v<=T.pre*1000)) good.push('Hands-off time before the shock'+(S.shocks.length>1?'s':'')+' stayed within '+T.pre+' s (longest '+s1(Math.max(...pre))+'). Charging during compressions pays off.');
+    else work.push('The longest pause before a shock was '+s1(Math.max(...pre))+' (aim under '+T.pre+' s). Charging while compressions continue, then a quick clear and shock, keeps it short.');
+  }
+  /* after a shock: straight back on the chest, no pulse check, for a full 2-minute cycle */
+  if(post.length){
+    const quick=post.filter(v=>v<=5000).length, worst=Math.max(...post);
+    if(quick===post.length) good.push('Compressions resumed within '+s1(worst)+' of '+(post.length>1?'every shock':'the shock')+', straight back on the chest without a pulse check, exactly as recommended.');
+    else work.push('Compressions restarted '+post.map(s1).join(', ')+' after the shock'+(post.length>1?'s':'')+'. The guidance is to resume immediately, with no pulse or rhythm check, and to check at the end of the next 2-minute cycle'+(quick?'; the team managed this '+quick+' time'+(quick>1?'s':'')+'.':'.'));
+  }
+  /* rate */
+  if(m.rate!=null){
+    if(cprRateOk(r0(m.rate))) good.push('Rate averaged '+r0(m.rate)+'/min, right in the '+T.rateLo+'–'+T.rateHi+' band.');
+    else if(m.rate>T.rateHi) work.push('Rate averaged '+r0(m.rate)+'/min, a little quick for the '+T.rateLo+'–'+T.rateHi+' target. The energy is good; following the monitor’s metronome can help settle the pace, and a slightly slower rate also gives the chest time to refill.');
+    else work.push('Rate averaged '+r0(m.rate)+'/min, a touch below '+T.rateLo+'. Counting out loud or using the metronome can lift it.');
+  }
+  /* depth */
+  if(m.depth!=null){
+    const sh=S.depth[0], dp=S.depth[2];
+    if(m.depthPct!=null && m.depthPct>=60) good.push('Depth was on target for '+r0(m.depthPct)+'% of compressions (average '+cprDFmt(m.depth,1)+').');
+    else if(sh!=null && sh>=30 && devShallowOk!=null && devShallowOk>=85)
+      work.push('Depth averaged '+cprDFmt(m.depth,1)+', just under the '+cprDFmt(T.depthLo,1)+' line, though the monitor itself rarely flagged a compression as too shallow, so this is close. A little more push would put it clearly in range.');
+    else if(sh!=null && sh>=30) work.push('About '+r0(sh)+'% of compressions were shallower than '+cprDFmt(T.depthLo,1)+' (average '+cprDFmt(m.depth,1)+'). Locking the elbows and getting shoulders over the hands makes depth easier to hold, and swapping compressors helps when arms get tired.');
+    else if(dp!=null && dp>=30) work.push('About '+r0(dp)+'% of compressions went deeper than '+cprDFmt(T.depthHi,1)+'. Good effort, just a little less force is enough.');
+    else good.push('Depth averaged '+cprDFmt(m.depth,1)+', close to the target band.');
+  }
+  /* does depth hold up? first third against last third */
+  const ds=C.comps.filter(c=>c.depth!=null);
+  if(ds.length>=300){
+    const k=Math.floor(ds.length/3), mean=a=>a.reduce((x,c)=>x+c.depth,0)/a.length;
+    const a=mean(ds.slice(0,k)), b=mean(ds.slice(-k));
+    if(a-b>=0.2) work.push('Depth eased from '+cprDFmt(a,1)+' early on to '+cprDFmt(b,1)+' late in the code, which is normal fatigue. Rotating compressors every 2 minutes keeps depth up.');
+    else if(ds.length>=600) good.push('Average depth late in the code was about the same as early on, so the team kept going strong.');
+  }
+  /* recoil */
+  if(m.relVel!=null && m.relVelPct!=null){
+    if(m.relVelPct>=50) good.push('Release looked full on most compressions (average '+r0(m.relVel)+' mm/s).');
+    else work.push('Release averaged '+r0(m.relVel)+' mm/s (target '+T.relVel+'+). Letting the chest come all the way back up, without leaning, helps it refill between compressions.');
+  }
+  /* the device's own feedback */
+  if(fl.length>=50){
+    const ok=100*fl.filter(c=>!c.devFlags.some(n=>/shallow|slow/i.test(n))).length/fl.length;
+    if(ok>=85) good.push('The monitor’s own feedback had no depth or speed complaint on '+r0(ok)+'% of compressions.');
+    else work.push('The monitor flagged '+r0(100-ok)+'% of compressions as too shallow or too slow. Its prompts in the moment are worth trusting.');
+  }
+  /* ventilation, judged only during continuous compressions, when breaths are given
+     about one every 6 s (an advanced airway or i-gel, or asynchronous bag-mask breaths);
+     in 30:2 cycles breaths come in pairs during the pauses, so a per-minute rate means
+     little there. Capnography does not show which airway is in use, so none is assumed.
+     Adult guidance only: children and infants are ventilated faster. */
+  const contStart = k30>=4 ? ps[k30].t1 : -Infinity;
+  const vs=(T.group && !/^(adult|auto)$/.test(T.group)) ? [] :(C.vents||[]).filter(t=>t>=contStart && C.periods.some(p=>t>=p.t0 && t<=p.t1));
+  /* rate from the median interval, ignoring marks under 1 s apart (duplicates) and gaps
+     over 30 s (capnography off), so a disconnected sensor doesn't read as slow breathing */
+  const vi=vs.slice(1).map((t,i)=>(t-vs[i])/1000).filter(g=>g>=1 && g<=30).sort((a,b)=>a-b);
+  if(vi.length>=10){
+    const vpm=60/vi[vi.length>>1];
+    if(vpm>12) work.push('During continuous compressions, breaths ran about '+vpm.toFixed(0)+'/min. Easing toward one every 6 s (about 10/min), whether through an i-gel, a tube or the bag-mask, avoids pressure building in the chest.');
+    else if(vpm>=6) good.push('During continuous compressions, breaths came about every '+(60/vpm).toFixed(0)+' s ('+vpm.toFixed(0)+'/min), right on the one-every-6-seconds guidance.');
+  }
+  const head = !work.length ? 'Excellent resuscitation: the recording shows strong CPR throughout.'
+    : good.length>=work.length ? 'Strong CPR overall, with '+(work.length===1?'one thing':work.length===2?'a couple of things':'a few things')+' worth polishing.'
+    : 'Good effort under pressure. Here are a few things to focus on next time.';
+  return {head, good, work};
+}
+function cprDebriefHtml(m){
+  const D=cprDebrief(m, cprSummary());
+  const li=a=>a.map(x=>'<li>'+esc(x)+'</li>').join('');
+  return '<div class="debrief"><p class="debhead">'+esc(D.head)+'</p>'+
+    (D.good.length ? '<h3 class="debgood">What went well</h3><ul>'+li(D.good)+'</ul>' : '')+
+    (D.work.length ? '<h3 class="debwork">Worth working on</h3><ul>'+li(D.work)+'</ul>' : '')+
+    '<p class="debnote">Written automatically from the recorded data against the targets in Settings › CPR targets. '+
+    'It is a starting point for the team debrief, not a grade: the recording can’t see the room, the patient or the decisions behind each pause.</p></div>';
 }
 function cprSummaryHtml(m){
   const S=cprSummary(), sec=ms=>ms==null?'—':(ms/1000).toFixed(1)+' s';
@@ -10320,6 +10508,7 @@ function cprHoverHtml(t){
     if(best.rate!=null) row('Rate', Math.round(best.rate)+' /min', ok(cprRateOk(Math.round(best.rate))));
     if(best.depth!=null) row('Depth', cprDFmt(best.depth,1), ok(cprDepthOk(+best.depth.toFixed(1))));
     if(best.relVel!=null) row('Release', Math.round(best.relVel)+' mm/s', ok(Math.round(best.relVel)>=CPR_TARGET.relVel));
+    if(best.devFlags) row('Device feedback', best.devFlags.length ? best.devFlags.join(', ') : 'No flag', best.devFlags.some(n=>/shallow|slow/i.test(n)) ? 'bad' : best.devFlags.length ? '' : 'good');
   } else if(!pause){
     let prev=null; for(const c of C.comps){ if(c.t>t) break; prev=c; }
     if(prev && t-prev.t<60000) row('No compression', 'for '+((t-prev.t)/1000).toFixed(1)+' s');
@@ -10332,6 +10521,7 @@ function cprHoverHtml(t){
   }
   if((C.vents||[]).length) row('Ventilations', C.vents.filter(x=>x>t-60000 && x<=t).length+' in the last minute');
   row('Perfusion proxy (model)', Math.round(cprPerfAt(t)*100)+'%');
+  const dv=cprDevAt(t); if(dv!=null) row('Device flags diamond', Math.round(dv*100)+'%');
   return '<div class="cth">'+fmtClock(M.t0Wall+t)+' <span class="ctu">+'+fmtEl(t)+'</span></div>'+rows.join('')+
     '<div class="ctu" style="margin-top:4px">The parameter panel shows this moment too.</div>';
 }
@@ -10415,6 +10605,32 @@ function cprPerfAt(t){
   const k=lowerBound(P.ts, t+1)-1;
   return k<0 ? 0 : cprPerfAfter(P.ev[k], t-P.ev[k].t);
 }
+/* ---- monitor-style diamond from the device's own per-compression flags ----
+   The monitor's indicator is not in the export, but X Series CprCompression records carry
+   the device's verdict on each compression (LoDepthFlag, LoRateFlag). Each compression
+   scores 1 when neither is set and 0 otherwise, run through the same build/decay as the
+   model above. High-rate and high-depth flags are not counted: on a real export the
+   monitor's diamond was remembered full while HiRateFlag was set on most compressions.
+   An approximation of the monitor's indicator, not a copy of it. Null without flags. */
+function cprDevTrack(){
+  const C=M.cpr; if(!C) return null;
+  const key=C.comps.length;
+  if(C._dev && C._dev.key===key) return C._dev.has ? C._dev : null;
+  const has=C.comps.some(c=>c.devOk!=null);
+  const ev=[]; let P=0, last=null;
+  if(has) for(const c of C.comps){
+    if(last) P=cprPerfAfter(last, c.t-last.t);
+    last={t:c.t, q:c.devOk?1:0, p0:P, span:cprCompSpan(c)};
+    ev.push(last);
+  }
+  C._dev={key, has, ev, ts:ev.map(e=>e.t)};
+  return has ? C._dev : null;
+}
+function cprDevAt(t){
+  const P=cprDevTrack(); if(!P || !P.ev.length) return null;
+  const k=lowerBound(P.ts, t+1)-1;
+  return k<0 ? 0 : cprPerfAfter(P.ev[k], t-P.ev[k].t);
+}
 function cprLiveAt(t){
   const C=M.cpr; if(!C || !C.comps.length) return null;
   const k=lowerBound(C.comps.map(c=>c.t), t+1) - 1;
@@ -10425,7 +10641,7 @@ function cprLiveAt(t){
   const mean=a=>{ const v=a.filter(x=>x!=null&&isFinite(x)); return v.length?v.reduce((x,y)=>x+y,0)/v.length:null; };
   const paused = since>2000;
   return {rate:mean(recent.map(c=>c.rate)), depth:mean(recent.map(c=>c.depth)), relVel:mean(recent.map(c=>c.relVel)),
-    fill: cprPerfAt(t), paused, pauseS: since/1000, inCpr, n:recent.length};
+    fill: cprPerfAt(t), devFill: cprDevAt(t), devFlags: last.devFlags||null, paused, pauseS: since/1000, inCpr, n:recent.length};
 }
 function drawCprDash(){
   const box=$('#cprDash'); if(!box) return;
@@ -10434,24 +10650,43 @@ function drawCprDash(){
     box.innerHTML='<div class="dashidle">'+(L&&!L.none&&!L.inCpr?'No CPR at the playhead.':'Move the playhead into the resuscitation to see live CPR quality.')+'</div>';
     return;
   }
-  const f=L.fill, col = f>=0.8 ? 'var(--ok)' : f>=0.5 ? 'var(--warn)' : 'var(--crit)';
-  /* the diamond, filled from the bottom */
-  const H=86, W=86, y=H*(1-f);
-  const diamond='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Perfusion proxy '+Math.round(f*100)+'%">'+
-    '<defs><clipPath id="dashClip"><polygon points="'+(W/2)+',2 '+(W-2)+','+(H/2)+' '+(W/2)+','+(H-2)+' 2,'+(H/2)+'"/></clipPath></defs>'+
-    '<rect x="0" y="'+y.toFixed(1)+'" width="'+W+'" height="'+(H-y).toFixed(1)+'" fill="'+col+'" clip-path="url(#dashClip)"/>'+
-    '<polygon points="'+(W/2)+',2 '+(W-2)+','+(H/2)+' '+(W/2)+','+(H-2)+' 2,'+(H/2)+'" fill="none" stroke="var(--fg)" stroke-width="2"/></svg>';
+  /* a diamond, filled from the bottom */
+  const dia=(f, id, label, caption, title)=>{
+    const col = f>=0.8 ? 'var(--ok)' : f>=0.5 ? 'var(--warn)' : 'var(--crit)';
+    const H=86, W=86, y=H*(1-f), pts=(W/2)+',2 '+(W-2)+','+(H/2)+' '+(W/2)+','+(H-2)+' 2,'+(H/2);
+    return '<figure class="dashfig" title="'+esc(title)+'"><div class="dashdia">'+
+      '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="'+esc(label)+' '+Math.round(f*100)+'%">'+
+      '<defs><clipPath id="'+id+'"><polygon points="'+pts+'"/></clipPath></defs>'+
+      '<rect x="0" y="'+y.toFixed(1)+'" width="'+W+'" height="'+(H-y).toFixed(1)+'" fill="'+col+'" clip-path="url(#'+id+')"/>'+
+      '<polygon points="'+pts+'" fill="none" stroke="var(--fg)" stroke-width="2"/></svg>'+
+      '<div class="dashpct" style="color:'+col+'">'+Math.round(f*100)+'%</div></div>'+
+      '<figcaption>'+caption+'</figcaption></figure>';
+  };
+  const hasDev = L.devFill!=null;
   const val=(label, txt, ok)=>'<div class="dashval"><div class="dashk">'+label+'</div><div class="dashv '+(ok==null?'':ok?'good':'bad')+'">'+txt+'</div></div>';
-  box.innerHTML='<div class="dashdia">'+diamond+'<div class="dashpct" style="color:'+col+'">'+Math.round(f*100)+'%</div></div>'+
+  box.innerHTML='<div class="dashdias">'+
+      dia(L.fill, 'dashClip', 'Perfusion proxy', hasDev?'Model':'Perfusion proxy',
+        'This viewer’s perfusion model: depth, rate (against the target band) and release')+
+      (hasDev ? dia(L.devFill, 'dashClipDev', 'Device flags', 'Device flags',
+        'Monitor-style: compressions the device did not flag as too shallow or too slow') : '')+
+    '</div>'+
     '<div class="dashvals">'+
       (L.paused
         ? '<div class="dashpause">Pause <b>'+L.pauseS.toFixed(0)+' s</b></div>'
         : val('Rate', L.rate==null?'—':Math.round(L.rate)+' /min', L.rate==null?null:cprRateOk(Math.round(L.rate)))+
           val('Depth', L.depth==null?'—':cprDFmt(L.depth,1), L.depth==null?null:cprDepthOk(+L.depth.toFixed(1)))+
           val('Release', L.relVel==null?'—':Math.round(L.relVel)+' mm/s', L.relVel==null?null:Math.round(L.relVel)>=CPR_TARGET.relVel))+
+      (L.devFlags && !L.paused
+        ? '<div class="dashval dashflags"><div class="dashk">Device feedback</div><div class="dashfl">'+
+            (L.devFlags.length
+              ? L.devFlags.map(n=>'<span class="dashflag '+(/shallow|slow/i.test(n)?'bad':'mid')+'">'+n+'</span>').join('')
+              : '<span class="dashflag good">No flag</span>')+
+          '</div></div>'
+        : '')+
     '</div>'+
     (CPR_TARGET.group && CPR_TARGET.group!=='adult' ? '<div class="dashwarn">Adult-derived model: no child, infant or newborn values have been validated.</div>' : '')+
-    '<div class="dashnote">Rate, depth and release: the last '+L.n+' compressions. The diamond is a <b>perfusion proxy</b>, a model reconstructed from compression depth, rate, release and pauses: it climbs toward the quality being delivered (most of the way in about 10 s of good compressions) and falls quickly in a pause (about a quarter left after 5 s). A shock doesn’t reset it; the hands-off time around it does the damage. Not a measured pressure, not coronary perfusion pressure, and not the monitor’s indicator.</div>';
+    '<div class="dashnote">Rate, depth and release: the last '+L.n+' compressions. The diamond is a <b>perfusion proxy</b>, a model reconstructed from compression depth, rate, release and pauses: it climbs toward the quality being delivered (most of the way in about 10 s of good compressions) and falls quickly in a pause (about a quarter left after 5 s). A shock doesn’t reset it; the hands-off time around it does the damage. Not a measured pressure, not coronary perfusion pressure, and not the monitor’s indicator.'+
+      (hasDev ? ' <b>Device flags</b> is closer to the monitor’s diamond: it fills the same way from the compressions the device itself did not flag as too shallow or too slow (it does not penalise a fast rate or release). The monitor’s own indicator is not in the export.' : '')+'</div>';
 }
 
 /* ---- cascade: one row per minute of CPR, every compression a bar ---- */
@@ -10653,6 +10888,7 @@ function renderCprPane(){
         '<span><i style="background:'+traceCol(CPR_GOOD)+';opacity:.45"></i>ROSC</span>'+
         '<span class="shockkey">⚡ Shock</span>'+
         (cprTreatments().length ? '<span class="treatkey">┊ Treatment</span>' : '')+
+        (cprHasDevFlags() ? '<span title="The device’s own feedback flags, between the rate and depth panels: rate above, depth below"><i style="background:'+traceCol(CPR_BAD)+'"></i><i style="background:'+traceCol(CPR_MID)+';margin-left:-2px"></i>Device flag (shallow/slow · fast/deep)</span>' : '')+
       '</div>'+
       '<span id="cprWaves" class="cprwaves">'+cprWaveCtlHtml()+'</span>'+
       '<label class="cprwin">Window <select id="cprWin">'+CPR_WINS.map(([v,l])=>
@@ -10677,6 +10913,7 @@ function renderCprPane(){
       card('Shocks', String(C.shocks.length), C.shocks.map(s=>fmtClock(M.t0Wall+s.t)).join(', ')||'none recorded', C.shocks.length?'shock':'')+
     '</div>'+
 
+    '<h2 class="sec">Debrief</h2>'+cprDebriefHtml(m)+
     '<h2 class="sec">Summary</h2>'+cprSummaryHtml(m)+
     '<h2 class="sec">Cascade, one row per minute<span class="expandhint">bar height = depth · colour = quality · right: rate, depth, % in target</span></h2>'+
     '<canvas id="cprCascade" class="chart" style="cursor:pointer" title="Click to put the playhead there"></canvas>'+
