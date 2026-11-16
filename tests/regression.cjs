@@ -852,6 +852,32 @@ test('CPR debrief: praises what met target, suggests gently what did not, never 
   assert.match(mixed.head, /Good effort|Strong CPR/);
 });
 
+test('compression cycles: the 30:2 phase is one cycle, then each pause ends one; numbered, timed, with per-cycle detail', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{ M.durMs=3000000; M.t0Wall=0; M.events=[]; syncCprTargets();
+    // 30:2: breath pauses of 3 s starting every 16 s, six of them, then continuous
+    const pauses=[]; for(let i=0;i<6;i++) pauses.push({t0:13000+i*16000, t1:16000+i*16000});
+    const sw=13000+5*16000+3000;            // the last 30:2 pause ends here
+    pauses.push({t0:sw+120000, t1:sw+126000});            // a pulse check after 2:00
+    pauses.push({t0:sw+126000+170000, t1:sw+126000+178000}); // a long cycle, 2:50
+    const end=sw+126000+178000+60000;
+    const comps=[]; for(let t=0;t<=end;t+=545){ if(pauses.some(p=>t>p.t0&&t<p.t1)) continue; comps.push({t, rate:110, depth:2.1, relVel:450}); }
+    M.cpr={comps, periods:[{t0:0,t1:end}], pauses, rosc:[], shocks:[], vents:[], autopulse:[], resq:[]};
+    const cyc=cprCycles();
+    return JSON.stringify({n:cyc.length, phases:cyc.map(c=>c.phase), lens:cyc.map(c=>fmtCycleLen(c.ms)), breaths:cyc[0].breaths,
+      at:cprCycleAt(sw+60000).n, html:cprCycleHtml(cyc[2]), hover:cprHoverHtml(sw+60000)}); })()`));
+  assert.equal(r.n, 4);
+  assert.deepEqual(r.phases, ['30:2','continuous','continuous','continuous']);
+  assert.equal(r.breaths, 5);
+  assert.equal(r.lens[1], '2:00');
+  assert.equal(r.lens[2], '2:50');
+  assert.equal(r.at, 2);
+  assert.match(r.html, /Cycle 3/);
+  assert.match(r.html, /past 2½ min/);
+  assert.match(r.html, /8\.0 s hands-off/);
+  assert.match(r.hover, /Cycle<\/span><span class="ctv">2 · 1:00 of 2:00/);
+});
+
 test('device-flag diamond: fills from unflagged compressions, ignores a fast rate, decays in a pause, absent without flags', () => {
   const a = app();
   const r = JSON.parse(a.run(`(()=>{
