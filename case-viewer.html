@@ -345,6 +345,9 @@ button.info.b-project{color:var(--crit);border-color:color-mix(in srgb, var(--cr
 button.info.b-monitor:hover,button.info.b-monitor[aria-expanded="true"]{border-color:var(--ok)}
 button.info.b-evidence:hover,button.info.b-evidence[aria-expanded="true"]{border-color:var(--warn)}
 button.info.b-project:hover,button.info.b-project[aria-expanded="true"]{border-color:var(--crit)}
+/* both: a green ring (the monitor's value) around the calculated colour */
+button.info.b2-evidence{color:var(--warn);border-color:var(--ok)}
+button.info.b2-project{color:var(--crit);border-color:var(--ok)}
 #glossPop{position:fixed;z-index:60;display:none;max-height:70vh;overflow:auto;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px 12px 12px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13px;line-height:1.5;color:var(--fg)}
 .gl-head{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
 .gl-head b{font-size:13px}
@@ -382,6 +385,12 @@ button.linkish{background:none;border:0;padding:0;min-height:0;color:var(--fg);t
 .fm-item.b-monitor{border-left-color:var(--ok)}
 .fm-item.b-evidence{border-left-color:var(--warn)}
 .fm-item.b-project{border-left-color:var(--crit)}
+.fm-item{position:relative}
+.fm-item.b2::before{content:'';position:absolute;left:-4px;top:0;bottom:0;width:4px}
+.fm-item.b2-evidence::before{background:linear-gradient(var(--ok) 50%, var(--warn) 50%)}
+.fm-item.b2-project::before{background:linear-gradient(var(--ok) 50%, var(--crit) 50%)}
+.bchip+.bchip{margin-left:4px}
+.bdot+.bdot{margin-left:-3px}
 .bchip{display:inline-block;font:600 10.5px var(--sans);padding:1px 7px;border-radius:9px;margin-left:6px;vertical-align:1px;border:1px solid}
 .bchip.b-monitor{color:var(--ok);border-color:var(--ok)}
 .bchip.b-evidence{color:var(--warn);border-color:var(--warn)}
@@ -3211,7 +3220,12 @@ const SOURCES = {
   perfDecay:{cite:'Mader TJ et al. The effect of the preshock pause on coronary perfusion pressure decay and rescue shock outcome in porcine ventricular fibrillation. Prehosp Emerg Care 2009;13(4):487-94.', url:'https://doi.org/10.1080/10903120903144916', use:'the perfusion proxy’s fall in a pause (CPP 23.4 to 7.6 mmHg over a median 4.1 s; time constant 3.6 s)'},
   perfRebuild:{cite:'Berg RA et al. Adverse hemodynamic effects of interrupting chest compressions for rescue breathing during cardiopulmonary resuscitation for ventricular fibrillation cardiac arrest. Circulation 2001;104(20):2465-70.', url:'https://doi.org/10.1161/hc4501.098926', use:'the perfusion proxy’s build-up (CPP rebuilding over a compression cycle; upper bound of the 5 s time constant)'},
   perfRecovery:{cite:'Yin RT et al. Recovery of arterial blood pressure after chest compression pauses in patients with out-of-hospital cardiac arrest. Resuscitation 2024;201:110311.', url:'https://doi.org/10.1016/j.resuscitation.2024.110311', use:'the perfusion proxy’s build-up (arterial pressure back above 90% within 2 compressions; lower bound of the 5 s time constant)'},
-  perfRecoil:{cite:'Yannopoulos D et al. Effects of incomplete chest wall decompression during cardiopulmonary resuscitation on coronary and cerebral perfusion pressures in a porcine model of cardiac arrest. Resuscitation 2005;64(3):363-72.', url:'https://doi.org/10.1016/j.resuscitation.2004.10.009', use:'the perfusion proxy’s release factor (CPP 23.3 to 15.1 mmHg with 75% recoil)'}
+  perfRecoil:{cite:'Yannopoulos D et al. Effects of incomplete chest wall decompression during cardiopulmonary resuscitation on coronary and cerebral perfusion pressures in a porcine model of cardiac arrest. Resuscitation 2005;64(3):363-72.', url:'https://doi.org/10.1016/j.resuscitation.2004.10.009', use:'the perfusion proxy’s release factor (CPP 23.3 to 15.1 mmHg with 75% recoil)'},
+  windkessel:{cite:'Westerhof N, Lankhaar JW, Westerhof BE. The arterial Windkessel. Med Biol Eng Comput 2009;47(2):131-41.', url:'https://doi.org/10.1007/s11517-008-0359-2', use:'arterial resistance (SVR) and the diastolic decay time constant'},
+  dpdtArt:{cite:'Monge García MI et al. Performance comparison of ventricular and arterial dP/dtmax for assessing left ventricular systolic function during different experimental loading and contractile conditions. Crit Care 2018;22(1):325.', url:'https://doi.org/10.1186/s13054-018-2260-1', use:'arterial dP/dt max'},
+  msi:{cite:'Liu YC et al. Modified shock index and mortality rate of emergency patients. World J Emerg Med 2012;3(2):114-7.', url:'https://doi.org/10.5847/wjem.j.issn.1920-8642.2012.02.006', use:'modified shock index'},
+  coppCpr:{cite:'Paradis NA et al. Coronary perfusion pressure and the return of spontaneous circulation in human cardiopulmonary resuscitation. JAMA 1990;263(8):1106-13.', url:'https://doi.org/10.1001/jama.1990.03440080084029', use:'coronary perfusion pressure'},
+  t90:{cite:'Oldenburg O et al. Nocturnal hypoxaemia is associated with increased mortality in stable heart failure patients. Eur Heart J 2016;37(21):1695-703.', url:'https://doi.org/10.1093/eurheartj/ehv624', use:'time below 90% SpO₂ (T90)'}
 };
 /* linked citations for one or more source keys */
 function sourcesHtml(keys){
@@ -3228,7 +3242,9 @@ const HEMO_REFS = {
   sv:['liljestrand','coFromBp'], co:['liljestrand','coFromBp'], svi:['coFromBp','dubois','mosteller'],
   ci:['coFromBp','dubois','mosteller'], svv:['esicmShock'],
   ea:['eaKelly','eaChen'], eadyn:['eadyn'], cpo:['cpo'], cpi:['cpo','dubois','mosteller'],
-  bsa:['dubois','mosteller']
+  bsa:['dubois','mosteller'],
+  svr:['windkessel'], svri:['windkessel','dubois','mosteller'], tau:['windkessel'], dpdt:['dpdtArt'],
+  msi:['msi'], copp:['coppCpr']
 };
 /* extra sources for signal results that cite more than one, or none in their row */
 const SIG_REFS = {
@@ -3263,7 +3279,7 @@ const GLOSSARY = [
   what:'Pulse rate counted from the pulse-oximeter (plethysmograph) waveform.',
   use:'A second pulse rate. Weak peripheral perfusion or movement makes it unreliable before the arterial one.',
   formula:'Valid pleth pulses per minute', typical:'60–100 /min at rest', src:['ppgResp'], read:'pulseOximetry'},
- {key:'rr_int', group:'Heart rate and ECG', title:'R–R interval / pulse interval', abbr:'RR', ids:['rr_int','rri'],
+ {key:'rr_int', group:'Heart rate and ECG', title:'R–R interval / pulse interval', abbr:'RR', ids:['rr_int','rri'], src:['hrvTaskForce'],
   what:'Time between consecutive heartbeats (R waves on the ECG, or upstrokes on the arterial line).',
   use:'The inverse of the heart rate, in milliseconds. 1000 ms is 60 /min.',
   formula:'t(beat n) − t(beat n−1)', typical:'600–1000 ms'},
@@ -3374,10 +3390,10 @@ const GLOSSARY = [
  {key:'notchp', group:'Blood pressure', title:'Dicrotic notch pressure', abbr:'Notch', ids:['notchp'],
   what:'Pressure at the dicrotic notch.', use:'A low notch can go with vasodilation; a notch that disappears can mean overdamping.',
   formula:'Pressure at the detected notch', read:'arterialWaveform'},
- {key:'tau', group:'Blood pressure', title:'Diastolic decay constant', abbr:'τ', ids:['tau'],
+ {key:'tau', group:'Blood pressure', title:'Diastolic decay constant', abbr:'τ', ids:['tau'], src:['windkessel'],
   what:'How fast pressure falls during diastole.', use:'Roughly vascular resistance × arterial compliance. Highly variable; follow its trend only.',
   formula:'Fit of P(t) = P₀·e^(−t/τ) from the notch to the next foot', read:'arterialWaveform'},
- {key:'dpdt', group:'Blood pressure', title:'Maximum arterial pressure rise', abbr:'dP/dt', ids:['dpdt'],
+ {key:'dpdt', group:'Blood pressure', title:'Maximum arterial pressure rise', abbr:'dP/dt', ids:['dpdt'], src:['dpdtArt'],
   what:'The steepest rate of rise of pressure during the upstroke.',
   use:'Follow its trend as a loose contractility signal. It is NOT left-ventricular dP/dt: site, vascular tone and the line’s dynamics all change it.',
   formula:'max over the upstroke of ΔP/Δt, measured across the channel’s held sample pairs', read:'dpdt'},
@@ -3417,11 +3433,11 @@ const GLOSSARY = [
  {key:'ci', group:'Flow and resistance', title:'Cardiac index', abbr:'CI', ids:['ci'],
   what:'Cardiac output adjusted for body size.', use:'Below about 2.2 L/min/m² commonly marks significant low-output physiology.',
   formula:'CI = CO ÷ BSA', typical:'2.5–4 L/min/m²', src:['coFromBp'], read:'cardiacIndex'},
- {key:'svr', group:'Flow and resistance', title:'Systemic vascular resistance', abbr:'SVR', ids:['svr'],
+ {key:'svr', group:'Flow and resistance', title:'Systemic vascular resistance', abbr:'SVR', ids:['svr'], src:['windkessel'],
   what:'Resistance the circulation offers to the heart’s output.',
   use:'High in vasoconstriction (cold, low-output shock); low in vasodilation (sepsis, anaphylaxis). Needs CO and a CVP (measured or entered).',
   formula:'SVR = 80 · (MAP − CVP) ÷ CO', typical:'800–1200 dyn·s/cm⁵', read:'svr'},
- {key:'svri', group:'Flow and resistance', title:'Systemic vascular resistance index', abbr:'SVRI', ids:['svri'],
+ {key:'svri', group:'Flow and resistance', title:'Systemic vascular resistance index', abbr:'SVRI', ids:['svri'], src:['windkessel'],
   what:'SVR adjusted for body size.', use:'As SVR.', formula:'SVRI = 80 · (MAP − CVP) ÷ CI', typical:'1970–2390 dyn·s·m²/cm⁵', read:'svr'},
  {key:'ea', group:'Flow and resistance', title:'Effective arterial elastance', abbr:'Ea', ids:['ea'],
   what:'The overall load the arteries place on the ventricle.', use:'Strongly load-dependent and inherits the SV model; follow its trend.',
@@ -3443,14 +3459,14 @@ const GLOSSARY = [
   what:'Heart rate divided by systolic pressure.',
   use:'A quick screen for hidden shock: it rises when the heart races to hold the pressure up. Above about 0.9–1.0 is commonly treated as concerning. Follow the trend.',
   formula:'SI = HR ÷ SBP', typical:'0.5–0.7', src:['shockIndex'], read:'shockIndex'},
- {key:'msi', group:'Shock and perfusion', title:'Modified shock index', abbr:'MSI', ids:['msi'],
+ {key:'msi', group:'Shock and perfusion', title:'Modified shock index', abbr:'MSI', ids:['msi'], src:['msi'],
   what:'Heart rate divided by mean arterial pressure.', use:'As shock index, using MAP so diastolic pressure counts too.',
   formula:'MSI = HR ÷ MAP', read:'modShockIndex'},
  {key:'rpp', group:'Shock and perfusion', title:'Rate-pressure product', abbr:'RPP', ids:['rpp'],
   what:'Heart rate × systolic pressure: a simple index of how hard the heart muscle works, and so how much oxygen it needs.',
   use:'Follow its trend, especially in coronary disease, where demand outrunning supply causes ischaemia. Roughly 6 000–12 000 at rest; it normally exceeds 25 000 at peak exercise, so there is no single danger number.',
   formula:'RPP = HR × SBP', src:['rpp'], read:'rpp'},
- {key:'copp', group:'Shock and perfusion', title:'Coronary perfusion pressure', abbr:'CoPP', ids:['copp'],
+ {key:'copp', group:'Shock and perfusion', title:'Coronary perfusion pressure', abbr:'CoPP', ids:['copp'], src:['coppCpr'],
   what:'The pressure driving blood into the heart muscle: aortic diastolic minus right-atrial (central venous) pressure.',
   use:'Most used during CPR, where higher CoPP goes with better chances of return of circulation. Needs arterial and central venous lines.',
   formula:'CoPP = DBP − CVP', read:'coronaryPerfusion'},
@@ -3475,7 +3491,7 @@ const GLOSSARY = [
   formula:'Device value from the trend record', typical:'95–100 %', origin:'device', src:['spo2Fda'], read:'pulseOximetry'},
  {key:'spo2_min', group:'Oximetry', title:'Lowest SpO₂', abbr:'SpO₂ min', ids:['spo2_min'],
   what:'The lowest SpO₂ in the window.', use:'Check the pleth at that moment: brief dips are often artefact.', formula:'min(SpO₂) over the window', read:'pulseOximetry'},
- {key:'t90', group:'Oximetry', title:'Time below 90 %', abbr:'T90', ids:['t90'],
+ {key:'t90', group:'Oximetry', title:'Time below 90 %', abbr:'T90', ids:['t90'], src:['t90'],
   what:'How long saturation spent below 90 %.', use:'Duration of hypoxaemia; read with the hypoxic burden for depth.',
   formula:'∫ dt while SpO₂ < 90 %', read:'hypoxicBurden'},
  {key:'hypox_burden', group:'Oximetry', title:'Hypoxic burden', abbr:'Burden', ids:['hypox_burden'],
@@ -3680,7 +3696,21 @@ for(const g of VIEWER_NOTES) GLOSS_BY_KEY[g.key]=g;
      project  - inferred or built by this viewer, no published source cited (red)
    Device values are the monitor's; otherwise an entry with sources is evidence-backed.
    A few device readings are not marked as device values in their entries. */
-const GLOSS_BASIS_OVERRIDE = {etco2:'monitor', m_offscale:'monitor', pacer:'monitor'};
+const GLOSS_BASIS_OVERRIDE = {m_offscale:'monitor', pacer:'monitor'};
+/* Both: the monitor records its own value as well (or provides the raw marks) and the viewer
+   calculates one too. Shown in both colours, with what comes from where. */
+const GLOSS_ALSO_MONITOR = {
+  qrs_axis:'The 12-lead’s own measured axis is used when the record carries one; otherwise it is calculated here.',
+  qrs:'Each 12-lead also carries the monitor’s own QRS duration, shown with its automated interpretation. The value under “Measured here” is this viewer’s.',
+  qt:'Each 12-lead also carries the monitor’s own QT, shown with its automated interpretation. The value under “Measured here” is this viewer’s.',
+  qtcb:'Each 12-lead also carries the monitor’s own QTc (the record does not say which correction it used). This one is calculated here.',
+  qtcf:'Each 12-lead also carries the monitor’s own QTc (the record does not say which correction it used). This one is calculated here.',
+  etco2:'The trend value is the monitor’s own; breath-by-breath values from the capnogram are measured here.',
+  cpr_rate:'Read from the monitor’s per-compression records when the export has them; otherwise detected here from the compression waveform.',
+  cpr_depth:'Read from the monitor’s per-compression records when the export has them (units inferred); otherwise detected here from the compression waveform.',
+  cpr_release:'Read from the monitor’s per-compression records when the export has them (units inferred); otherwise detected here from the compression waveform.',
+  rr_vent:'The ventilation marks are the monitor’s; the rate is counted here.'
+};
 const BASIS_INFO = {
   monitor:{label:'From the monitor', note:'Read directly from the monitor’s own records; not calculated here.'},
   evidence:{label:'Published method', note:'Calculated here by a method with a published source, listed under Source.'},
@@ -3692,17 +3722,23 @@ function glossBasis(g){
   if(g.origin==='device') return 'monitor';
   return g.src && g.src.length ? 'evidence' : 'project';
 }
-function basisChip(g){
-  const b=glossBasis(g); if(!b) return '';
-  return '<span class="bchip b-'+b+'" title="'+esc(BASIS_INFO[b].note)+'">'+esc(BASIS_INFO[b].label)+'</span>';
+/* every colour an entry carries: the monitor first when it also records the value */
+function glossBases(g){
+  const b=glossBasis(g); if(!b) return [];
+  return GLOSS_ALSO_MONITOR[g.key] && b!=='monitor' ? ['monitor', b] : [b];
 }
+function basisChip(g){
+  return glossBases(g).map(b=>'<span class="bchip b-'+b+'" title="'+esc(BASIS_INFO[b].note)+'">'+esc(BASIS_INFO[b].label)+'</span>').join('');
+}
+function basisDots(g){ return glossBases(g).map(b=>'<span class="bdot b-'+b+'"></span>').join(''); }
 
 /* the small (i) next to a measure; nothing when the glossary has no entry for it */
 function infoBtn(id){
   const g = GLOSS_BY_ID[id] || GLOSS_BY_KEY[id];
   if(!g) return '';
-  const b=g.standalone ? '' : glossBasis(g);
-  return '<button type="button" class="info'+(b?' b-'+b:'')+'" data-gloss="'+esc(g.key)+'"'+(b?' title="'+esc(BASIS_INFO[b].label)+'"':'')+' aria-label="What is '+
+  const bs=g.standalone ? [] : glossBases(g);
+  const cls=bs.length>1 ? ' b-monitor b2-'+bs[1] : bs.length ? ' b-'+bs[0] : '';
+  return '<button type="button" class="info'+cls+'" data-gloss="'+esc(g.key)+'"'+(bs.length?' title="'+esc(bs.map(b=>BASIS_INFO[b].label).join(' + '))+'"':'')+' aria-label="What is '+
     esc(g.abbr||g.title)+'?" aria-haspopup="dialog">i</button>';
 }
 function explainHtml(key){
@@ -3719,7 +3755,9 @@ function glossBody(g, inTab){
     row('Typical', g.typical ? esc(g.typical) : '')+
     row('Caution', g.caution ? esc(g.caution) : '')+
     row('Value', g.origin==='device' ? 'recorded by the monitor, not calculated here' : '')+
-    (g.standalone ? '' : row('Basis', '<span class="bdot b-'+glossBasis(g)+'"></span>'+esc(BASIS_INFO[glossBasis(g)].note)))+
+    (g.standalone ? '' : row('Basis', GLOSS_ALSO_MONITOR[g.key] && glossBases(g).length>1
+      ? basisDots(g)+esc(GLOSS_ALSO_MONITOR[g.key])+' '+(glossBasis(g)==='evidence' ? 'The calculation has a published source, listed under Source.' : 'The calculation is built here, with no published source cited.')
+      : basisDots(g)+esc(BASIS_INFO[glossBasis(g)].note)))+
     row('Explained', g.read ? explainHtml(g.read) : '')+
     row('Source', g.src ? sourcesHtml(g.src) : '')+
     (inTab || g.standalone ? '' : '<div class="gl-more"><button type="button" class="linkish" data-formula="'+esc(g.key)+'">All formulas</button></div>');
@@ -3838,7 +3876,8 @@ function renderFormulas(){
     '<div class="fm-legend" role="group" aria-label="Show by where the value comes from">'+
       ['monitor','evidence','project'].map(k=>'<label><input type="checkbox" data-fmbasis="'+k+'"'+(FORM.basis[k]?' checked':'')+'>'+
         '<span class="bdot b-'+k+'"></span>'+esc(BASIS_INFO[k].label)+
-        ' <span class="fm-ln">('+GLOSSARY.filter(g=>glossBasis(g)===k).length+')</span></label>').join('')+
+        ' <span class="fm-ln">('+GLOSSARY.filter(g=>glossBases(g).includes(k)).length+')</span></label>').join('')+
+      '<span class="fm-ln">'+GLOSSARY.filter(g=>glossBases(g).length>1).length+' carry two colours: the monitor records its own value and the viewer calculates one too</span>'+
     '</div>'+
     '<p class="srcintro" style="margin-top:-6px"><span class="bdot b-monitor"></span>Green: read directly from the monitor. '+
       '<span class="bdot b-evidence"></span>Yellow: calculated here by a published method. '+
@@ -3849,14 +3888,14 @@ function renderFormulas(){
       '<section class="fm-group" data-group="'+esc(gp)+'"><h3><span>'+esc(gp)+'</span>'+
         '<button type="button" class="fm-up" data-fmtop>A–Z index</button></h3>'+
       GLOSSARY.filter(g=>g.group===gp).map(g=>
-        '<article class="fm-item b-'+glossBasis(g)+'" data-basis="'+glossBasis(g)+'" id="f-'+esc(g.key)+'" data-text="'+esc(
+        '<article class="fm-item b-'+glossBases(g)[0]+(glossBases(g).length>1?' b2 b2-'+glossBases(g)[1]:'')+'" data-basis="'+glossBases(g).join(' ')+'" id="f-'+esc(g.key)+'" data-text="'+esc(
           [g.title,g.abbr,g.formula,g.what,g.use,(g.ids||[]).join(' ')].join(' ').toLowerCase())+'">'+
         '<h4>'+esc(g.title)+(g.abbr?' <span class="gl-abbr">'+esc(g.abbr)+'</span>':'')+basisChip(g)+'</h4>'+
         glossBody(g,true)+'</article>').join('')+
       '</section>').join('')+'</div>';
   const apply=()=>{
     const q=FORM.q.trim().toLowerCase(); let n=0;
-    $$('#fmList .fm-item').forEach(a=>{ const hit=FORM.basis[a.dataset.basis] && (!q || q.split(/\s+/).every(w=>a.dataset.text.includes(w)));
+    $$('#fmList .fm-item').forEach(a=>{ const hit=a.dataset.basis.split(' ').some(k=>FORM.basis[k]) && (!q || q.split(/\s+/).every(w=>a.dataset.text.includes(w)));
       a.hidden=!hit; if(hit) n++; });
     $$('#fmList .fm-group').forEach(s=>{ s.hidden=![...s.querySelectorAll('.fm-item')].some(a=>!a.hidden); });
     const filtered = q || !(FORM.basis.monitor && FORM.basis.evidence && FORM.basis.project);
@@ -3886,7 +3925,7 @@ function fmIndexHtml(){
                   : '<span aria-hidden="true">'+L+'</span>').join('')+'</nav>'+
     '<div class="fm-ix">'+letters.filter(L=>have.has(L)).map(L=>
       '<div class="fm-ix-l"><h4 id="fmL-'+L+'">'+L+'</h4><ul>'+
-      ix.filter(e=>e.letter===L).map(e=>'<li><a href="#" data-fm="'+esc(e.key)+'"><span class="bdot b-'+glossBasis(GLOSS_BY_KEY[e.key])+'"></span>'+
+      ix.filter(e=>e.letter===L).map(e=>'<li><a href="#" data-fm="'+esc(e.key)+'">'+basisDots(GLOSS_BY_KEY[e.key])+
         (e.see ? '<b>'+esc(e.label)+'</b> <span class="fm-see">'+esc(e.see)+'</span>' : esc(e.label))+
       '</a></li>').join('')+'</ul></div>').join('')+
     '</div></details>';
@@ -13207,6 +13246,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-16', items:[
+    'Formulas: published sources added for SVR and SVRI, the diastolic decay constant, arterial dP/dt max, the modified shock index, coronary perfusion pressure, time below 90% SpO₂ and the R–R interval. Measures the monitor records as well as the viewer calculating them (QRS axis, QRS, QT, QTc, EtCO₂, CPR rate, depth and release, ventilation rate) carry both colours, and say which part comes from where.',
     'Formulas and ⓘ icons are coloured by where a value comes from: green read directly from the monitor, yellow calculated here by a published method, red inferred or built by this viewer with no published source cited. Each explanation says which, and the Formulas page can show or hide each colour.',
     'Start page: the box no longer re-centres when you select a case, so double-clicking a case in the folder list opens it.',
     'CPR performance strips: click one to open all five zoomed in around that moment (30 s to 10 min window). Drag, scroll or use ← → to move along; hover for the details at that moment (or a cycle’s, along the top of the event summary); click to move the playhead there. Each strip’s heading gives its figures for what is in view.',
