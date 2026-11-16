@@ -1,6 +1,6 @@
 # Case Viewer
 
-**Open the viewer: [redcell6452.github.io/case-viewer](https://redcell6452.github.io/case-viewer/)**
+**Open the viewer: [redcell6452.github.io/case-viewer/case-viewer.html](https://redcell6452.github.io/case-viewer/case-viewer.html)**
 
 A single-file, offline web viewer for full-disclosure case exports
 (X Series / R Series / Propaq MD `.zol` files, zipped or raw).
