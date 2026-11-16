@@ -80,7 +80,10 @@ select,input[type=text],input[type=number]{background:var(--bg3);border:1px soli
 
 #drop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:50}
 #drop.dragging .dz{border-color:var(--accent);background:var(--bg2)}
-.dz{width:min(1180px,94vw);max-height:92vh;overflow:auto;border:2px dashed var(--line2);
+/* a fixed height, content anchored at the top: a box that grew to fit would re-centre
+   whenever its content changed (selecting a case fills in its details), moving the row
+   under the pointer between the two clicks of a double-click */
+.dz{width:min(1180px,94vw);height:92vh;overflow:auto;scrollbar-gutter:stable;border:2px dashed var(--line2);
   border-radius:14px;padding:20px 22px;text-align:left;transition:.15s}
 .dz h1{margin:0;font-size:22px;letter-spacing:.2px}
 .dzhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
@@ -13148,6 +13151,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-16', items:[
+    'Start page: the box no longer re-centres when you select a case, so double-clicking a case in the folder list opens it.',
     'CPR performance strips: click one to open all five zoomed in around that moment (30 s to 10 min window). Drag, scroll or use ← → to move along; hover for the details at that moment (or a cycle’s, along the top of the event summary); click to move the playhead there. Each strip’s heading gives its figures for what is in view.',
     'CPR page reads X Series exports: CPR and pause periods, and each compression’s depth, rate and release. A file whose CPR records can’t be read says so instead of “no resuscitation”.',
     'CPR dashboard: a second diamond built from the device’s own feedback flags (too shallow, too deep, too slow, too fast), beside the model’s. The flags also show in a field under the diamonds and as a strip between the rate and depth graphs.',
