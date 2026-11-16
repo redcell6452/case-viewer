@@ -95,7 +95,7 @@ annotations live in that browser's local storage.
 
 | Tab | What it shows |
 |---|---|
-| **Monitor** | Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. From the keyboard, tab to the panel: ← → move 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End the ends; its top edge also takes focus, and ↑ ↓ resize it (Home resets). It stays open across tabs and follows the playhead during playback. |
+| **Monitor** | A **magnifier** (**Lens**, or **Z**) puts a round lens over the waveforms at the pointer, enlarged 2× (Shift + scroll for 1.5–4×), and keeps up with playback. Scrolling waveforms with a numerics panel (pressures as sys/dia (MAP), alarming values boxed, ⓘ on each), line-zeroing flags on the pressure rows, event markers, sticky notes and annotation bands, calipers with march-out, and playback. Pacer pulses the monitor detected are marked on the ECG traces (**Pacer** button, shown when a case has any). The **Whole-case ECG** tab on top of the playback bar (or **Overview**, or **O**) pops up the whole case's ECG folded into rows, with CPR, pauses, shocks, treatments and alarms marked; click or drag anywhere on it to scrub the playhead, and drag its top edge to resize it. From the keyboard, tab to the panel: ← → move 1 s (Shift 10 s), ↑ ↓ a row, Page Up / Page Down five rows, Home / End the ends; its top edge also takes focus, and ↑ ↓ resize it (Home resets). It stays open across tabs and follows the playhead during playback. |
 | **Trends** | Whole-case charts. Parameters that share a scale are overlaid, so every heart-rate source — and every respiratory-rate source — can be compared side by side. |
 | **Physiology** | Selectable waveforms, live arterial beat measurements at the cursor, and estimates over the selected analysis window. |
 | **12-Lead / Snapshots** | 12-lead acquisitions on standard ECG paper in a 3×4 layout with a rhythm strip and 1 mV calibration marks. Snapshots use the same renderer, and you can print a strip from anywhere in the continuous recording. Under each 12-lead, the viewer's own ST-J level in every lead (red at the usual elevation thresholds, amber at depression) and the P, QRS and T axes. |
@@ -145,7 +145,7 @@ shared across all three views. Averaging windows for the derived rates are in Se
 ## Playback and navigation
 
 - **Space** play/pause · **← →** step 1 s (**Shift** 10 s) · **Home/End** ends
-- **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **T** theme
+- **, .** previous / next event · **A** annotate · **C** calipers · **M** march-out calipers · **Z** magnifier (Monitor) · **T** theme
 - **E** event list · **+ −** zoom · **1**–**9** switch tabs (Monitor through Settings)
 - Buttons a key toggles show that key in parentheses, e.g. **March (M)**; the hints are
   hidden on touch screens

@@ -241,6 +241,9 @@ button.sidetoggle.open .sidefill{opacity:.55}
 .monitor-lead-list small{flex-basis:100%;font-size:11.5px;color:var(--dim2);margin-top:2px}
 #waveArea{flex:1;display:flex;min-height:0}
 #waveCanvasWrap{flex:1;position:relative;min-width:0}
+#magLens{position:absolute;left:0;top:0;pointer-events:none;border-radius:50%;z-index:4;
+  box-shadow:0 0 0 2px var(--accent),0 6px 22px rgba(0,0,0,.55)}
+#waveCanvas.magon{cursor:none}
 #waveCanvas{position:absolute;inset:0;width:100%;height:100%}
 #numerics{width:var(--numW,212px);flex:0 0 var(--numW,212px);background:var(--bg2);overflow:auto;padding:6px;
   display:grid;grid-template-columns:repeat(var(--numCols,1),minmax(0,1fr));align-content:start;gap:6px}
@@ -1012,7 +1015,7 @@ dialog input[type=text]{width:100%}
           <details class="monitor-leads" id="monitorLeadPicker" open><summary>Waveforms</summary>
             <div class="monitor-lead-list" id="monitorLeadList"></div></details>
           <div id="waveArea">
-            <div id="waveCanvasWrap"><canvas id="waveCanvas"></canvas>
+            <div id="waveCanvasWrap"><canvas id="waveCanvas"></canvas><canvas id="magLens" hidden aria-hidden="true"></canvas>
               <button type="button" id="inspBack" class="inspback" hidden title="Show values at the playhead again (Esc)">Back to playhead</button></div>
             <div id="numGrip" role="separator" aria-orientation="vertical" aria-controls="numerics"
               title="Drag to resize the parameter panel (1, 2 or 3 columns). Double-click to fit automatically."></div>
@@ -1086,6 +1089,9 @@ dialog input[type=text]{width:100%}
           <fieldset class="grp tgrp adv"><legend>Calipers</legend>
             <button id="btnCal" title="Calipers: drag on a trace to measure (C)" aria-keyshortcuts="C">Caliper<span class="keyhint" aria-hidden="true">(C)</span></button>
             <button id="btnMarch" title="March-out calipers: repeat the measured interval along the trace to check regularity (M)" aria-pressed="false" aria-keyshortcuts="M">March<span class="keyhint" aria-hidden="true">(M)</span></button>
+          </fieldset>
+          <fieldset class="grp tgrp adv"><legend>Magnifier</legend>
+            <button id="btnMag" title="Magnifier: a lens over the waveforms where the pointer is (Z). Shift + scroll changes the zoom." aria-pressed="false" aria-keyshortcuts="Z">Lens<span class="keyhint" aria-hidden="true">(Z)</span></button>
           </fieldset>
           <div class="grp adv">
             <button id="btnOverview" type="button" aria-controls="ovDock" aria-expanded="false" title="Show or hide the whole case's ECG above the playback bar, with CPR, pauses, shocks and alarms; click or drag on it to move the playhead (O)">Overview</button>
@@ -8015,6 +8021,67 @@ function drawMonitor(){
   if(showRange) g.fillText('+'+fmtEl(t0)+'  →  +'+fmtEl(t1), 5, plotH+14);
   drawPlayheadTag(g, cx, plotH, T0);
   if(geo.inspectX!=null) drawInspectTag(g, geo.inspectX, plotH, T0, cx);
+  drawMagLens();
+}
+/* ---- magnifier: a round lens over the Monitor's waveforms at the pointer, showing
+   that patch enlarged (2× by default; Shift + scroll for 1.5-4×). It copies the drawn
+   canvas, so it follows playback and everything drawn on the strip. ---- */
+const MAG = {on:false, x:null, y:null, zoom:2, size:230};
+function drawMagLens(){
+  const lens=$('#magLens'), cv=$('#waveCanvas');
+  if(!lens || !cv) return;
+  if(!MAG.on || MAG.x==null || APP.view!=='monitor'){ lens.hidden=true; return; }
+  const z=(CFG.uiScale||100)/100, r=cv.getBoundingClientRect();
+  const lw=r.width/z, lh=r.height/z;                 /* canvas size in layout px */
+  if(MAG.x<0 || MAG.y<0 || MAG.x>lw || MAG.y>lh){ lens.hidden=true; return; }
+  const S=Math.min(MAG.size, Math.max(120, Math.min(lw, lh)*0.8));
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  const px=Math.round(S*dpr);
+  if(lens.width!==px){ lens.width=px; lens.height=px; }
+  lens.style.width=S+'px'; lens.style.height=S+'px';
+  lens.style.transform='translate('+(MAG.x-S/2)+'px,'+(MAG.y-S/2)+'px)';
+  lens.hidden=false;
+  /* the source patch, in the canvas's backing pixels */
+  const kx=cv.width/lw, ky=cv.height/lh, sw=S/MAG.zoom*kx, sh=S/MAG.zoom*ky;
+  const sx=MAG.x*kx-sw/2, sy=MAG.y*ky-sh/2;
+  const g=lens.getContext('2d');
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,px,px);
+  g.save();
+  g.beginPath(); g.arc(px/2,px/2,px/2,0,Math.PI*2); g.clip();
+  g.fillStyle=TH().bg; g.fillRect(0,0,px,px);
+  g.imageSmoothingEnabled=true;
+  g.drawImage(cv, sx, sy, sw, sh, 0, 0, px, px);
+  /* a small cross at the centre marks the exact point */
+  g.strokeStyle=TH().cursor; g.globalAlpha=.7; g.lineWidth=dpr;
+  const c=px/2, a=7*dpr;
+  g.beginPath(); g.moveTo(c-a,c); g.lineTo(c+a,c); g.moveTo(c,c-a); g.lineTo(c,c+a); g.stroke();
+  g.globalAlpha=1;
+  g.fillStyle=TH().dim; g.font=(10*dpr)+'px ui-monospace,monospace'; g.textAlign='center';
+  g.fillText(MAG.zoom.toFixed(1).replace(/\.0$/,'')+'×', c, px-9*dpr);
+  g.restore();
+}
+function setMag(on){
+  MAG.on=!!on;
+  const b=$('#btnMag'); if(b){ b.classList.toggle('on', MAG.on); b.setAttribute('aria-pressed', MAG.on); }
+  const cv=$('#waveCanvas'); if(cv) cv.classList.toggle('magon', MAG.on);
+  if(!MAG.on){ MAG.x=null; }
+  drawMagLens();
+}
+function wireMag(){
+  const cv=$('#waveCanvas'); if(!cv || cv._magWired) return;
+  cv._magWired=true;
+  const at=ev=>{ const z=(CFG.uiScale||100)/100, r=cv.getBoundingClientRect();
+    MAG.x=(ev.clientX-r.left)/z; MAG.y=(ev.clientY-r.top)/z; };
+  cv.addEventListener('pointermove', ev=>{ if(!MAG.on) return; at(ev); drawMagLens(); });
+  cv.addEventListener('pointerleave', ()=>{ if(!MAG.on) return; MAG.x=null; drawMagLens(); });
+  cv.addEventListener('wheel', ev=>{
+    if(!MAG.on || !ev.shiftKey) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    const d=Math.abs(ev.deltaY)>=Math.abs(ev.deltaX)?ev.deltaY:ev.deltaX;
+    MAG.zoom=clamp(Math.round((MAG.zoom*(d<0?1.25:0.8))*4)/4, 1.5, 4); at(ev); drawMagLens();
+  }, {passive:false, capture:true});
+  $('#btnMag').onclick=()=>{ setMag(!MAG.on); toast(MAG.on ? 'Magnifier on: move over the waveforms (Shift + scroll to zoom, Z to turn off)' : 'Magnifier off'); };
 }
 /* outlined tag on the time axis for the time the panel is reading: the pointer, or
    the pinned point. Kept clear of the playhead's own tag. */
@@ -13246,6 +13313,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-16', items:[
+    'Monitor: a magnifier (Lens button, or Z) shows a round lens over the waveforms at the pointer, enlarged 2× (Shift + scroll for 1.5–4×). It follows playback.',
     'Formulas: published sources added for SVR and SVRI, the diastolic decay constant, arterial dP/dt max, the modified shock index, coronary perfusion pressure, time below 90% SpO₂ and the R–R interval. Measures the monitor records as well as the viewer calculating them (QRS axis, QRS, QT, QTc, EtCO₂, CPR rate, depth and release, ventilation rate) carry both colours, and say which part comes from where.',
     'Formulas and ⓘ icons are coloured by where a value comes from: green read directly from the monitor, yellow calculated here by a published method, red inferred or built by this viewer with no published source cited. Each explanation says which, and the Formulas page can show or hide each colour.',
     'Start page: the box no longer re-centres when you select a case, so double-clicking a case in the folder list opens it.',
@@ -13589,6 +13657,7 @@ function wire(){
   $('#btnResetView').onclick = resetMonitorView;
   $('#btnZoomIn').onclick = ()=> zoomStep(0.6);
   $('#btnZoomOut').onclick = ()=> zoomStep(1/0.6);
+  wireMag();
   $('#btnMarch').onclick = ()=>{
     setCalMarch(!CFG.calMarch);
     if(CFG.calMarch && !APP.calMode) $('#btnCal').click();
@@ -13799,6 +13868,7 @@ function wire(){
       case 'c': case 'C': $('#btnCal').click(); break;
       case 'o': case 'O': openOverview(); break;
       case 'm': case 'M': (APP.view==='ecg' && $('#stripMarch') ? $('#stripMarch') : $('#btnMarch')).click(); break;
+      case 'z': case 'Z': if(APP.view==='monitor' && $('#btnMag')) $('#btnMag').click(); break;
       case '+': case '=': zoomStep(0.6); break;
       case '-': case '_': zoomStep(1/0.6); break;
       case '1': setView('monitor'); break;
