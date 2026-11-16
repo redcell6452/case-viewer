@@ -775,6 +775,50 @@ test('CPR periods: empty containers mean none, and compression fraction uses tim
   assert.equal(+a.run('cprMetrics().ccf.toFixed(1)'), 100);
 });
 
+test('X Series CPR: Segment/StartSecond/Duration periods and CprCompression records are read', () => {
+  const a = app();
+  // synthetic: 20 compressions every 500 ms from 100.3 s; the device counter has its own
+  // origin and DevDateTime is truncated to the second
+  const recs = [{CaseSummary:{StartTime:'2020-01-01T00:00:00', ElapsedTime:300}},
+    {DisplayInfo:{StdHdr:{DevDateTime:'2020-01-01T00:00:00'}}}];
+  for (let i = 0; i < 20; i++) {
+    const wallMs = 100300 + i * 500, s = Math.floor(wallMs / 1000);
+    const dev = '2020-01-01T00:' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    recs.push({CprCompression:{StdHdr:{DevDateTime:dev, ElapsedTime:s, MsecTime:0}, TimeStamp:7000000 + wallMs,
+      CompDisp:2100, RelVelocity:1500, CompRate:i === 19 ? 0 : 120, LoDepthFlag:1, HiRateFlag:1}});
+  }
+  const xml = '<CaseReview><UserCprPeriods><Segment><StartSecond>95.5</StartSecond><Duration>30</Duration></Segment></UserCprPeriods>' +
+    '<CprPausePeriods><Segment><StartSecond>110</StartSecond><Duration>4.25</Duration><Reason>3</Reason><Annotation/></Segment>' +
+    '</CprPausePeriods><RoscPeriods /></CaseReview>';
+  a.run(`globalThis.X=${JSON.stringify(xml)};`);
+  assert.equal(a.run(`JSON.stringify(parsePeriods(X,'UserCprPeriods'))`), JSON.stringify([{t0:95500,t1:125500}]));
+  assert.equal(a.run(`JSON.stringify(parsePeriods(X,'CprPausePeriods'))`), JSON.stringify([{t0:110000,t1:114250}]));
+  assert.equal(a.run(`parsePeriods(X,'RoscPeriods').length`), 0);
+  a.run(`buildModel(${JSON.stringify(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:recs}]}}))}, X, 'synthetic.zol')`);
+  const C = JSON.parse(a.run(`JSON.stringify(Object.assign({}, M.cpr, {start:M.caseStartMs}))`));
+  assert.equal(C.present, true);
+  assert.equal(C.source, 'records: CprCompression');
+  assert.equal(C.periods.length, 1); assert.equal(C.pauses.length, 1);
+  assert.equal(C.comps.length, 20);
+  // times come from the millisecond counter, anchored to the truncated wall clock within half a second
+  C.comps.forEach((c, i) => assert.ok(Math.abs(c.t - (100300 + i * 500)) <= 500, 'compression ' + i + ' at ' + c.t));
+  assert.equal(C.comps[1].t - C.comps[0].t, 500);
+  assert.equal(C.comps[0].depth, 2.1);                        // thousandths of an inch
+  assert.equal(+C.comps[0].relVel.toFixed(1), 381);           // hundredths of an inch/s, in mm/s
+  assert.equal(C.comps[0].rate, 120);                         // the device's own rate
+  assert.equal(C.comps[19].rate, null);                       // CompRate 0 is no rate
+});
+
+test('CPR records the viewer cannot read are reported as such, not as no resuscitation', () => {
+  const a = app();
+  a.run(`buildModel(JSON.stringify({ZOLL:{FullDisclosure:[{FullDisclosureRecord:[
+    {CaseSummary:{StartTime:'2020-01-01T00:00:00', ElapsedTime:60}},
+    {CprAccelWaveRec:{StdHdr:{DevDateTime:'2020-01-01T00:00:10'}}},
+    {CprAccelWaveRec:{StdHdr:{DevDateTime:'2020-01-01T00:00:11'}}}]}]}}), '<CaseReview><UserCprPeriods /></CaseReview>', 'synthetic.zol')`);
+  assert.equal(a.run('M.cpr.present'), false);
+  assert.equal(a.run('M.cpr.cprRecs'), '2 CprAccelWaveRec');
+});
+
 test('ventilation marks come from one source, never two merged', () => {
   const a = app();
   const v = (s0, n) => Array.from({length:n}, (_, i) => `<Ventilation second="${s0+i*5}" ms="0"/>`).join('');

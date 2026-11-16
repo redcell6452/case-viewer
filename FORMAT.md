@@ -85,7 +85,20 @@ The XML document carries the case identifier, device/patient metadata, parsed ve
 marks and CPR/pause/ROSC/device-assist period lists when present. These are structural
 fields the parser reads; no actual XML export is included.
 
-Real-arrest per-compression extraction is unverified. CPR field discovery and waveform
+On X Series exports the period containers hold `<Segment>` elements with
+`<StartSecond>` (seconds from the case start) and `<Duration>` (seconds) rather than
+start/end pairs; pause segments add `Reason`, `Cause` and an `Annotation`. Both layouts
+are accepted.
+
+`CprCompression` is one record per detected compression: `CompDisp`, `RelVelocity`,
+`CompRate` (compressions/min, 0 = none) and `TimeStamp`, a millisecond counter that
+keeps pace with the wall clock. The viewer reads `CompDisp` as thousandths of an inch
+and `RelVelocity` as hundredths of an inch per second. Those scales are inferred from
+plausible values on one real export, not from documentation. Its Lo/Hi depth and rate
+flags are smoothed across compressions and are not used. `CprAccelWaveRec` carries the
+raw CPR acceleration waveform and is not read.
+
+Real-arrest per-compression extraction is otherwise unverified. CPR field discovery and waveform
 detection are heuristic fallbacks and require independent real-file validation.
 
 ## Events and operator actions

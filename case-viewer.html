@@ -9373,11 +9373,54 @@ function parsePeriods(xml, tag){
     const el = /<\w*Period\b[^>]*>[\s\S]*?<Start>(\d+(?:\.\d+)?)<\/Start>[\s\S]*?<End>(\d+(?:\.\d+)?)<\/End>/gi;
     while((m=el.exec(scope))) out.push({t0:+m[1]*1000, t1:+m[2]*1000});
   }
+  /* X Series CaseReview: <Segment><StartSecond>109.058</StartSecond><Duration>3.4</Duration>
+     ...</Segment>, seconds from the case start, a duration instead of an end */
+  if(!out.length){
+    const seg = /<Segment\b[^>]*>[\s\S]*?<StartSecond>\s*(\d+(?:\.\d+)?)\s*<\/StartSecond>[\s\S]*?<Duration>\s*(\d+(?:\.\d+)?)\s*<\/Duration>[\s\S]*?<\/Segment>/gi;
+    while((m=seg.exec(scope))) out.push({t0:+m[1]*1000, t1:(+m[1]+ +m[2])*1000});
+  }
   return out.filter(p=>p.t1>p.t0).sort((a,b)=>a.t0-b.t0);
+}
+
+/* X Series CprCompression: one record per detected compression.
+   CompDisp    displacement, read as thousandths of an inch (median of a real adult arrest
+               export 1.93 in / 49 mm); RelVelocity as hundredths of an inch per second
+               (median about 310 mm/s). Both scales are inferred from plausibility, not
+               from vendor documentation.
+   CompRate    compressions per minute, recorded by the device; it matched 60000 / the
+               interval to the next compression within 1 % on a real export. 0 = none.
+   TimeStamp   a millisecond counter that keeps pace with the wall clock. DevDateTime is
+               truncated to the second, so the counter is anchored to the wall clock by
+               the median offset plus half a second, and times come from the counter.
+   The Lo/Hi depth and rate flags are smoothed by the device over several compressions
+   (they do not follow each compression's own value), so they are not used. */
+function cprCompressionRecords(recs){
+  const rows=[];
+  for(const r of recs){
+    const v=r.CprCompression;
+    if(!v || typeof v!=='object' || typeof v.CompDisp!=='number' || !(v.CompDisp>0)) continue;
+    rows.push(v);
+  }
+  if(!rows.length) return [];
+  const haveTs = rows.every(v=>typeof v.TimeStamp==='number' && isFinite(v.TimeStamp));
+  let off=0;
+  if(haveTs){
+    const d=rows.map(v=>elapsedOfHdr(v.StdHdr)-v.TimeStamp).filter(isFinite).sort((a,b)=>a-b);
+    off = d.length ? d[d.length>>1]+500 : 0;
+  }
+  return rows.map(v=>({
+    raw:true,
+    t: haveTs ? v.TimeStamp+off : elapsedOfHdr(v.StdHdr),
+    depth: v.CompDisp/1000,
+    relVel: typeof v.RelVelocity==='number' && v.RelVelocity>0 ? v.RelVelocity/100*25.4 : null,
+    rate: typeof v.CompRate==='number' && v.CompRate>0 ? v.CompRate : null
+  })).sort((a,b)=>a.t-b.t);
 }
 
 /* per-compression records, if this export has them */
 function compressionsFromRecords(recs){
+  const xs = cprCompressionRecords(recs);
+  if(xs.length) return {list:xs, src:'CprCompression'};
   const out=[]; let src=null;
   const num = (o,names)=>{ for(const n of names){
       for(const k in o){ if(k.toLowerCase()===n && typeof o[k]==='number') return o[k];
@@ -9488,15 +9531,17 @@ function buildCpr(recs, xml){
   if(rec.list.length){
     C.source = 'records: '+rec.src;
     for(const c of rec.list){
-      const base = c.tRec ? elapsedOfHdr(c.tRec) : 0;
-      const t=base+(c.offMs||0);
-      if(t>=start) C.comps.push({t, depth:c.depth, relVel:c.relVel, rate:null});
+      const t = c.t!=null ? c.t : (c.tRec ? elapsedOfHdr(c.tRec) : 0)+(c.offMs||0);
+      if(t>=start) C.comps.push({t, depth:c.depth, relVel:c.relVel, rate:c.rate!=null?c.rate:null, devRate:c.rate!=null});
     }
     C.comps.sort((a,b)=>a.t-b.t);
+    /* the device's own rate when it recorded one, otherwise from the interval */
     for(let i=0;i<C.comps.length-1;i++){
+      if(C.comps[i].devRate) continue;
       const gap=C.comps[i+1].t-C.comps[i].t;
       C.comps[i].rate = gap>0 && gap<3000 ? 60000/gap : null;
     }
+    for(const c of C.comps) delete c.devRate;
   } else {
     C.searched.push('a compression-depth waveform');
     const ch = Object.values(M.channels).find(c=>
@@ -9507,6 +9552,14 @@ function buildCpr(recs, xml){
     }
   }
   C.present = !!(C.comps.length || C.periods.length || C.shocks.length);
+  if(!C.present){
+    /* CPR-bearing record types that were in the file, so an unreadable layout is not
+       reported as "no resuscitation" */
+    const n={};
+    for(const r of recs){ const k=Object.keys(r)[0];
+      if(/^(CprCompression|CprAccelWaveRec|CprEvt\w*)$/.test(k)) n[k]=(n[k]||0)+1; }
+    C.cprRecs = Object.keys(n).map(k=>n[k]+' '+k).join(', ');
+  }
   M.cpr = C;
   return C;
 }
@@ -10562,13 +10615,14 @@ function renderCprPane(){
   if(!C || !C.present){
     b.innerHTML='<h2 class="sec">CPR</h2>'+
       '<div class="emptynote" style="text-align:left;padding:18px 20px;line-height:1.7">'+
-      '<b>No resuscitation recorded in this case.</b><br><br>'+
-      'The containers exist in the file and are empty: the CaseReview XML carries '+
-      '<span class="mono">&lt;UserCprPeriods/&gt;</span>, '+
-      '<span class="mono">&lt;CprPausePeriods/&gt;</span> and '+
-      '<span class="mono">&lt;RoscPeriods/&gt;</span> with no entries, '+
-      '<span class="mono">Aed.CprEvts</span> is <span class="mono">{}</span> on every record, and '+
-      '<span class="mono">CaseSummary.ShockCnt</span> is '+(M.summary.shocks!=null?M.summary.shocks:'—')+'.<br><br>'+
+      (C && C.cprRecs
+        ? '<b>This file has CPR records the viewer could not read.</b><br><br>'+
+          esc(C.cprRecs)+' were found, but none gave a compression this page could use, and the '+
+          'CaseReview XML gave no CPR periods it could read. Please report the export format.<br><br>'
+        : '<b>No resuscitation recorded in this case.</b><br><br>'+
+          'No CPR periods were found in the CaseReview XML, no per-compression records or '+
+          'compression-depth waveform in the records, and no delivered shock '+
+          '(<span class="mono">CaseSummary.ShockCnt</span> is '+(M.summary.shocks!=null?M.summary.shocks:'—')+').<br><br>')+
       'For a case that does contain CPR this page looks for '+esc(C?C.searched.join(', '):'')+
       ', then draws rate and depth against the AHA targets with the CPR, pause and ROSC '+
       'periods behind them.</div>';
