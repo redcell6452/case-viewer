@@ -505,6 +505,14 @@ canvas.chart{cursor:zoom-in}
 #chartDlg canvas{width:100%;height:min(62vh,620px);display:block;border:1px solid var(--line);
   border-radius:8px;background:var(--bg);cursor:crosshair}
 @media (max-width:900px){ #chartDlg canvas{height:48vh} }
+#cprZoomDlg{width:95vw;max-width:1500px}
+#cprZoomDlg .dh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#cprZoomDlg .db{gap:4px;position:relative;max-height:calc(88vh - 60px);overflow:auto}
+#cprZoomDlg .zst{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;font-weight:600;margin-top:4px}
+#cprZoomDlg .zst span{font-weight:400;color:var(--dim);font-size:11.5px}
+#cprZoomDlg canvas{width:100%;display:block;border:1px solid var(--line);border-radius:6px;cursor:grab;touch-action:pan-y}
+#cprZoomDlg canvas.drag{cursor:grabbing}
+#cprZoomDlg .zrange{font:12px var(--mono);color:var(--dim)}
 .legend .lg{cursor:pointer;display:inline-flex;align-items:center;gap:4px}
 .legend .lg:hover{color:var(--fg);text-decoration:line-through}
 .legend .lg em{font-style:normal;color:var(--dim2);font-size:11px}
@@ -1129,6 +1137,22 @@ dialog input[type=text]{width:100%}
   </div>
 </dialog>
 
+<dialog id="cprZoomDlg" aria-labelledby="cprZoomTitle">
+  <div class="dh">
+    <span id="cprZoomTitle">CPR performance</span>
+    <span class="zrange" id="cprZoomRange"></span>
+    <span style="flex:1"></span>
+    <label for="cprZoomWin" style="margin:0">Window</label>
+    <select id="cprZoomWin" aria-label="Zoom window">
+      <option value="30000">30 s</option><option value="60000">1 min</option>
+      <option value="120000">2 min</option><option value="300000">5 min</option><option value="600000">10 min</option>
+    </select>
+    <button id="cprZoomPrev" type="button" title="Earlier (←)" aria-label="Earlier">◀</button>
+    <button id="cprZoomNext" type="button" title="Later (→)" aria-label="Later">▶</button>
+    <button id="cprZoomClose" type="button">Close</button>
+  </div>
+  <div class="db" id="cprZoomBody"></div>
+</dialog>
 <dialog id="paramDlg">
   <form method="dialog">
     <div class="dh">Parameters to display</div>
@@ -10925,15 +10949,25 @@ function drawCprCascade(cv){
 }
 
 /* ---- the stacked performance strips (whole resuscitation) ---- */
-function drawCprStrip(cv, kind){
+function drawCprStrip(cv, kind, spanIn, zoomed){
   const {g,w,h}=fitCanvas(cv);
   const TC=TH();
   g.clearRect(0,0,w,h);
   g.fillStyle=TC.bg==='#000000'?'#0b0f14':TC.bg; g.fillRect(0,0,w,h);
-  const C=M.cpr, span=cprSpan();
-  const L=44,R=10,T=6,B=20;
+  const C=M.cpr, span=spanIn||cprSpan();
+  const L=44,R=10,B=20;
+  /* zoomed, the event summary carries the cycle row along its top */
+  const cyc = zoomed && kind==='summary' && cprCycles().length;
+  const T = cyc ? 24 : 6;
+  if(cyc) cprCycleRow(g, t=>L+(t-span.t0)/(span.t1-span.t0)*(w-L-R), 4, 17, span, L, w-R, cv._hotCycle||null);
   const X=t=>L+(t-span.t0)/(span.t1-span.t0)*(w-L-R);
   const plotH=h-T-B;
+  /* a compression's mark widens as the window narrows */
+  const pxPer = (w-L-R)/((span.t1-span.t0)/545);
+  const bw = clamp(pxPer*0.55, 1.2, 6);
+  const hoverLine=()=>{ if(cv._hoverT==null || cv._hoverT<span.t0 || cv._hoverT>span.t1) return;
+    const x=Math.round(X(cv._hoverT))+0.5; g.save(); g.strokeStyle=TC.dim; g.setLineDash([3,3]); g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,T); g.lineTo(x,h-B); g.stroke(); g.restore(); };
 
   if(kind==='summary'){
     cprBands(g,X,T,plotH,span,true);
@@ -10941,6 +10975,8 @@ function drawCprStrip(cv, kind){
     cprTreats(g,X,T,plotH,span);
     cprShocks(g,X,T,plotH,span);
     cprAxis(g,X,h-B+4,span,w,L,R);
+    if(zoomed) cprStripCursor(g,X,T,h-B,span,TC);
+    hoverLine();
     return;
   }
   cprBands(g,X,T,plotH,span,false);
@@ -10955,7 +10991,7 @@ function drawCprStrip(cv, kind){
       g.beginPath(); g.moveTo(L,y); g.lineTo(w-R,y); g.stroke(); g.fillText(cprDU(v).toFixed(CPR_TARGET.unit==='cm'?1:0),6,y+3); }
     for(const c of C.comps){
       if(c.depth==null||c.t<span.t0||c.t>span.t1) continue;
-      g.strokeStyle=traceCol(cprDepthOk(c.depth)?CPR_GOOD:CPR_BAD); g.lineWidth=1.2;
+      g.strokeStyle=traceCol(cprDepthOk(c.depth)?CPR_GOOD:CPR_BAD); g.lineWidth=zoomed?bw:1.2;
       const x=Math.round(X(c.t))+0.5;
       g.beginPath(); g.moveTo(x,T); g.lineTo(x,DY(c.depth)); g.stroke();
     }
@@ -10970,13 +11006,13 @@ function drawCprStrip(cv, kind){
     for(const c of C.comps){
       if(c.rate==null||c.t<span.t0||c.t>span.t1) continue;
       g.fillStyle=traceCol(cprRateOk(c.rate)?CPR_GOOD:CPR_BAD);
-      g.beginPath(); g.arc(X(c.t),RY(c.rate),2.2,0,7); g.fill();
+      g.beginPath(); g.arc(X(c.t),RY(c.rate),zoomed?clamp(bw*0.6,2.2,3.5):2.2,0,7); g.fill();
     }
   } else if(kind==='intarget'){
     for(const c of C.comps){
       if(c.t<span.t0||c.t>span.t1) continue;
       g.fillStyle=cprCompColor(c);
-      g.fillRect(Math.round(X(c.t)), T+plotH*0.12, 2, plotH*0.76);
+      g.fillRect(Math.round(X(c.t)), T+plotH*0.12, zoomed?Math.max(2,bw):2, plotH*0.76);
     }
   } else if(kind==='relvel'){
     const bands=[['FAST',CPR_TARGET.relVel,900],['MEDIUM',200,CPR_TARGET.relVel],['SLOW',0,200]];
@@ -10988,16 +11024,127 @@ function drawCprStrip(cv, kind){
     for(const c of C.comps){
       if(c.relVel==null||c.t<span.t0||c.t>span.t1) continue;
       g.fillStyle=traceCol(c.relVel>=CPR_TARGET.relVel?CPR_GOOD:CPR_BAD);
-      g.beginPath(); g.arc(X(c.t),VY(c.relVel),2.2,0,7); g.fill();
+      g.beginPath(); g.arc(X(c.t),VY(c.relVel),zoomed?clamp(bw*0.6,2.2,3.5):2.2,0,7); g.fill();
     }
   }
   cprTreats(g,X,T,plotH,span,true);
   cprShocks(g,X,T,plotH,span,true);
   cprAxis(g,X,h-B+4,span,w,L,R);
-  if(APP.cursor>=span.t0 && APP.cursor<=span.t1){
-    const x=Math.round(X(APP.cursor))+0.5;
-    g.strokeStyle=TC.cursor; g.globalAlpha=.8; g.lineWidth=1;
-    g.beginPath(); g.moveTo(x,T); g.lineTo(x,h-B); g.stroke(); g.globalAlpha=1;
+  cprStripCursor(g,X,T,h-B,span,TC);
+  hoverLine();
+}
+function cprStripCursor(g,X,top,bot,span,TC){
+  if(APP.cursor<span.t0 || APP.cursor>span.t1) return;
+  const x=Math.round(X(APP.cursor))+0.5;
+  g.strokeStyle=TC.cursor; g.globalAlpha=.8; g.lineWidth=1;
+  g.beginPath(); g.moveTo(x,top); g.lineTo(x,bot); g.stroke(); g.globalAlpha=1;
+}
+
+/* ---- the performance strips, zoomed: a window onto every strip at once.
+   Drag or scroll to move along; hover for what's under the pointer; a click
+   without a drag moves the playhead there. ---- */
+const CPR_ZOOM={c:0, w:60000};
+const CPR_ZOOM_STRIPS=[['summary','CPR event summary',96],['depth','Depth',120],['rate','Rate',120],['intarget','Compressions in target',64],['relvel','Release velocity',110]];
+function cprZoomSpan(){
+  const all=cprSpan(), w=Math.min(CPR_ZOOM.w, all.t1-all.t0);
+  const c=clamp(CPR_ZOOM.c, all.t0+w/2, all.t1-w/2);
+  CPR_ZOOM.c=c;
+  return {t0:c-w/2, t1:c+w/2};
+}
+function cprZoomTargets(kind){
+  const T=CPR_TARGET;
+  return kind==='depth' ? 'target '+cprDFmt(T.depthLo,1)+'–'+cprDFmt(T.depthHi,1)
+    : kind==='rate' ? 'target '+T.rateLo+'–'+T.rateHi+' /min'
+    : kind==='relvel' ? 'target '+T.relVel+'+ mm/s' : '';
+}
+/* figures for the part of the window a strip shows */
+function cprZoomStats(kind, span){
+  const cs=M.cpr.comps.filter(c=>c.t>=span.t0 && c.t<=span.t1);
+  if(!cs.length) return 'no compressions in view';
+  const vals=k=>cs.map(c=>c[k]).filter(v=>v!=null);
+  const mean=a=>a.reduce((x,v)=>x+v,0)/a.length;
+  if(kind==='depth'){ const v=vals('depth'); return v.length ? 'average '+cprDFmt(mean(v),1)+', '+Math.round(100*v.filter(d=>cprDepthOk(+d.toFixed(1))).length/v.length)+'% in target' : ''; }
+  if(kind==='rate'){ const v=vals('rate'); return v.length ? 'average '+Math.round(mean(v))+' /min, '+Math.round(100*v.filter(r=>cprRateOk(Math.round(r))).length/v.length)+'% in target' : ''; }
+  if(kind==='relvel'){ const v=vals('relVel'); return v.length ? 'average '+Math.round(mean(v))+' mm/s' : ''; }
+  if(kind==='intarget'){ const b=cs.filter(c=>c.rate!=null && c.depth!=null); return b.length ? Math.round(100*b.filter(c=>cprRateOk(Math.round(c.rate)) && cprDepthOk(+c.depth.toFixed(1))).length/b.length)+'% of '+cs.length+' in target' : cs.length+' compressions'; }
+  return cs.length+' compressions';
+}
+function drawCprZoom(){
+  const dlg=$('#cprZoomDlg'); if(!dlg || !dlg.open || !M.cpr) return;
+  const span=cprZoomSpan();
+  $('#cprZoomRange').textContent=fmtClock(M.t0Wall+span.t0)+' – '+fmtClock(M.t0Wall+span.t1)+'   (+'+fmtEl(span.t0)+')';
+  for(const cv of $$('#cprZoomBody canvas[data-zoom]')){
+    drawCprStrip(cv, cv.dataset.zoom, span, true);
+    const st=cv.previousElementSibling && cv.previousElementSibling.querySelector('.zstat');
+    if(st) st.textContent=cprZoomStats(cv.dataset.zoom, span);
+  }
+}
+function openCprZoom(t){
+  if(!M.cpr) return;
+  const dlg=$('#cprZoomDlg'), body=$('#cprZoomBody');
+  CPR_ZOOM.w=+(CFG.cprZoomWin||60000); CPR_ZOOM.c=t;
+  $('#cprZoomWin').value=String(CPR_ZOOM.w);
+  body.innerHTML=CPR_ZOOM_STRIPS.map(([k,title,hpx])=>
+    '<div class="zst">'+esc(title)+' <span>'+esc(cprZoomTargets(k))+'</span><span style="flex:1"></span><span class="zstat mono"></span></div>'+
+    '<canvas data-zoom="'+k+'" style="height:'+hpx+'px" aria-label="'+esc(title)+', zoomed"></canvas>').join('')+
+    '<div class="cprtip" id="cprZoomTip" hidden></div>'+
+    '<div class="note-inline" style="margin:4px 0 0">Drag or scroll to move along (← → also work). Hover for details; click to move the playhead there.</div>';
+  if(!dlg.open) dlg.showModal();
+  wireCprZoom();
+  drawCprZoom();
+}
+function wireCprZoom(){
+  const dlg=$('#cprZoomDlg'), tip=$('#cprZoomTip'), z=()=>(CFG.uiScale||100)/100;
+  const tAt=(cv,ev)=>{ const span=cprZoomSpan(), r=cv.getBoundingClientRect(), x=(ev.clientX-r.left)/z(), wpx=r.width/z();
+    return span.t0+(x-44)/(wpx-44-10)*(span.t1-span.t0); };
+  const pan=ms=>{ CPR_ZOOM.c+=ms; drawCprZoom(); };
+  const setHover=(t,cyc)=>{ for(const c of $$('#cprZoomBody canvas[data-zoom]')){ c._hoverT=t; c._hotCycle=cyc||null; } };
+  if(!dlg._wired){
+    dlg._wired=true;
+    $('#cprZoomClose').onclick=()=>dlg.close();
+    $('#cprZoomWin').onchange=e=>{ CPR_ZOOM.w=+e.target.value; CFG.cprZoomWin=CPR_ZOOM.w; cfgSave(); drawCprZoom(); };
+    $('#cprZoomPrev').onclick=()=>pan(-CPR_ZOOM.w*0.5);
+    $('#cprZoomNext').onclick=()=>pan(CPR_ZOOM.w*0.5);
+    dlg.addEventListener('keydown', ev=>{
+      if(ev.target.closest('select')) return;
+      if(ev.key==='ArrowLeft'||ev.key==='ArrowRight'){ ev.preventDefault(); pan((ev.key==='ArrowLeft'?-1:1)*CPR_ZOOM.w*(ev.shiftKey?0.5:0.1)); }
+    });
+    dlg.addEventListener('close', ()=>{ setHover(null); });
+  }
+  for(const cv of $$('#cprZoomBody canvas[data-zoom]')){
+    let drag=null;
+    const hover=ev=>{
+      const t=clamp(tAt(cv,ev),0,M.durMs), r=cv.getBoundingClientRect(), body=$('#cprZoomBody'), br=body.getBoundingClientRect();
+      const y=(ev.clientY-r.top)/z();
+      const cyc = cv.dataset.zoom==='summary' && y<=22 ? cprCycleAt(t) : null;
+      setHover(t, cyc);
+      tip.innerHTML = cyc ? cprCycleHtml(cyc)
+        : cprHoverHtml(t).replace(/<div class="ctu"[^>]*>The parameter panel shows this moment too\.<\/div>/,'');
+      tip.hidden=false;
+      const bx=(ev.clientX-br.left)/z()+body.scrollLeft, by=(ev.clientY-br.top)/z()+body.scrollTop;
+      const tw=tip.offsetWidth, th=tip.offsetHeight, bw=br.width/z();
+      tip.style.left=(bx+16+tw>bw ? bx-16-tw : bx+16)+'px';
+      tip.style.top=Math.max(body.scrollTop, by-th/2)+'px';
+      drawCprZoom();
+    };
+    cv.onpointerdown=ev=>{ if(ev.button>0) return; ev.preventDefault(); cv.setPointerCapture(ev.pointerId);
+      if(APP.playing) setPlaying(false);
+      drag={x0:ev.clientX, c0:CPR_ZOOM.c, moved:false}; cv.classList.add('drag'); };
+    cv.onpointermove=ev=>{
+      if(!drag){ if(ev.pointerType!=='touch') hover(ev); return; }
+      const r=cv.getBoundingClientRect(), dx=(ev.clientX-drag.x0)/z();
+      if(Math.abs(dx)>3) drag.moved=true;
+      if(drag.moved){ tip.hidden=true; const span=cprZoomSpan();
+        CPR_ZOOM.c=drag.c0 - dx/((r.width/z())-54)*(span.t1-span.t0); drawCprZoom(); }
+    };
+    cv.onpointerup=ev=>{ if(drag && !drag.moved) seek(clamp(tAt(cv,ev),0,M.durMs)); drag=null; cv.classList.remove('drag'); drawCprZoom(); };
+    cv.onpointercancel=()=>{ drag=null; cv.classList.remove('drag'); };
+    cv.onpointerleave=()=>{ if(drag) return; tip.hidden=true; setHover(null); drawCprZoom(); };
+    cv.addEventListener('wheel', ev=>{
+      ev.preventDefault();
+      const d=Math.abs(ev.deltaY)>=Math.abs(ev.deltaX)?ev.deltaY:ev.deltaX;
+      tip.hidden=true; pan(d/100*CPR_ZOOM.w*0.15);
+    }, {passive:false});
   }
 }
 
@@ -11009,6 +11156,7 @@ function redrawCpr(){
   drawCprDash();
   const c=$('#cprCascade'); if(c) drawCprCascade(c);
   $$('#cprBody canvas[data-cpr]').forEach(cv=> drawCprStrip(cv, cv.dataset.cpr));
+  drawCprZoom();
 }
 function renderCprPane(){
   /* the page is rebuilt below; take the shared panel out of it first */
@@ -11113,7 +11261,7 @@ function renderCprPane(){
       '<span style="font-size:12.5px;font-weight:600">'+esc(title)+
         (target?' <span style="font-weight:400;color:var(--dim)">'+esc(target)+'</span>':'')+'</span>'+
       '<span style="font-size:11.5px;color:var(--dim)" class="mono">'+esc(right)+'</span></div>'+
-      '<canvas class="chart" data-cpr="'+kind+'" title="Click to move the playhead here" style="height:'+hpx+'px;margin:0"></canvas></div>';
+      '<canvas class="chart" data-cpr="'+kind+'" title="Click to zoom in here" style="height:'+hpx+'px;margin:0"></canvas></div>';
   }
   redrawCpr();
 
@@ -11181,13 +11329,13 @@ function renderCprPane(){
     const i=Math.floor((y-k.T)/(k.RH+k.GAP)); const row=k.rows[i]; if(!row) return;
     seek(clamp(row.t0+(x-k.L)/k.plotW*60000, row.t0, row.t1)); };
 
-  /* the overview strips: click to move the playhead there */
-  const seekFrom = cv => ev=>{
+  /* the overview strips: click to open them zoomed in around that moment */
+  const zoomFrom = cv => ev=>{
     const span=cprSpan(), r=cv.getBoundingClientRect(), z=(CFG.uiScale||100)/100;
     const x=(ev.clientX-r.left)/z, L=44, R=10, wpx=r.width/z;
-    seek(clamp(span.t0+(x-L)/(wpx-L-R)*(span.t1-span.t0), span.t0, span.t1));
+    openCprZoom(clamp(span.t0+(x-L)/(wpx-L-R)*(span.t1-span.t0), span.t0, span.t1));
   };
-  $$('#cprBody canvas[data-cpr]').forEach(cv=> cv.onclick=seekFrom(cv));
+  $$('#cprBody canvas[data-cpr]').forEach(cv=>{ cv.onclick=zoomFrom(cv); cv.style.cursor='zoom-in'; });
 }
 
 /* ---------------- charts & timeline ---------------- */
@@ -12983,6 +13131,7 @@ const DEVICE_ONLY_KEYS = ['zollviewer:recent', 'zollviewer:dirName', 'zollviewer
    went live on the published page. */
 const CHANGELOG = [
   {date:'2026-11-16', items:[
+    'CPR performance strips: click one to open all five zoomed in around that moment (30 s to 10 min window). Drag, scroll or use ← → to move along; hover for the details at that moment (or a cycle’s, along the top of the event summary); click to move the playhead there. Each strip’s heading gives its figures for what is in view.',
     'CPR page reads X Series exports: CPR and pause periods, and each compression’s depth, rate and release. A file whose CPR records can’t be read says so instead of “no resuscitation”.',
     'CPR dashboard: a second diamond built from the device’s own feedback flags (too shallow, too deep, too slow, too fast), beside the model’s. The flags also show in a field under the diamonds and as a strip between the rate and depth graphs.',
     'Treatment buttons pressed on the monitor (Epinephrine, IV access, ...) appear on the CPR page and the timeline.',

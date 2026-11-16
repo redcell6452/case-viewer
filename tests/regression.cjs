@@ -921,6 +921,26 @@ test('debrief: cycle lengths, 15:2 for a child, and continuous compressions with
   a.run('CFG.cprT=null; syncCprTargets()');
 });
 
+test('zoomed performance strips: the window stays inside the CPR, and the figures are for what is in view', () => {
+  const a = app();
+  const r = JSON.parse(a.run(`(()=>{ M.durMs=3000000; M.t0Wall=0; M.events=[]; CFG.cprT=null; syncCprTargets();
+    const comps=[]; for(let t=60000;t<=360000;t+=545) comps.push({t, rate:t<200000?110:130, depth:2.1, relVel:450});
+    M.cpr={comps, periods:[{t0:60000,t1:360000}], pauses:[], rosc:[], shocks:[], vents:[], autopulse:[], resq:[], autopulse:[]};
+    const all=cprSpan();
+    CPR_ZOOM.w=60000; CPR_ZOOM.c=0; const early=cprZoomSpan();
+    CPR_ZOOM.c=1e9; const late=cprZoomSpan();
+    CPR_ZOOM.c=100000; const mid=cprZoomSpan();
+    return JSON.stringify({all, early, late, mid, rateEarly:cprZoomStats('rate', mid), rateLate:cprZoomStats('rate', late),
+      depth:cprZoomStats('depth', mid), none:cprZoomStats('rate', {t0:0,t1:1000})}); })()`));
+  assert.equal(r.early.t0, r.all.t0);
+  assert.equal(r.early.t1 - r.early.t0, 60000);
+  assert.equal(r.late.t1, r.all.t1);
+  assert.match(r.rateEarly, /average 110 \/min, 100% in target/);
+  assert.match(r.rateLate, /average 130 \/min, 0% in target/);
+  assert.match(r.depth, /100% in target/);
+  assert.equal(r.none, 'no compressions in view');
+});
+
 test('device-flag diamond: fills from unflagged compressions, ignores a fast rate, decays in a pause, absent without flags', () => {
   const a = app();
   const r = JSON.parse(a.run(`(()=>{
